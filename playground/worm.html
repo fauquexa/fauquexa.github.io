@@ -1,0 +1,997 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hector the worm</title>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/toy.css?v=20261122k">
+<!--
+  Connectome data: assets/worm/connectome.json, converted from
+  https://raw.githubusercontent.com/openworm/c302/49acae1570131b2592220d5d67750dee8d7ff596/c302/data/herm_full_edgelist.csv
+  (OpenWorm c302, MIT License, Copyright (c) 2024 OpenWorm), which holds the adult hermaphrodite
+  wiring of Cook et al. 2019, Nature 571:63-71 (a reanalysis of the White et al. 1986 electron micrographs).
+  Neuron classes and transmitters: c302/data/owmeta_cache.json from the same repository.
+  Pharyngeal muscles, intestine and other end organs were dropped; neurons and body wall muscles kept.
+  Synapse signs (excitatory / inhibitory): Fenyves et al. 2020, PLoS Comput Biol 16(12):e1007974, S1 Data,
+  https://journals.plos.org/ploscompbiol/article/file?type=supplementary&id=10.1371/journal.pcbi.1007974.s003 (CC BY 4.0).
+-->
+<style>
+  #dish { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+  .toggle-panel { display: none; }
+  .panel { padding-top: 14px; }
+  .panel .close {
+    position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; padding: 0;
+    font-size: 14px; line-height: 1; border-radius: 50%;
+  }
+  .fab {
+    position: fixed; top: max(12px, env(safe-area-inset-top)); left: 12px; z-index: 12;
+    background: var(--panel); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    font-size: 12px; padding: 8px 12px; border-radius: 999px;
+  }
+  .fab[hidden] { display: none; }
+  .tools { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .tools button { padding: 7px 4px; }
+  .credit { color: var(--soft); font-size: 11.5px; line-height: 1.45; margin: 12px 0 0; }
+  #brain {
+    position: fixed; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); z-index: 9;
+    background: var(--panel); border: 1px solid var(--rule); border-radius: 10px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .35); padding: 10px 10px 8px; width: 262px;
+  }
+  #brain .head { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--soft); cursor: pointer; user-select: none; }
+  #brain .head b { color: var(--ink); font-weight: 500; }
+  #brain canvas { display: block; width: 240px; margin-top: 6px; }
+  #brain .legend { display: flex; gap: 10px; font-size: 11px; color: var(--soft); margin-top: 4px; }
+  #brain .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: 0; }
+  #brain.mini canvas, #brain.mini .legend { display: none; }
+  @media (max-width: 760px) {
+    #brain { width: 178px; padding: 8px 8px 6px; }
+    #brain canvas { width: 160px; }
+    #brain .legend { display: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="dish"></canvas>
+
+<button class="fab" id="openPanel" hidden>☰ Menu</button>
+
+<div class="panel" id="panel">
+  <button class="close" id="closePanel" aria-label="Close panel" title="Close (H)">✕</button>
+  <a class="back" href="../index.html">← Home</a>
+  <h1>Hector the worm</h1>
+  <p class="sub">This is the actual mapped-out nervous system of the worm C. elegans: 302 neurons and about 5,700 connections between them and the muscles, wired into a virtual body. Hector is essentially living a little virtual life on this website.</p>
+
+  <label>tools</label>
+  <div class="tools" id="tools">
+    <button data-tool="food" class="on">food</button>
+    <button data-tool="heat">heat</button>
+    <button data-tool="cold">cold</button>
+    <button data-tool="touch">touch</button>
+  </div>
+  <p class="hint" id="toolHint" style="margin:8px 0 0"></p>
+  <div class="row" style="margin-top:10px">
+    <button id="reset">reset</button>
+  </div>
+
+  <hr>
+  <div class="kv">
+    <span>Doing</span><span id="stDoing">-</span>
+    <span>Firing</span><span id="stFiring">-</span>
+    <span>Senses</span><span id="stSense">-</span>
+  </div>
+  <p class="hint" style="margin-top:10px">Smells reach the chemosensory neurons (AWC, AWA, ASE), heat and cold reach AFD, ASH, FLP and PVD, touch reaches ALM, AVM and PLM, and bumping the dish wall presses the nose neurons. The motor neurons drive the body wall muscles. Whether he crawls forward, backs up or turns comes out of the network; homing in on food also gets a small built-in nudge.</p>
+  <p class="credit">Connectome data: Cook et al. 2019 (from the White et al. 1986 electron micrographs), via the <a href="https://github.com/openworm/c302" target="_blank" rel="noopener noreferrer">OpenWorm c302</a> project, MIT licence. Synapse signs: Fenyves et al. 2020, CC BY 4.0.</p>
+</div>
+
+<div id="brain">
+  <div class="head" id="brainHead"><b>Brain</b><span id="brainInfo"></span></div>
+  <canvas id="brainCv"></canvas>
+  <div class="legend"><span><i style="background:#7fd1c7"></i>Sensory</span><span><i style="background:#8fb4ec"></i>Inter</span><span><i style="background:#f0a37a"></i>Motor</span></div>
+</div>
+
+<script>
+"use strict";
+// ===================================================================
+//  constants (world units: dish radius = 1)
+// ===================================================================
+const DT = 1 / 60;          // body step
+const NET_EVERY = 2;        // network steps at 30 Hz
+const DISH = 1;
+const L = 0.3;              // body length
+const SEG = 24;             // body segments, one per row of body wall muscles
+const SEGLEN = L / SEG;
+const HALFW = L * 0.04;     // max half width (a little plumper than life)
+const V0 = 0.42 * L;        // crawling speed, body lengths per second
+const WAVE = 0.62 * L;      // undulation wavelength along the track
+const AMP = 0.52;           // head sweep, radians
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const gauss = () => (Math.random() + Math.random() + Math.random() + Math.random() - 2) * 1.2247;
+
+// ===================================================================
+//  neural network: leaky integrate-and-fire over the real wiring
+// ===================================================================
+// Each neuron integrates input on every network tick (30 Hz) and fires when it crosses threshold.
+// Chemical synapse strength = synapse count from the EM reconstruction, normalised by the target's
+// total input (to the power P.inExp) so that hub neurons with hundreds of inputs do not saturate.
+// Sign of each neuron-to-neuron synapse: the polarity predicted from transmitter and receptor
+// expression by Fenyves et al. 2020 (excitatory or inhibitory). Where they made no prediction,
+// or found mixed receptors, we fall back to the transmitter: GABA inhibits, the rest excites
+// (mixed ones at reduced strength). Neuromuscular junctions: GABA relaxes, acetylcholine contracts.
+// Gap junctions pull the membrane potentials of coupled cells together.
+// Spikes raise a neuron's threshold for a moment (adaptation), which keeps the network from
+// locking into all-on activity. Background noise makes it fire spontaneously, as real worms do.
+// Body wall muscles are leaky integrators of their motor neuron input (no spikes).
+const P = { gc: 0.85, inExp: 0.62, gg: 0.35, leak: 0.8, theta: 1, noise: 0.33, gm: 0.55, mleak: 0.72,
+            adapt: 0.6, adaptDecay: 0.85, reset: -0.3, mixed: 0.5,
+            eps: 0.05, kinesis: 3, taxis: 0.5, lawnIn: 0.2, revOn: 0.35, revOff: 0.05, touchAmp: 1.3, touchDur: 1.2 };
+const net = {};
+// One deliberate exception to the predicted signs: in the touch circuit, laser ablation and
+// modelling work (Chalfie et al. 1985; Wicks, Roehrig & Rankin 1996) show that the anterior touch
+// cells ALM and AVM suppress the forward command cells AVB and PVC, while expression data predict
+// excitation. We use the functional sign for those few synapses, so a poke on the head reads as one.
+const TOUCH_SIGNS = {};
+for (const a of ["ALML", "ALMR", "AVM"]) for (const b of ["AVBL", "AVBR", "PVCL", "PVCR"]) TOUCH_SIGNS[a + ">" + b] = -1;
+// Between the forward (AVB, PVC) and backward (AVA, AVD, AVE) command cells the expression data
+// are ambiguous (mixed receptors or no prediction). Their activity is anti-correlated in living
+// worms (e.g. Kato et al. 2015), so for those ambiguous synapses we choose inhibition.
+const FWD_CMD = ["AVBL", "AVBR", "PVCL", "PVCR"], BWD_CMD = ["AVAL", "AVAR", "AVDL", "AVDR", "AVEL", "AVER"];
+const opposing = (a, b) => (FWD_CMD.includes(a) && BWD_CMD.includes(b)) || (BWD_CMD.includes(a) && FWD_CMD.includes(b));
+
+function buildNet(d) {
+  const nN = d.neurons.length, nM = d.muscles.length, n = nN + nM;
+  const name = d.neurons.map((x) => x[0]).concat(d.muscles);
+  const grp = new Uint8Array(n), inh = new Uint8Array(n);
+  d.neurons.forEach((x, i) => { grp[i] = { s: 0, i: 1, m: 2 }[x[1]]; inh[i] = x[2]; });
+  for (let i = nN; i < n; i++) grp[i] = 3;
+  const inW = new Float32Array(n);
+  for (const [, b, w] of d.chem) inW[b] += w;
+  const start = new Int32Array(n + 1);
+  for (const [a] of d.chem) start[a + 1]++;
+  for (let i = 0; i < n; i++) start[i + 1] += start[i];
+  const pos = start.slice(), tgt = new Int32Array(d.chem.length), wt = new Float32Array(d.chem.length);
+  for (const [a, b, w, pol] of d.chem) {
+    const e = pos[a]++;
+    const byNT = inh[a] ? -1 : 1;
+    let sign = pol === 1 ? 1 : pol === -1 ? -1 : pol === 2 ? byNT * P.mixed : byNT;
+    if ((pol === 2 || pol === 0) && opposing(name[a], name[b])) sign = -1;
+    const ov = TOUCH_SIGNS[name[a] + ">" + name[b]];
+    tgt[e] = b; wt[e] = (ov || sign) * w / Math.pow(inW[b], b >= nN ? 0.5 : P.inExp);
+  }
+  const gTot = new Float32Array(n);
+  for (const [a, b, w] of d.gap) { gTot[a] += w; gTot[b] += w; }
+  const gA = new Int32Array(d.gap.length), gB = new Int32Array(d.gap.length), gW = new Float32Array(d.gap.length);
+  d.gap.forEach(([a, b, w], k) => { gA[k] = a; gB[k] = b; gW[k] = w / Math.max(gTot[a], gTot[b]); });
+  const idx = {}; name.forEach((s, i) => idx[s] = i);
+  Object.assign(net, {
+    nN, nM, n, name, grp, inh, idx, start, tgt, wt, gA, gB, gW,
+    V: new Float32Array(n), I: new Float32Array(n), ext: new Float32Array(n), A: new Float32Array(n),
+    spk: new Uint8Array(n), tr: new Float32Array(n), glow: new Float32Array(n),
+    chemCount: d.chem.length, gapCount: d.gap.length, synapses: d.chem.reduce((s, e) => s + e[2], 0),
+  });
+}
+
+function netTick() {
+  const { nN, n, start, tgt, wt, gA, gB, gW, V, I, ext, spk, tr, glow, A } = net;
+  I.fill(0);
+  for (let j = 0; j < nN; j++) if (spk[j]) for (let e = start[j]; e < start[j + 1]; e++) I[tgt[e]] += wt[e];
+  for (let k = 0; k < gA.length; k++) {
+    const a = gA[k], b = gB[k];
+    if (b >= nN) continue;                                  // muscle-muscle coupling handled below
+    const d = (V[b] - V[a]) * gW[k] * P.gg;
+    I[a] += d; I[b] -= d;
+  }
+  let firing = 0;
+  for (let i = 0; i < nN; i++) {
+    let v = V[i] * P.leak + P.gc * I[i] + ext[i] + P.noise * gauss();
+    A[i] *= P.adaptDecay;
+    if (v > P.theta + A[i]) { spk[i] = 1; v = P.reset; A[i] += P.adapt; firing++; } else spk[i] = 0;
+    V[i] = Math.max(-1, v);
+    tr[i] += (spk[i] - tr[i]) * 0.15;
+    glow[i] = Math.max(glow[i] * 0.86, spk[i]);
+  }
+  for (let i = nN; i < n; i++) {                            // muscles
+    const m = clamp(V[i] * P.mleak + P.gm * I[i], 0, 1.5);
+    V[i] = m; tr[i] = m; glow[i] = m;
+  }
+  net.firing = firing;
+}
+
+const ids = (...names) => names.flatMap((s) => {
+  if (net.idx[s] !== undefined) return [net.idx[s]];
+  return net.name.map((x, i) => (x.startsWith(s) ? i : -1)).filter((i) => i >= 0 && i < net.nN);
+});
+const meanTr = (list) => { let s = 0; for (const i of list) s += net.tr[i]; return s / list.length; };
+
+// ===================================================================
+//  world: food, heat and cold spots, touch pulses
+// ===================================================================
+const world = { food: [], temp: [], ripples: [], pulses: [], t: 0 };
+
+function odourAt(x, y) {
+  let c = 0;
+  for (const f of world.food) {
+    const d2 = (x - f.x) ** 2 + (y - f.y) ** 2, r = f.r * Math.sqrt(f.amt);
+    // a broad plume that has diffused through the agar, plus the strong smell of the lawn itself
+    c += f.amt * Math.exp(-d2 / (2 * 0.42 * 0.42));
+    const d = Math.sqrt(d2), k = clamp((d - r * 0.75) / (r * 0.5), 0, 1);
+    c += f.amt * 1.2 * (1 - k * k * (3 - 2 * k));
+  }
+  return c;
+}
+function lawnAt(x, y) {
+  for (const f of world.food) if ((x - f.x) ** 2 + (y - f.y) ** 2 < f.r * f.r * f.amt) return f;
+  return null;
+}
+function tempAt(x, y) {
+  let t = 0;
+  for (const s of world.temp) { const d2 = (x - s.x) ** 2 + (y - s.y) ** 2; t += s.sign * s.life * Math.exp(-d2 / (2 * 0.14 * 0.14)); }
+  return t;   // 0 = plate temperature, +1 hot, -1 cold
+}
+
+// ===================================================================
+//  body: the worm crawls in its own track (head leads, body follows the path)
+// ===================================================================
+const worm = {};
+function resetWorm() {
+  const a = Math.random() * Math.PI * 2;
+  worm.path = [];
+  const hx = Math.cos(a) * 0.15, hy = Math.sin(a) * 0.15, h = a + Math.PI * 0.6;
+  for (let k = 0; k <= 60; k++) {
+    const s = -L * 1.1 + k * (L * 1.1 / 60);
+    const back = -s;
+    worm.path.push({ x: hx - Math.cos(h) * back, y: hy - Math.sin(h) * back, s });
+  }
+  worm.sHead = 0;
+  worm.heading = h; worm.tailHeading = h + Math.PI;
+  worm.phase = 0; worm.mode = "fwd"; worm.modeT = 0; worm.turnSign = 1; worm.turnDur = 0;
+  worm.v = 0; worm.speedF = 0.6;
+  worm.ventral = Math.random() < 0.5 ? 1 : -1;   // which side he happens to lie on
+  worm.F = 0; worm.B = 0; worm.dBase = 0; worm.dRel = 0; worm.asymHead = 0; worm.asymTail = 0; worm.dopa = 0;
+  worm.cFast = 0; worm.cSlow = 0; worm.dc = 0; worm.tFast = 0; worm.tSlow = 0;
+  worm.pts = new Array(SEG + 1).fill(0).map(() => ({ x: 0, y: 0 }));
+  worm.revCount = 0; worm.wallT = 0;
+  samplePts();
+}
+
+function pathAt(s) {
+  const p = worm.path;
+  if (s <= p[0].s) return p[0];
+  let lo = 0, hi = p.length - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (p[m].s < s) lo = m; else hi = m; }
+  const a = p[lo], b = p[hi], t = (s - a.s) / Math.max(1e-9, b.s - a.s);
+  return { x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t) };
+}
+function samplePts() {
+  for (let k = 0; k <= SEG; k++) { const q = pathAt(worm.sHead - k * SEGLEN); worm.pts[k].x = q.x; worm.pts[k].y = q.y; }
+}
+function keepIn(x, y, margin) {
+  const r = Math.hypot(x, y), lim = DISH - margin;
+  if (r > lim) return { x: x / r * lim, y: y / r * lim, hit: true };
+  return { x, y, hit: false };
+}
+
+// ===================================================================
+//  senses -> sensory neurons
+// ===================================================================
+let S = null;   // neuron id groups, filled after the network is built
+function makeGroups() {
+  S = {
+    on: ids("ASEL", "AWAL", "AWAR"),                       // odour increase
+    off: ids("ASER", "AWCL", "AWCR"),                      // odour decrease (AWC is an OFF cell)
+    lawn: ids("CEPDL", "CEPDR", "CEPVL", "CEPVR", "ADEL", "ADER", "PDEL", "PDER"),   // dopaminergic, sense bacteria mechanically
+    nose: ids("ASHL", "ASHR", "FLPL", "FLPR", "OLQDL", "OLQDR", "OLQVL", "OLQVR", "IL1L", "IL1R", "IL1DL", "IL1DR", "IL1VL", "IL1VR"),
+    ant: ids("ALML", "ALMR", "AVM"),
+    post: ids("PLML", "PLMR", "PVM"),
+    afd: ids("AFDL", "AFDR"),
+    heat: ids("ASHL", "ASHR", "FLPL", "FLPR"),
+    tailHeat: ids("PHCL", "PHCR"),
+    cold: ids("PVDL", "PVDR"),
+    fwd: ids("AVBL", "AVBR", "PVCL", "PVCR"),
+    bwd: ids("AVAL", "AVAR", "AVDL", "AVDR", "AVEL", "AVER"),
+    bMN: ids("VB", "DB"), aMN: ids("VA", "DA"),
+    dopa: ids("CEPDL", "CEPDR", "CEPVL", "CEPVR", "ADEL", "ADER", "PDEL", "PDER"),
+  };
+  const row = (side, k) => net.idx[side + String(k).padStart(2, "0")];
+  S.headD = [], S.headV = [], S.tailD = [], S.tailV = [];
+  for (let k = 1; k <= 6; k++) { S.headD.push(row("MDL", k), row("MDR", k)); S.headV.push(row("MVL", k), row("MVR", k)); }
+  for (let k = 18; k <= 24; k++) { S.tailD.push(row("MDL", k), row("MDR", k)); S.tailV.push(row("MVL", k), row("MVR", k)); }
+  S.headD = S.headD.filter((x) => x !== undefined); S.headV = S.headV.filter((x) => x !== undefined);
+  S.tailD = S.tailD.filter((x) => x !== undefined); S.tailV = S.tailV.filter((x) => x !== undefined);
+  S.rows = [];
+  for (let k = 1; k <= 24; k++) S.rows.push(["MDL", "MDR", "MVL", "MVR"].map((s) => row(s, k)));
+}
+const add = (list, v) => { for (const i of list) net.ext[i] += v; };
+
+function pulse(list, amp, dur) { world.pulses.push({ list, amp, dur, t: 0 }); }
+
+const sense = { odour: 0, lawn: false, temp: 0, wall: false };
+function senseAndDrive(dtNet) {
+  net.ext.fill(0);
+  const head = worm.pts[0], tail = worm.pts[SEG];
+  // chemosensation: the neurons respond to change over time, as the real ones do
+  const c = odourAt(head.x, head.y);
+  worm.cFast += (c - worm.cFast) * 0.25;
+  worm.cSlow += (c - worm.cSlow) * 0.04;
+  const dc = (worm.cFast - worm.cSlow) / (worm.cSlow + 0.05);
+  worm.dc = dc;
+  add(S.on, clamp(dc * 6, 0, 0.6));
+  add(S.off, clamp(-dc * 6, 0, 0.6));
+  const lawn = lawnAt(head.x, head.y);
+  if (lawn) add(S.lawn, P.lawnIn);
+  // temperature
+  const t = tempAt(head.x, head.y), tt = tempAt(tail.x, tail.y);
+  worm.tFast += (t - worm.tFast) * 0.25; worm.tSlow += (t - worm.tSlow) * 0.05;
+  add(S.afd, clamp(Math.abs(worm.tFast - worm.tSlow) * 5, 0, 0.5));
+  if (t > 0.25) add(S.heat, clamp((t - 0.25) * 1.2, 0, 0.7));
+  if (tt > 0.3) add(S.tailHeat, clamp((tt - 0.3) * 1.2, 0, 0.7));
+  if (t < -0.25) add(S.cold, clamp((-t - 0.25) * 1.2, 0, 0.7));
+  if (tt < -0.3) add(S.cold, clamp((-tt - 0.3) * 0.8, 0, 0.5));
+  // nose touch at the dish wall
+  const wall = Math.hypot(head.x, head.y) > DISH - HALFW * 2.2;
+  if (wall) add(S.nose, 0.55);
+  // transient touch pulses
+  for (const p of world.pulses) { p.t += dtNet; add(p.list, p.amp * Math.max(0, 1 - p.t / p.dur)); }
+  world.pulses = world.pulses.filter((p) => p.t < p.dur);
+  Object.assign(sense, { odour: c, lawn: !!lawn, temp: t, wall });
+}
+
+// ===================================================================
+//  motor read-out: command interneurons and muscles -> locomotion
+// ===================================================================
+// Direction comes from the balance of the forward command cells (AVB, PVC, and the B-type motor
+// neurons) against the backward ones (AVA, AVD, AVE, A-type motor neurons). Steering comes from
+// the dorsal/ventral imbalance of the head muscles (the worm lies on its side, so dorsal/ventral
+// bending is left/right on the plate). Speed follows motor neuron activity, damped by dopamine
+// from CEP/ADE/PDE, which is released outside synapses and so is modelled as a global gain.
+// What is NOT from the connectome: the undulation rhythm itself (a fixed travelling wave, the
+// worm's rhythm generators are not captured by wiring alone), the size of an omega turn once one
+// starts (its side comes from the network), the wall stopping the body, a cap on reversal length,
+// and the food-seeking fallback described in decide().
+function readout() {
+  const F = meanTr(S.fwd) + 0.5 * meanTr(S.bMN);
+  const B = meanTr(S.bwd) + 0.5 * meanTr(S.aMN);
+  worm.F += (F - worm.F) * 0.12; worm.B += (B - worm.B) * 0.12;
+  const sum = (l) => { let s = 0; for (const i of l) s += net.tr[i]; return s; };
+  const hd = sum(S.headD), hv = sum(S.headV), td = sum(S.tailD), tv = sum(S.tailV);
+  worm.asymHead += ((hd - hv) / (hd + hv + 0.6) - worm.asymHead) * 0.15;
+  worm.asymTail += ((td - tv) / (td + tv + 0.6) - worm.asymTail) * 0.15;
+  worm.dopa += (meanTr(S.dopa) - worm.dopa) * 0.05;
+  const act = worm.mode === "rev" ? meanTr(S.aMN) : meanTr(S.bMN);
+  worm.speedF += ((0.55 + 0.45 * Math.tanh(act * 6)) * (1 - clamp(worm.dopa * 4, 0, 0.7)) - worm.speedF) * 0.08;
+}
+
+function setMode(m) {
+  worm.mode = m; worm.modeT = 0;
+}
+
+function decide() {
+  // compare the forward/backward balance with its own recent average, so what matters is a
+  // swing towards the backward command cells, not their absolute level
+  const raw = Math.log((worm.F + P.eps) / (worm.B + P.eps));
+  worm.dBase += (raw - worm.dBase) * 0.003;
+  const d = raw - worm.dBase;
+  worm.dRel = d;
+  if (worm.mode === "fwd" || worm.mode === "turn") {
+    // FALLBACK (not from the connectome): in this simple model the smell neurons reach the command
+    // cells too weakly and with too ambiguous signs to steer him to food on their own. So we add the
+    // two strategies real worms are known to use (Pierce-Shimomura et al. 1999; Iino & Yoshida 2009):
+    // reversals come a little easier while the smell is fading and a little harder while it grows,
+    // and in bodyStep a gentle bias turns the head up the odour gradient. Everything else is the network.
+    const kin = clamp(worm.dc * P.kinesis, -0.6, 0.6);
+    if (worm.modeT > 0.6 && d < -P.revOn * (1 + kin)) {
+      setMode("rev"); worm.revCount++;
+      const tailPt = worm.pts[SEG], mid = worm.pts[SEG - 6];
+      worm.tailHeading = Math.atan2(tailPt.y - mid.y, tailPt.x - mid.x);
+    } else if (worm.mode === "turn" && worm.modeT > worm.turnDur) setMode("fwd");
+  } else if (worm.mode === "rev") {
+    if ((worm.modeT > 0.7 && d > -P.revOff) || worm.modeT > 7) {
+      const long = worm.modeT > 1.4;
+      const h = worm.pts[0], m = worm.pts[6];
+      worm.heading = Math.atan2(h.y - m.y, h.x - m.x);
+      // side of the turn: the network's head muscle imbalance; ventral if it has no opinion
+      const side = Math.abs(worm.asymHead) > 0.04 ? Math.sign(worm.asymHead) * -worm.ventral : worm.ventral;
+      worm.turnSign = side;
+      worm.turnDur = long ? 1.3 + Math.random() * 0.8 : 0.4 + Math.random() * 0.4;
+      setMode("turn");
+    }
+  }
+}
+
+function bodyStep(dt) {
+  worm.modeT += dt;
+  const dorsal = -worm.ventral;
+  if (worm.mode !== "rev") {
+    const v = V0 * worm.speedF * (worm.mode === "turn" ? 0.8 : 1);
+    worm.v = v;
+    let steer = worm.asymHead * dorsal * 2.4;
+    // FALLBACK weathervane bias towards food, see decide()
+    if (world.food.length && worm.mode === "fwd") {
+      const hp = worm.pts[0], e = 0.02, c0 = odourAt(hp.x, hp.y);
+      const gx = (odourAt(hp.x + e, hp.y) - c0) / e, gy = (odourAt(hp.x, hp.y + e) - c0) / e;
+      const lat = (-Math.sin(worm.heading) * gx + Math.cos(worm.heading) * gy) / (c0 + 0.1);
+      steer += clamp(lat * P.taxis, -0.8, 0.8);
+    }
+    if (worm.mode === "turn") steer += worm.turnSign * (worm.turnDur > 1 ? 2.4 : 1.4);
+    worm.heading += steer * dt;
+    const ds = v * dt;
+    worm.phase += (Math.PI * 2 * ds) / WAVE;
+    const amp = AMP * (worm.mode === "turn" ? 0.5 : 1);
+    const dir = worm.heading + amp * Math.sin(worm.phase);
+    const h = worm.path[worm.path.length - 1];
+    const np = keepIn(h.x + Math.cos(dir) * ds, h.y + Math.sin(dir) * ds, HALFW * 1.6);
+    if (np.hit) {   // sliding along the wall: the heading follows the wall tangent
+      const tang = Math.atan2(np.y, np.x) + Math.PI / 2;
+      const a1 = tang, a2 = tang + Math.PI;
+      const da = (a) => Math.abs(Math.atan2(Math.sin(a - worm.heading), Math.cos(a - worm.heading)));
+      const target = da(a1) < da(a2) ? a1 : a2;
+      worm.heading += Math.atan2(Math.sin(target - worm.heading), Math.cos(target - worm.heading)) * 0.05;
+    }
+    const step = Math.hypot(np.x - h.x, np.y - h.y);
+    worm.sHead = h.s + step;
+    worm.path.push({ x: np.x, y: np.y, s: worm.sHead });
+    const sMin = worm.sHead - L - SEGLEN * 2;
+    let cut = 0;
+    while (cut < worm.path.length - 2 && worm.path[cut + 1].s < sMin) cut++;
+    if (cut) worm.path.splice(0, cut);
+  } else {
+    const v = V0 * worm.speedF * 1.1;
+    worm.v = -v;
+    const ds = v * dt;
+    worm.phase -= (Math.PI * 2 * ds) / WAVE;
+    worm.tailHeading += worm.asymTail * worm.ventral * 1.5 * dt;
+    worm.sHead -= ds;
+    while (worm.path.length > 2 && worm.path[worm.path.length - 2].s > worm.sHead) worm.path.pop();
+    const last = worm.path[worm.path.length - 1];
+    if (last.s > worm.sHead) {
+      const q = pathAt(worm.sHead);
+      last.x = q.x; last.y = q.y; last.s = worm.sHead;
+    }
+    // extend the track behind the tail
+    const need = worm.sHead - L - SEGLEN;
+    let guard = 0;
+    while (worm.path[0].s > need && guard++ < 20) {
+      const t0 = worm.path[0];
+      const dir = worm.tailHeading - AMP * 0.8 * Math.sin(worm.phase);
+      const st = Math.min(ds + 1e-4, t0.s - need + 1e-5);
+      const np = keepIn(t0.x + Math.cos(dir) * st, t0.y + Math.sin(dir) * st, HALFW * 1.6);
+      if (np.hit) worm.tailHeading += 0.05 * worm.turnSign;
+      const real = Math.max(1e-5, Math.hypot(np.x - t0.x, np.y - t0.y));
+      worm.path.unshift({ x: np.x, y: np.y, s: t0.s - real });
+    }
+  }
+  samplePts();
+}
+
+// eating: food under the nose slowly runs out
+function eat(dt) {
+  const f = lawnAt(worm.pts[0].x, worm.pts[0].y);
+  if (f) f.amt = Math.max(0, f.amt - dt * 0.0035);
+  world.food = world.food.filter((f) => f.amt > 0.04);
+  for (const s of world.temp) s.life = Math.max(0, s.life - dt / 60);
+  world.temp = world.temp.filter((s) => s.life > 0.02);
+}
+
+let stepN = 0;
+function step(dt) {
+  world.t += dt;
+  if (stepN++ % NET_EVERY === 0) {
+    senseAndDrive(dt * NET_EVERY);
+    netTick();
+    readout();
+    decide();
+  }
+  bodyStep(dt);
+  eat(dt);
+  trackStep();
+  for (const r of world.ripples) r.t += dt;
+  world.ripples = world.ripples.filter((r) => r.t < 1.2);
+}
+function simulate(seconds) { const n = Math.round(seconds / DT); for (let i = 0; i < n; i++) step(DT); }
+
+// ===================================================================
+//  interaction
+// ===================================================================
+let tool = "food";
+function act(x, y) {
+  if (Math.hypot(x, y) > DISH - 0.02) return;
+  if (tool === "food") {
+    world.food.push({ x, y, amt: 1, r: 0.14, seed: Math.random() * 1000 });
+    if (world.food.length > 8) world.food.shift();
+  } else if (tool === "heat" || tool === "cold") {
+    world.temp.push({ x, y, sign: tool === "heat" ? 1 : -1, life: 1, seed: Math.random() * 1000 });
+    if (world.temp.length > 6) world.temp.shift();
+  } else if (tool === "touch") {
+    touchAt(x, y);
+  }
+}
+function touchAt(x, y) {
+  world.ripples.push({ x, y, t: 0 });
+  let best = 1e9, k = 0;
+  worm.pts.forEach((p, i) => { const d = Math.hypot(p.x - x, p.y - y); if (d < best) { best = d; k = i; } });
+  if (best < HALFW * 5) {
+    // touched the body: anterior half -> ALM/AVM, posterior -> PLM/PVM
+    if (k < SEG * 0.45) pulse(S.ant, P.touchAmp, P.touchDur);
+    else if (k > SEG * 0.55) pulse(S.post, P.touchAmp, P.touchDur);
+    else { pulse(S.ant, P.touchAmp * 0.7, P.touchDur); pulse(S.post, P.touchAmp * 0.7, P.touchDur); }
+    return k < SEG * 0.45 ? "anterior" : k > SEG * 0.55 ? "posterior" : "middle";
+  }
+  // tapped the plate: a weaker push to all the touch cells
+  const a = P.touchAmp * 0.8 * clamp(1 - best / 0.8, 0.3, 1);
+  pulse(S.ant, a, P.touchDur * 0.8); pulse(S.post, a * 0.8, P.touchDur * 0.8);
+  return "plate";
+}
+
+// ===================================================================
+//  rendering
+// ===================================================================
+const cv = document.getElementById("dish"), ctx = cv.getContext("2d");
+let W = 0, H = 0, DPR = 1, cx = 0, cy = 0, sc = 1;
+let bgCanvas = null;
+const trackCv = document.createElement("canvas"); trackCv.width = trackCv.height = 1024;
+const tctx = trackCv.getContext("2d");
+const toScreen = (x, y) => [cx + x * sc, cy + y * sc];
+const toWorld = (px, py) => [(px - cx) / sc, (py - cy) / sc];
+
+function mulberry(a) { return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = innerWidth; H = innerHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  const narrow = W < 760;
+  cx = W / 2; cy = narrow ? H * 0.45 : H / 2;
+  sc = Math.min(W * (narrow ? 0.46 : 0.42), H * (narrow ? 0.38 : 0.44));
+  if (W >= 1000) {   // keep the dish between the panel (left) and the brain view (right)
+    const left = 344, right = W - 290, avail = right - left;
+    cx = left + avail / 2; sc = Math.min(H * 0.44, avail * 0.47);
+  }
+  buildBackground();
+}
+
+function buildBackground() {
+  bgCanvas = document.createElement("canvas");
+  bgCanvas.width = cv.width; bgCanvas.height = cv.height;
+  const g = bgCanvas.getContext("2d");
+  g.scale(DPR, DPR);
+  // table
+  const tb = g.createRadialGradient(cx - sc * 0.3, cy - sc * 0.4, sc * 0.2, cx, cy, Math.max(W, H) * 0.8);
+  tb.addColorStop(0, "#3a4a50"); tb.addColorStop(0.55, "#26323a"); tb.addColorStop(1, "#141a1f");
+  g.fillStyle = tb; g.fillRect(0, 0, W, H);
+  // low-poly facets on the table
+  const rnd = mulberry(7);
+  const step = Math.max(60, sc * 0.32);
+  for (let y = -step; y < H + step; y += step) for (let x = -step; x < W + step; x += step) {
+    const p = [[x + rnd() * step * 0.5, y + rnd() * step * 0.5], [x + step + rnd() * step * 0.5, y + rnd() * step * 0.5],
+               [x + rnd() * step * 0.5, y + step + rnd() * step * 0.5], [x + step + rnd() * step * 0.5, y + step + rnd() * step * 0.5]];
+    for (const tri of [[0, 1, 2], [1, 3, 2]]) {
+      g.beginPath(); g.moveTo(...p[tri[0]]); g.lineTo(...p[tri[1]]); g.lineTo(...p[tri[2]]); g.closePath();
+      g.fillStyle = rnd() < 0.5 ? `rgba(255,255,255,${rnd() * 0.025})` : `rgba(0,0,0,${rnd() * 0.05})`;
+      g.fill();
+    }
+  }
+  const r = sc;
+  // dish shadow
+  g.save(); g.shadowColor = "rgba(5,10,14,.55)"; g.shadowBlur = sc * 0.12; g.shadowOffsetX = sc * 0.04; g.shadowOffsetY = sc * 0.07;
+  g.beginPath(); g.arc(cx, cy, r * 1.045, 0, Math.PI * 2); g.fillStyle = "#2b383f"; g.fill(); g.restore();
+  // glass rim
+  g.beginPath(); g.arc(cx, cy, r * 1.045, 0, Math.PI * 2);
+  const rim = g.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
+  rim.addColorStop(0, "rgba(225,238,240,.55)"); rim.addColorStop(0.5, "rgba(170,195,200,.25)"); rim.addColorStop(1, "rgba(120,145,150,.35)");
+  g.fillStyle = rim; g.fill();
+  // agar, faceted
+  g.save();
+  g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.clip();
+  const ag = g.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.05, cx, cy, r * 1.05);
+  ag.addColorStop(0, "#f2d9a4"); ag.addColorStop(0.6, "#e6c287"); ag.addColorStop(1, "#d3a86c");
+  g.fillStyle = ag; g.fillRect(cx - r, cy - r, r * 2, r * 2);
+  const fs = r / 7, rn = mulberry(11);
+  const verts = [];
+  const nx = Math.ceil((2 * r) / fs) + 2;
+  for (let j = 0; j < nx; j++) { verts.push([]); for (let i = 0; i < nx; i++) verts[j].push([cx - r - fs + i * fs + (rn() - 0.5) * fs * 0.7, cy - r - fs + j * fs + (rn() - 0.5) * fs * 0.7]); }
+  for (let j = 0; j < nx - 1; j++) for (let i = 0; i < nx - 1; i++) {
+    const a = verts[j][i], b = verts[j][i + 1], c = verts[j + 1][i], d = verts[j + 1][i + 1];
+    for (const tri of [[a, b, c], [b, d, c]]) {
+      // flat shading: each facet gets a slightly tilted normal lit from the top left
+      const nxv = (rn() - 0.5) * 0.5, nyv = (rn() - 0.5) * 0.5;
+      const lit = -0.6 * nxv - 0.7 * nyv;
+      g.beginPath(); g.moveTo(...tri[0]); g.lineTo(...tri[1]); g.lineTo(...tri[2]); g.closePath();
+      g.fillStyle = lit > 0 ? `rgba(255,248,230,${lit * 0.22})` : `rgba(120,70,20,${-lit * 0.14})`;
+      g.fill();
+    }
+  }
+  // meniscus where agar meets the glass
+  const men = g.createRadialGradient(cx, cy, r * 0.86, cx, cy, r);
+  men.addColorStop(0, "rgba(150,95,40,0)"); men.addColorStop(0.8, "rgba(150,95,40,.10)"); men.addColorStop(1, "rgba(110,65,25,.28)");
+  g.fillStyle = men; g.fillRect(cx - r, cy - r, r * 2, r * 2);
+  g.restore();
+  // rim highlights
+  g.lineWidth = Math.max(1.5, r * 0.012);
+  g.strokeStyle = "rgba(255,255,255,.55)";
+  g.beginPath(); g.arc(cx, cy, r * 1.03, Math.PI * 1.05, Math.PI * 1.55); g.stroke();
+  g.lineWidth = Math.max(1, r * 0.006); g.strokeStyle = "rgba(255,255,255,.25)";
+  g.beginPath(); g.arc(cx, cy, r * 1.03, Math.PI * 0.1, Math.PI * 0.35); g.stroke();
+  g.strokeStyle = "rgba(255,255,255,.18)"; g.lineWidth = 1;
+  g.beginPath(); g.arc(cx, cy, r * 1.045, 0, Math.PI * 2); g.stroke();
+}
+
+// faint grooves left in the agar
+let trackPrev = null, trackFade = 0;
+function trackStep() {
+  const h = worm.pts[0];
+  const p = [(h.x + 1) * 512, (h.y + 1) * 512];
+  if (trackPrev && Math.hypot(p[0] - trackPrev[0], p[1] - trackPrev[1]) > 2) {
+    tctx.strokeStyle = "rgba(120,72,28,.07)"; tctx.lineWidth = HALFW * 1.6 * 512; tctx.lineCap = "round";
+    tctx.beginPath(); tctx.moveTo(...trackPrev); tctx.lineTo(...p); tctx.stroke();
+    trackPrev = p;
+  } else if (!trackPrev) trackPrev = p;
+  trackFade += DT;
+  if (trackFade > 1.5) {
+    trackFade = 0;
+    tctx.globalCompositeOperation = "destination-out"; tctx.fillStyle = "rgba(0,0,0,.025)";
+    tctx.fillRect(0, 0, 1024, 1024); tctx.globalCompositeOperation = "source-over";
+  }
+}
+
+function poly(g, n, rad, rnd, x, y) {
+  const pts = [];
+  for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2 + rnd() * 0.3; const rr = rad * (0.85 + rnd() * 0.25); pts.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]); }
+  return pts;
+}
+
+function drawFood(g) {
+  for (const f of world.food) {
+    const [x, y] = toScreen(f.x, f.y), rad = f.r * Math.sqrt(f.amt) * sc;
+    // odour halo
+    const halo = g.createRadialGradient(x, y, rad * 0.5, x, y, rad * 3.2);
+    halo.addColorStop(0, "rgba(236,240,200,.22)"); halo.addColorStop(1, "rgba(236,240,200,0)");
+    g.fillStyle = halo; g.beginPath(); g.arc(x, y, rad * 3.2, 0, Math.PI * 2); g.fill();
+    const rnd = mulberry(f.seed | 0);
+    const pts = poly(g, 13, rad, rnd, x, y);
+    g.save(); g.shadowColor = "rgba(110,70,30,.25)"; g.shadowBlur = rad * 0.25; g.shadowOffsetY = rad * 0.06;
+    g.beginPath(); pts.forEach((p, i) => (i ? g.lineTo(...p) : g.moveTo(...p))); g.closePath();
+    g.fillStyle = "#eef0cf"; g.fill(); g.restore();
+    // flat-shaded wedges, thicker lighter rim like a real bacterial lawn
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      const mx = (a[0] + b[0]) / 2 - x, my = (a[1] + b[1]) / 2 - y;
+      const lit = (-mx * 0.6 - my * 0.8) / (rad + 1e-6);
+      g.beginPath(); g.moveTo(x, y); g.lineTo(...a); g.lineTo(...b); g.closePath();
+      g.fillStyle = lit > 0 ? `rgba(255,255,240,${lit * 0.35})` : `rgba(120,140,70,${-lit * 0.18})`;
+      g.fill();
+    }
+    g.strokeStyle = "rgba(250,250,232,.9)"; g.lineWidth = Math.max(1.5, rad * 0.09);
+    g.beginPath(); pts.forEach((p, i) => (i ? g.lineTo(...p) : g.moveTo(...p))); g.closePath(); g.stroke();
+    // a few colonies
+    for (let i = 0; i < 7; i++) {
+      const a = rnd() * Math.PI * 2, rr = rnd() * rad * 0.65;
+      g.fillStyle = "rgba(196,206,140,.55)";
+      g.beginPath(); g.arc(x + Math.cos(a) * rr, y + Math.sin(a) * rr, rad * (0.05 + rnd() * 0.06), 0, Math.PI * 2); g.fill();
+    }
+  }
+}
+
+function drawTemp(g) {
+  for (const s of world.temp) {
+    const [x, y] = toScreen(s.x, s.y), rad = 0.3 * sc;
+    const hot = s.sign > 0, a = s.life;
+    const glow = g.createRadialGradient(x, y, 0, x, y, rad);
+    glow.addColorStop(0, hot ? `rgba(255,112,70,${0.62 * a})` : `rgba(120,190,255,${0.7 * a})`);
+    glow.addColorStop(0.4, hot ? `rgba(255,140,90,${0.3 * a})` : `rgba(150,205,255,${0.34 * a})`);
+    glow.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = glow; g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
+    // little faceted token in the middle
+    const t = sc * 0.04 * (0.6 + 0.4 * a);
+    const cols = hot ? ["#ffb68a", "#f08a5d", "#d96d45"] : ["#e6f5ff", "#a9d6f5", "#7fb6e0"];
+    for (let i = 0; i < 6; i++) {
+      const a0 = (i / 6) * Math.PI * 2 - Math.PI / 2, a1 = ((i + 1) / 6) * Math.PI * 2 - Math.PI / 2;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a0) * t, y + Math.sin(a0) * t); g.lineTo(x + Math.cos(a1) * t, y + Math.sin(a1) * t); g.closePath();
+      g.globalAlpha = 0.4 + 0.6 * a; g.fillStyle = cols[i < 2 ? 0 : i < 4 ? 1 : 2]; g.fill();
+    }
+    g.globalAlpha = 1;
+  }
+}
+
+function drawRipples(g) {
+  for (const r of world.ripples) {
+    const [x, y] = toScreen(r.x, r.y), k = r.t / 1.2;
+    g.strokeStyle = `rgba(255,252,240,${0.55 * (1 - k)})`; g.lineWidth = 2;
+    g.beginPath(); g.arc(x, y, 6 + k * sc * 0.12, 0, Math.PI * 2); g.stroke();
+  }
+}
+
+// body outline from the segment points: a smooth, tapered tube
+function bodyGeometry() {
+  const P0 = worm.pts.map((p) => toScreen(p.x, p.y));
+  const pts = [];
+  const sub = 3;
+  for (let k = 0; k < P0.length - 1; k++) {
+    const p0 = P0[Math.max(0, k - 1)], p1 = P0[k], p2 = P0[k + 1], p3 = P0[Math.min(P0.length - 1, k + 2)];
+    for (let j = 0; j < sub; j++) {
+      const t = j / sub, t2 = t * t, t3 = t2 * t;
+      pts.push([0, 1].map((c) => 0.5 * ((2 * p1[c]) + (-p0[c] + p2[c]) * t + (2 * p0[c] - 5 * p1[c] + 4 * p2[c] - p3[c]) * t2 + (-p0[c] + 3 * p1[c] - 3 * p2[c] + p3[c]) * t3)));
+    }
+  }
+  pts.push(P0[P0.length - 1]);
+  const n = pts.length, left = [], right = [], nrm = [];
+  for (let i = 0; i < n; i++) {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)];
+    let tx = b[0] - a[0], ty = b[1] - a[1]; const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+    const u = i / (n - 1);
+    const w = HALFW * sc * (u < 0.08 ? Math.sqrt(u / 0.08) * 0.75 + 0.25 * (u / 0.08) : u > 0.7 ? Math.pow((1 - u) / 0.3, 0.8) : 1) + 0.6;
+    nrm.push([-ty, tx]);
+    left.push([pts[i][0] - ty * w, pts[i][1] + tx * w]);
+    right.push([pts[i][0] + ty * w, pts[i][1] - tx * w]);
+  }
+  return { pts, left, right, nrm, n };
+}
+
+function drawWorm(g) {
+  const { pts, left, right, nrm, n } = bodyGeometry();
+  const outline = () => {
+    g.beginPath(); g.moveTo(...left[0]);
+    for (let i = 1; i < n; i++) g.lineTo(...left[i]);
+    for (let i = n - 1; i >= 0; i--) g.lineTo(...right[i]);
+    g.closePath();
+  };
+  // soft shadow
+  g.save(); g.shadowColor = "rgba(90,50,15,.35)"; g.shadowBlur = HALFW * sc * 2.2; g.shadowOffsetX = HALFW * sc * 0.5; g.shadowOffsetY = HALFW * sc * 1.1;
+  outline(); g.fillStyle = "#ead3bd"; g.fill(); g.restore();
+  // flat-shaded halves per segment: a low-poly tube lit from the top left
+  const light = [-0.55, -0.83];
+  const rows = S.rows;
+  for (let i = 0; i < n - 1; i++) {
+    const seg = Math.min(SEG - 1, Math.floor((i / (n - 1)) * SEG));
+    const r = rows[seg];
+    const mD = r ? (net.tr[r[0]] || 0) + (net.tr[r[1]] || 0) : 0, mV = r ? (net.tr[r[2]] || 0) + (net.tr[r[3]] || 0) : 0;
+    for (const side of [0, 1]) {
+      const edge = side ? right : left, s = side ? 1 : -1;
+      const nx = -nrm[i][0] * s, ny = -nrm[i][1] * s;
+      const lit = nx * light[0] + ny * light[1];
+      const band = (seg % 2) ? 0.02 : 0;
+      // which side is dorsal depends on which side he lies on
+      const m = (s * worm.ventral > 0 ? mV : mD) * 0.5;
+      const base = [246 - band * 300, 220 - band * 300, 198 - band * 300];
+      const k = 0.13 * lit;
+      const col = [base[0] * (1 + k) + m * 10, base[1] * (1 + k) - m * 22, base[2] * (1 + k) - m * 18].map((v) => clamp(Math.round(v), 0, 255));
+      g.beginPath(); g.moveTo(...pts[i]); g.lineTo(...edge[i]); g.lineTo(...edge[i + 1]); g.lineTo(...pts[i + 1]); g.closePath();
+      g.fillStyle = `rgb(${col[0]},${col[1]},${col[2]})`; g.fill();
+      g.strokeStyle = g.fillStyle; g.lineWidth = 0.6; g.stroke();
+    }
+  }
+  // gut and pharynx, seen through the body
+  g.strokeStyle = "rgba(180,125,90,.26)"; g.lineWidth = HALFW * sc * 0.6; g.lineCap = "round"; g.lineJoin = "round";
+  g.beginPath();
+  const i0 = Math.floor(n * 0.2), i1 = Math.floor(n * 0.86);
+  g.moveTo(...pts[i0]); for (let i = i0 + 1; i <= i1; i++) g.lineTo(...pts[i]); g.stroke();
+  g.strokeStyle = "rgba(170,120,85,.28)"; g.lineWidth = HALFW * sc * 0.3;
+  g.beginPath(); g.moveTo(...pts[1]); for (let i = 2; i <= i0; i++) g.lineTo(...pts[i]); g.stroke();
+  const bulb = pts[Math.floor(n * 0.15)];
+  g.fillStyle = "rgba(175,120,85,.3)"; g.beginPath(); g.arc(bulb[0], bulb[1], HALFW * sc * 0.5, 0, Math.PI * 2); g.fill();
+  // highlight along the lit side
+  g.strokeStyle = "rgba(255,250,242,.55)"; g.lineWidth = Math.max(1, HALFW * sc * 0.28);
+  g.beginPath();
+  for (let i = 2; i < n - 4; i++) {
+    // slide the highlight smoothly towards the light across the tube
+    const w = Math.hypot(left[i][0] - pts[i][0], left[i][1] - pts[i][1]);
+    const k = -(nrm[i][0] * light[0] + nrm[i][1] * light[1]) * 0.55;
+    const q = [pts[i][0] - nrm[i][0] * k * w, pts[i][1] - nrm[i][1] * k * w];
+    i === 2 ? g.moveTo(...q) : g.lineTo(...q);
+  }
+  g.stroke();
+  // outline
+  outline(); g.strokeStyle = "rgba(130,85,55,.35)"; g.lineWidth = 1; g.stroke();
+}
+
+function render() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(bgCanvas, 0, 0);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, sc, 0, Math.PI * 2); ctx.clip();
+  ctx.globalAlpha = 1;
+  ctx.drawImage(trackCv, cx - sc, cy - sc, sc * 2, sc * 2);
+  drawTemp(ctx);
+  drawFood(ctx);
+  ctx.restore();
+  drawWorm(ctx);
+  drawRipples(ctx);
+}
+
+// ===================================================================
+//  brain view: ring of neurons grouped as sensory / inter / motor, muscle strip, a few named traces
+// ===================================================================
+const bcv = document.getElementById("brainCv"), bctx = bcv.getContext("2d");
+const COL = ["#7fd1c7", "#8fb4ec", "#f0a37a"];
+const NAMED = [["AWC", ["AWCL", "AWCR"]], ["ASH", ["ASHL", "ASHR"]], ["ALM", ["ALML", "ALMR"]], ["AFD", ["AFDL", "AFDR"]],
+               ["AIY", ["AIYL", "AIYR"]], ["AVA", ["AVAL", "AVAR"]], ["AVB", ["AVBL", "AVBR"]]];
+let BW = 240, BH = 300, ringR = 0, ringC = [0, 0], npos = [], chordCv = null, hist = [], narrowBrain = false;
+function layoutBrain() {
+  narrowBrain = innerWidth < 760;
+  BW = narrowBrain ? 160 : 240;
+  const ringH = BW, strip = narrowBrain ? 22 : 30, traces = narrowBrain ? 0 : NAMED.length * 15 + 6;
+  BH = ringH + strip + traces;
+  bcv.style.width = BW + "px"; bcv.style.height = BH + "px";
+  bcv.width = BW * DPR; bcv.height = BH * DPR;
+  ringR = BW * 0.43; ringC = [BW / 2, BW / 2];
+  const order = [];
+  for (const gi of [0, 1, 2]) order.push(net.name.slice(0, net.nN).map((s, i) => i).filter((i) => net.grp[i] === gi));
+  const total = net.nN, gap = 0.12;
+  let a = -Math.PI / 2 + gap / 2;
+  npos = new Array(net.nN);
+  for (const list of order) {
+    const span = (Math.PI * 2 - gap * 3) * (list.length / total);
+    list.forEach((i, k) => { const t = a + span * (k + 0.5) / list.length; npos[i] = [ringC[0] + Math.cos(t) * ringR, ringC[1] + Math.sin(t) * ringR, t]; });
+    a += span + gap;
+  }
+  // static chords: every neuron-to-neuron chemical connection, faint
+  chordCv = document.createElement("canvas"); chordCv.width = bcv.width; chordCv.height = bcv.height;
+  const g = chordCv.getContext("2d"); g.scale(DPR, DPR);
+  g.lineWidth = 0.5;
+  for (let j = 0; j < net.nN; j++) for (let e = net.start[j]; e < net.start[j + 1]; e++) {
+    const t = net.tgt[e]; if (t >= net.nN) continue;
+    g.strokeStyle = net.wt[e] < 0 ? `rgba(240,163,122,${narrowBrain ? 0.02 : 0.03})` : `rgba(143,180,236,${narrowBrain ? 0.016 : 0.025})`;
+    g.beginPath(); g.moveTo(npos[j][0], npos[j][1]); g.quadraticCurveTo(ringC[0], ringC[1], npos[t][0], npos[t][1]); g.stroke();
+  }
+}
+
+function drawBrain() {
+  const g = bctx;
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, bcv.width, bcv.height);
+  g.drawImage(chordCv, 0, 0);
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  // live chords from neurons firing right now
+  g.lineWidth = narrowBrain ? 0.5 : 0.7;
+  let drawn = 0;
+  for (let j = 0; j < net.nN && drawn < 40; j++) {
+    if (net.glow[j] < 0.75) continue;
+    drawn++;
+    for (let e = net.start[j]; e < net.start[j + 1]; e++) {
+      const t = net.tgt[e]; if (t >= net.nN) continue;
+      g.strokeStyle = net.wt[e] < 0 ? "rgba(240,163,122,.2)" : "rgba(170,200,245,.14)";
+      g.beginPath(); g.moveTo(npos[j][0], npos[j][1]); g.quadraticCurveTo(ringC[0], ringC[1], npos[t][0], npos[t][1]); g.stroke();
+    }
+  }
+  const dot = narrowBrain ? 1.5 : 2;
+  for (let i = 0; i < net.nN; i++) {
+    const [x, y] = npos[i], gl = net.glow[i];
+    g.fillStyle = COL[net.grp[i]];
+    g.globalAlpha = 0.25 + 0.75 * gl;
+    g.beginPath(); g.arc(x, y, dot + gl * 1.6, 0, Math.PI * 2); g.fill();
+  }
+  g.globalAlpha = 1;
+  // labels for the arcs
+  if (!narrowBrain) {
+    g.font = "10px Public Sans, sans-serif"; g.fillStyle = "rgba(200,205,210,.7)"; g.textAlign = "center";
+    g.fillText("sensory", ringC[0] + ringR * 0.55, ringC[1] - ringR * 0.18);
+    g.fillText("inter", ringC[0] - ringR * 0.1, ringC[1] + ringR * 0.52);
+    g.fillText("motor", ringC[0] - ringR * 0.55, ringC[1] - ringR * 0.25);
+  }
+  // muscle strip: 24 rows, dorsal on top, ventral below
+  const y0 = BW + 2, sw = (BW - 30) / 24, sh = narrowBrain ? 8 : 11;
+  g.font = "9px Public Sans, sans-serif"; g.fillStyle = "rgba(200,205,210,.6)"; g.textAlign = "left";
+  g.fillText("D", 4, y0 + sh * 0.8); g.fillText("V", 4, y0 + sh * 1.8 + 1);
+  for (let k = 0; k < 24; k++) {
+    const r = S.rows[k];
+    const d = ((net.tr[r[0]] || 0) + (net.tr[r[1]] || 0)) / 2, v = ((net.tr[r[2]] || 0) + (net.tr[r[3]] || 0)) / 2;
+    g.fillStyle = `rgba(240,163,122,${0.12 + clamp(d, 0, 1) * 0.88})`; g.fillRect(18 + k * sw, y0, sw - 1.5, sh - 1);
+    g.fillStyle = `rgba(240,163,122,${0.12 + clamp(v, 0, 1) * 0.88})`; g.fillRect(18 + k * sw, y0 + sh, sw - 1.5, sh - 1);
+  }
+  if (narrowBrain) return;
+  // named traces
+  const ty = y0 + sh * 2 + 10, len = hist.length;
+  NAMED.forEach(([lab], r) => {
+    const yy = ty + r * 15;
+    g.fillStyle = "rgba(200,205,210,.75)"; g.fillText(lab, 0, yy + 9);
+    g.strokeStyle = r < 4 ? COL[0] : COL[1]; g.lineWidth = 1.2;
+    g.beginPath();
+    for (let k = 0; k < len; k++) {
+      const x = 30 + (k / 179) * (BW - 32), v = hist[k][r];
+      const y = yy + 11 - v * 11;
+      k ? g.lineTo(x, y) : g.moveTo(x, y);
+    }
+    g.stroke();
+  });
+}
+let namedIds = [];
+function recordHist() {
+  hist.push(namedIds.map((l) => { let m = 0; for (const i of l) m = Math.max(m, net.glow[i]); return m; }));
+  if (hist.length > 180) hist.shift();
+}
+
+// ===================================================================
+//  ui
+// ===================================================================
+const HINTS = {
+  food: "Click the dish to drop a spot of bacteria. He smells it from afar and slows down to eat.",
+  heat: "Click to warm a spot. Too hot and his pain neurons fire.",
+  cold: "Click to chill a spot. Harsh cold makes PVD fire.",
+  touch: "Click his head or tail to poke him, or the plate to tap it.",
+};
+document.querySelectorAll("#tools button").forEach((b) => b.onclick = () => {
+  tool = b.dataset.tool;
+  document.querySelectorAll("#tools button").forEach((x) => x.classList.toggle("on", x === b));
+  document.getElementById("toolHint").textContent = HINTS[tool];
+  b.blur(); autoClose();
+});
+document.getElementById("toolHint").textContent = HINTS[tool];
+function resetAll() {
+  world.food = []; world.temp = []; world.ripples = []; world.pulses = [];
+  tctx.clearRect(0, 0, 1024, 1024); trackPrev = null;
+  net.V.fill(0); net.tr.fill(0); net.spk.fill(0); net.glow.fill(0); net.A.fill(0);
+  resetWorm();
+}
+document.getElementById("reset").onclick = (e) => { resetAll(); e.target.blur(); };
+
+cv.addEventListener("pointerdown", (e) => {
+  const [x, y] = toWorld(e.clientX, e.clientY);
+  act(x, y);
+});
+
+const panel = document.getElementById("panel"), openBtn = document.getElementById("openPanel");
+function setPanel(open) { panel.classList.toggle("hidden", !open); openBtn.hidden = open; }
+document.getElementById("closePanel").onclick = () => setPanel(false);
+openBtn.onclick = () => setPanel(true);
+const isTouch = matchMedia("(pointer: coarse)").matches;
+setPanel(!(innerWidth < 760 || isTouch));
+const autoClose = () => { if (isTouch || innerWidth < 760) setPanel(false); };
+addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT") return;
+  const k = e.key.toLowerCase();
+  if (k === "h") setPanel(panel.classList.contains("hidden"));
+  const map = { 1: "food", 2: "heat", 3: "cold", 4: "touch" };
+  if (map[k]) document.querySelector(`#tools button[data-tool="${map[k]}"]`).click();
+});
+document.getElementById("brainHead").onclick = () => document.getElementById("brain").classList.toggle("mini");
+
+const elDoing = document.getElementById("stDoing"), elFiring = document.getElementById("stFiring"), elSense = document.getElementById("stSense"), elInfo = document.getElementById("brainInfo");
+let uiT = 0, firingAvg = 0;
+function updateUi(dt) {
+  firingAvg += ((net.firing || 0) - firingAvg) * 0.05;
+  uiT += dt; if (uiT < 0.25) return; uiT = 0;
+  const doing = worm.mode === "rev" ? "backing up" : worm.mode === "turn" ? "turning" : sense.lawn ? "eating" : worm.speedF < 0.5 ? "crawling slowly" : "crawling forward";
+  elDoing.textContent = doing.charAt(0).toUpperCase() + doing.slice(1);
+  elFiring.textContent = `${Math.round(firingAvg * 30)} spikes a second`;
+  const s = [];
+  if (sense.wall) s.push("wall on his nose");
+  if (sense.lawn) s.push("bacteria");
+  else if (sense.odour > 0.05) s.push("smell of food");
+  if (sense.temp > 0.25) s.push("too hot"); else if (sense.temp < -0.25) s.push("too cold");
+  else if (Math.abs(sense.temp) > 0.05) s.push(sense.temp > 0 ? "warmth" : "coolness");
+  if (world.pulses.length) s.push("touch");
+  const txt = s.length ? s.join(", ") : "nothing much";
+  elSense.textContent = txt.charAt(0).toUpperCase() + txt.slice(1);
+  elInfo.textContent = `${net.nN} neurons`;
+}
+
+let last = 0, acc = 0, histT = 0;
+function frame(t) {
+  const dtReal = Math.min(0.25, (t - last) / 1000 || 0); last = t;   // keeps real-time pace down to ~4 fps
+  acc += dtReal;
+  while (acc >= DT) { step(DT); acc -= DT; histT += DT; if (histT >= 1 / 30) { histT = 0; recordHist(); } }
+  render();
+  drawBrain();
+  updateUi(dtReal);
+  requestAnimationFrame(frame);
+}
+
+fetch("../assets/worm/connectome.json").then((r) => r.json()).then((d) => {
+  buildNet(d);
+  makeGroups();
+  namedIds = NAMED.map(([, l]) => ids(...l));
+  resetWorm();
+  resize();
+  layoutBrain();
+  addEventListener("resize", () => { resize(); layoutBrain(); });
+  // let the network settle before the first frame
+  for (let i = 0; i < 60; i++) netTick();
+  requestAnimationFrame(frame);
+}).catch((err) => {
+  document.getElementById("stDoing").textContent = "Could not load the connectome";
+  console.error(err);
+});
+</script>
+<script>/* links to other websites open in a new tab */ document.querySelectorAll("a[href]").forEach((a) => { if (/^https?:$/.test(a.protocol) && a.origin !== location.origin) { a.target = "_blank"; a.rel = "noopener noreferrer"; } });</script>
+</body>
+</html>

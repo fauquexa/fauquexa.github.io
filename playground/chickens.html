@@ -1,0 +1,1054 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chickens</title>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/toy.css?v=20261122k">
+<style>
+  html, body { background: #e9eee0; }
+  #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+  #gl.grabbing { cursor: grabbing; }
+  .toggle-panel { display: none; }
+  .panel { padding-top: 14px; }
+  .panel h1 { padding-right: 34px; }
+  .panel .close {
+    position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; padding: 0;
+    font-size: 14px; line-height: 1; border-radius: 50%;
+  }
+  .panel .sub { margin-bottom: 10px; }
+  .panel .hint { margin: 0; }
+  .fab {
+    position: fixed; top: max(12px, env(safe-area-inset-top)); left: 12px; z-index: 12;
+    background: var(--panel); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    font-size: 12px; padding: 8px 12px; border-radius: 999px;
+  }
+  .fab[hidden] { display: none; }
+  #hintbar {
+    position: fixed; bottom: max(12px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
+    font-size: 11.5px; color: #f4f2ea; background: rgba(30, 34, 28, .45); padding: 5px 11px; border-radius: 999px;
+    transition: opacity 1s; pointer-events: none; white-space: nowrap; max-width: calc(100vw - 24px); overflow: hidden; text-overflow: ellipsis;
+  }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="hintbar">Drag to look around · click the grass to throw feed</div>
+<button class="fab" id="openPanel" hidden>☰ Menu</button>
+
+<div class="panel hidden" id="panel">
+  <button class="close" id="closePanel" aria-label="Close panel" title="Close (H)">✕</button>
+  <a class="back" href="../index.html">← Home</a>
+  <h1>Chickens</h1>
+  <p class="sub">Six hens and a rooster in the back garden. Click the grass to throw some feed.</p>
+  <p class="hint">Drag to look around, scroll or pinch to zoom. <kbd>H</kbd> hides this panel.</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ===================================================================
+//  basics
+// ===================================================================
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+const damp = (a, b, k, dt) => a + (b - a) * (1 - Math.exp(-k * dt));
+const angDiff = (a, b) => { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
+const hash2 = (x, y) => { const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); };
+function vnoise(x, y) {
+  const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+  return (hash2(ix, iy) * (1 - u) + hash2(ix + 1, iy) * u) * (1 - v) + (hash2(ix, iy + 1) * (1 - u) + hash2(ix + 1, iy + 1) * u) * v;
+}
+const fbm = (x, y) => vnoise(x, y) * 0.55 + vnoise(x * 2.1 + 5.2, y * 2.1 + 1.3) * 0.3 + vnoise(x * 4.3 + 9.1, y * 4.3 + 3.7) * 0.15;
+const isTouch = matchMedia("(pointer: coarse)").matches;
+const smallScreen = innerWidth < 760 || isTouch;
+
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById("gl"), antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene();
+const HORIZON = 0xeef0dc, SKY = 0x9fcbea;
+scene.background = new THREE.Color(HORIZON);
+scene.fog = new THREE.Fog(HORIZON, 22, 70);
+const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 500);
+
+// warm, gentle light
+const hemi = new THREE.HemisphereLight(0xdfeeff, 0x9c8a5a, 0.62);
+const amb = new THREE.AmbientLight(0xfff1dc, 0.1);
+const sun = new THREE.DirectionalLight(0xffe8c4, 0.78);
+sun.position.set(5.5, 10, 7.5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(smallScreen ? 1024 : 2048, smallScreen ? 1024 : 2048);
+Object.assign(sun.shadow.camera, { left: -6.5, right: 6.5, top: 6.5, bottom: -6.5, near: 0.5, far: 40 });
+sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.015;
+scene.add(hemi, amb, sun, sun.target);
+
+// sky dome
+{
+  const g = new THREE.SphereGeometry(220, 24, 12), p = g.attributes.position, col = new Float32Array(p.count * 3);
+  const top = new THREE.Color(SKY), hor = new THREE.Color(HORIZON), c = new THREE.Color();
+  for (let i = 0; i < p.count; i++) { const t = Math.pow(clamp(p.getY(i) / 220, 0, 1), 0.55); c.copy(hor).lerp(top, t); col.set([c.r, c.g, c.b], i * 3); }
+  g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  scene.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false })));
+}
+
+// ===================================================================
+//  low-poly helpers: every static thing is baked into a few big
+//  flat-shaded, vertex-coloured meshes
+// ===================================================================
+const _o = new THREE.Object3D(), _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _n = new THREE.Vector3(), _e = new THREE.Vector3();
+function mat4(x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) {
+  _o.position.set(x, y, z); _o.rotation.set(rx, ry, rz); _o.scale.set(sx, sy, sz); _o.updateMatrix(); return _o.matrix.clone();
+}
+class Bake {
+  constructor() { this.p = []; this.n = []; this.c = []; }
+  add(geo, color, m, j = 0.07) {
+    const g = geo.index ? geo.toNonIndexed() : geo, p = g.attributes.position, col = new THREE.Color(color);
+    for (let i = 0; i < p.count; i += 3) {
+      _a.fromBufferAttribute(p, i).applyMatrix4(m); _b.fromBufferAttribute(p, i + 1).applyMatrix4(m); _c.fromBufferAttribute(p, i + 2).applyMatrix4(m);
+      _n.subVectors(_b, _a).cross(_e.subVectors(_c, _a)).normalize();
+      const t = 1 + (Math.random() - 0.5) * j;
+      for (const v of [_a, _b, _c]) { this.p.push(v.x, v.y, v.z); this.n.push(_n.x, _n.y, _n.z); this.c.push(col.r * t, col.g * t, col.b * t); }
+    }
+    if (g !== geo) g.dispose();
+    geo.dispose();
+    return this;
+  }
+  box(color, w, h, d, x, y, z, rx = 0, ry = 0, rz = 0, parent, j) {
+    let m = mat4(x, y, z, rx, ry, rz); if (parent) m = parent.clone().multiply(m);
+    return this.add(new THREE.BoxGeometry(w, h, d), color, m, j);
+  }
+  build(cast = true, recv = true) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(this.p, 3));
+    g.setAttribute("normal", new THREE.Float32BufferAttribute(this.n, 3));
+    g.setAttribute("color", new THREE.Float32BufferAttribute(this.c, 3));
+    const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true }));
+    m.castShadow = cast; m.receiveShadow = recv; scene.add(m); return m;
+  }
+}
+// a box whose top slopes from hF (front, +z) to hB (back, -z); base at y = 0
+function slopedBox(w, d, hF, hB) {
+  const g = new THREE.BoxGeometry(w, 1, d).translate(0, 0.5, 0), p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) if (p.getY(i) > 0.5) p.setY(i, hB + (p.getZ(i) + d / 2) / d * (hF - hB));
+  return g;
+}
+function blob(r, detail = 0, wob = 0.18) {
+  const g = new THREE.IcosahedronGeometry(r, detail), p = g.attributes.position, v = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const k = 1 + (vnoise(v.x * 3 / r + 2.3, (v.y + v.z * 0.7) * 3 / r + 7.1) - 0.5) * wob * 2; p.setXYZ(i, v.x * k, v.y * k, v.z * k); }
+  return g;
+}
+
+// ===================================================================
+//  layout (metres). The run is a square: brick walls on the west and
+//  north sides; along the north wall the bricks stop, then a little
+//  storage shed, then the coop. East and south sides are chicken wire.
+// ===================================================================
+const RUN = { x0: -3.5, x1: 3.55, z0: -3.5, z1: 3.55 };
+const SHED = { x0: 0.2, x1: 1.72, z0: -3.76, z1: -2.38, hF: 2.05, hB: 1.85 };
+const COOP = { x0: 1.77, x1: 3.47, z0: -3.6, z1: -2.5, floor: 0.5, hF: 1.36, hB: 1.2 };
+const RAMP = { x: 2.2, zTop: -2.5, zBot: -1.6, hTop: 0.5 };
+const TREE = { x: -0.75, z: 2.7 };
+const WATER = { x: -2.8, z: -2.75 };
+const LOG = { x: -2.9, z: 0.8 };
+const RECTS = [[SHED.x0, SHED.x1 + 0.03, -3.8, SHED.z1], [RAMP.x - 0.17, RAMP.x + 0.17, RAMP.zTop, RAMP.zBot], [LOG.x - 0.1, LOG.x + 0.1, LOG.z - 0.45, LOG.z + 0.45]];
+const RECTS_TALL = RECTS.concat([[COOP.x0, COOP.x1, COOP.z0, COOP.z1]]);   // the rooster is too tall to walk under the coop
+const CIRCLES = [[TREE.x, TREE.z, 0.11], [WATER.x, WATER.z, 0.21], [1.82, -3.55, 0.045], [3.42, -3.55, 0.045], [1.82, -2.55, 0.045], [3.42, -2.55, 0.045]];
+const PATCHES = [[TREE.x, 2.5, 1.05, 0.8], [2.25, -1.3, 0.95, 0.62], [-2.75, -2.6, 0.8, 1.0], [0.7, 0.3, 0.5, 0.42], [1.0, -1.95, 0.75, 0.42], [3.15, 1.0, 0.34, 1.7], [2.6, -2.95, 0.95, 0.6], [-3.1, 0.8, 0.45, 0.9]];
+function dirt(x, z) {
+  let m = 0; const nz = (vnoise(x * 2.2 + 3, z * 2.2 + 7) - 0.5) * 0.6;
+  for (const [px, pz, rx, rz] of PATCHES) { const d = Math.hypot((x - px) / rx, (z - pz) / rz) + nz; m = Math.max(m, clamp((1 - d) / 0.3, 0, 1)); }
+  return m;
+}
+function pushOut(o, r, tall) {
+  o.x = clamp(o.x, RUN.x0 + r, RUN.x1 - r); o.z = clamp(o.z, RUN.z0 + r, RUN.z1 - r);
+  for (const q of tall ? RECTS_TALL : RECTS) {
+    const cx = clamp(o.x, q[0], q[1]), cz = clamp(o.z, q[2], q[3]), dx = o.x - cx, dz = o.z - cz, d = Math.hypot(dx, dz);
+    if (d >= r) continue;
+    if (d < 1e-6) {
+      const e = [o.x - q[0], q[1] - o.x, o.z - q[2], q[3] - o.z], m = Math.min(...e);
+      if (m === e[0]) o.x = q[0] - r; else if (m === e[1]) o.x = q[1] + r; else if (m === e[2]) o.z = q[2] - r; else o.z = q[3] + r;
+    } else { o.x = cx + dx / d * r; o.z = cz + dz / d * r; }
+  }
+  for (const [cx, cz, cr] of CIRCLES) {
+    const dx = o.x - cx, dz = o.z - cz, d = Math.hypot(dx, dz), m = cr + r;
+    if (d < m) { if (d < 1e-6) o.x += m; else { o.x = cx + dx / d * m; o.z = cz + dz / d * m; } }
+  }
+  o.x = clamp(o.x, RUN.x0 + r, RUN.x1 - r); o.z = clamp(o.z, RUN.z0 + r, RUN.z1 - r);
+  return o;
+}
+function isFree(x, z, r, tall) { const o = pushOut({ x, z }, r, tall); return Math.hypot(o.x - x, o.z - z) < 1e-4; }
+
+// ===================================================================
+//  ground: faceted grass mosaic, dirt patches where the hens scratch
+// ===================================================================
+const COL = {
+  grass: [0x8fbf5c, 0x86b754, 0x9cc866, 0x7fb04f], grassOut: [0x93c25e, 0x88b956, 0xa0ca69, 0x84b452],
+  dirt: [0xb78f66, 0xab845d, 0xc29b70], brick: [0xc9826a, 0xbf7760, 0xd08c70, 0xb86f5a], coping: 0xdcd1bc,
+  shed: 0x9a6a48, shedDark: 0x7e5538, coop: 0xe2b880, coopTrim: 0xa8744c, coopRoof: 0xc4685a, shedRoof: 0x5d6672,
+  post: 0x9c7552, bark: 0x8a6448, leaf: [0x7fb04e, 0x70a447, 0x8fc05a, 0x86b952],
+};
+const runGround = (() => {
+  const S = 7.3, N = 40, g = new THREE.PlaneGeometry(S, S, N, N).rotateX(-Math.PI / 2).toNonIndexed(), p = g.attributes.position;
+  const col = new Float32Array(p.count * 3), c = new THREE.Color();
+  for (let i = 0; i < p.count; i += 3) {
+    const cx = (p.getX(i) + p.getX(i + 1) + p.getX(i + 2)) / 3, cz = (p.getZ(i) + p.getZ(i + 1) + p.getZ(i + 2)) / 3, d = dirt(cx, cz), n = fbm(cx * 0.9 + 4, cz * 0.9);
+    if (d > 0.5 + (hash2(cx * 9, cz * 7) - 0.5) * 0.5) c.set(COL.dirt[Math.floor(hash2(cx * 3, cz * 5) * 3)]);
+    else { c.set(COL.grass[Math.floor(hash2(cx * 5, cz * 3) * 4)]); c.offsetHSL(0, 0, (n - 0.5) * 0.08 - d * 0.04); }
+    const t = 1 + (Math.random() - 0.5) * 0.06;
+    for (let k = 0; k < 3; k++) col.set([c.r * t, c.g * t, c.b * t], (i + k) * 3);
+  }
+  g.setAttribute("color", new THREE.BufferAttribute(col, 3)); g.computeVertexNormals();
+  const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true }));
+  m.position.set(0.025, 0, 0.025); m.receiveShadow = true; scene.add(m); return m;
+})();
+// the rest of the garden, gently rolling further out
+function gardenH(x, z) {
+  const d = Math.max(Math.abs(x) - 4.5, Math.abs(z) - 4.5, 0), house = z < -8 ? 0 : 1;
+  return (fbm(x * 0.12 + 3, z * 0.12 + 8) - 0.45) * 1.1 * clamp(d / 6, 0, 1) * house;
+}
+const lawn = (() => {
+  const S = 90, N = 60, g = new THREE.PlaneGeometry(S, S, N, N).rotateX(-Math.PI / 2), p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) p.setY(i, gardenH(p.getX(i), p.getZ(i)) - 0.01);
+  const ng = g.toNonIndexed(), q = ng.attributes.position, col = new Float32Array(q.count * 3), c = new THREE.Color();
+  for (let i = 0; i < q.count; i += 3) {
+    const cx = (q.getX(i) + q.getX(i + 1) + q.getX(i + 2)) / 3, cz = (q.getZ(i) + q.getZ(i + 1) + q.getZ(i + 2)) / 3;
+    c.set(COL.grassOut[Math.floor(hash2(cx * 5, cz * 3) * 4)]); c.offsetHSL(0, 0, (fbm(cx * 0.2, cz * 0.2) - 0.5) * 0.08);
+    const t = 1 + (Math.random() - 0.5) * 0.05;
+    for (let k = 0; k < 3; k++) col.set([c.r * t, c.g * t, c.b * t], (i + k) * 3);
+  }
+  ng.setAttribute("color", new THREE.BufferAttribute(col, 3)); ng.computeVertexNormals();
+  const m = new THREE.Mesh(ng, new THREE.MeshLambertMaterial({ vertexColors: true })); m.receiveShadow = true; scene.add(m); return m;
+})();
+
+// ===================================================================
+//  walls, sheds, coop, fences, tree, props
+// ===================================================================
+const structures = new THREE.Group(); scene.add(structures);
+const W = new Bake();   // everything that casts shadows near the run
+
+// brick walls (flat colour with a few proud bricks for texture) and a stone coping
+function brickWall(x0, z0, x1, z1, h) {
+  const len = Math.hypot(x1 - x0, z1 - z0), ang = Math.atan2(-(z1 - z0), x1 - x0), cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  const P = mat4(cx, 0, cz, 0, ang, 0);
+  W.box(COL.brick[0], len, h, 0.24, 0, h / 2, 0, 0, 0, 0, P, 0.04);
+  W.box(COL.coping, len + 0.04, 0.07, 0.32, 0, h + 0.035, 0, 0, 0, 0, P, 0.05);
+  W.box(0xb9b09e, len + 0.02, 0.12, 0.27, 0, 0.06, 0, 0, 0, 0, P, 0.05);   // plinth
+  const courses = Math.floor((h - 0.15) / 0.075);
+  for (let i = 0; i < len * 9; i++) {
+    const row = Math.floor(Math.random() * courses), y = 0.16 + row * 0.075, x = (Math.floor(Math.random() * (len / 0.225)) + (row % 2) * 0.5) * 0.225 - len / 2 + 0.11;
+    if (x > len / 2 - 0.12 || x < -len / 2 + 0.12) continue;
+    for (const side of [-1, 1]) if (Math.random() < 0.6) W.box(pick(COL.brick), 0.21, 0.062, 0.02, x, y, side * 0.125, 0, 0, 0, P, 0.08);
+  }
+}
+brickWall(-3.62, -3.74, -3.62, 3.62, 1.6);          // west
+brickWall(-3.74, -3.62, SHED.x0 + 0.02, -3.62, 1.6); // north, up to the shed
+
+// storage shed: vertical boards, pent roof, ledged door, small window
+{
+  const S = SHED, w = S.x1 - S.x0, d = S.z1 - S.z0, cx = (S.x0 + S.x1) / 2, cz = (S.z0 + S.z1) / 2;
+  W.add(slopedBox(w - 0.04, d - 0.04, S.hF - 0.02, S.hB - 0.02), COL.shed, mat4(cx, 0, cz));
+  const bw = 0.135;
+  for (let x = S.x0 + bw / 2; x < S.x1; x += bw) W.box(COL.shed, bw - 0.008, S.hF, 0.03, x, S.hF / 2, S.z1 - 0.01, 0, 0, 0, null, 0.12);
+  for (const sx of [S.x0 + 0.01, S.x1 - 0.01]) for (let z = S.z0 + bw / 2; z < S.z1; z += bw) {
+    const h = S.hB + (z - S.z0) / d * (S.hF - S.hB);
+    W.box(COL.shed, 0.03, h, bw - 0.008, sx, h / 2, z, 0, 0, 0, null, 0.12);
+  }
+  // roof
+  const slope = Math.atan2(S.hF - S.hB, d);
+  W.box(COL.shedRoof, w + 0.26, 0.06, d / Math.cos(slope) + 0.3, cx, (S.hF + S.hB) / 2 + 0.05, cz + 0.03, -slope, 0, 0, null, 0.05);
+  W.box(COL.shedDark, w + 0.26, 0.1, 0.03, cx, S.hF + 0.02, S.z1 + 0.18, 0, 0, 0);   // fascia
+  // door
+  const dx = cx + 0.05, dz = S.z1 + 0.025;
+  for (let i = 0; i < 5; i++) W.box(COL.shedDark, 0.142, 1.72, 0.03, dx - 0.284 + i * 0.142, 0.9, dz, 0, 0, 0, null, 0.1);
+  W.box(0x8b6040, 0.68, 0.1, 0.03, dx, 0.32, dz + 0.025); W.box(0x8b6040, 0.68, 0.1, 0.03, dx, 1.5, dz + 0.025);
+  W.box(0x8b6040, 0.1, 1.2, 0.03, dx, 0.91, dz + 0.025, 0, 0, 0.5);
+  W.box(0x3b3b3e, 0.03, 0.12, 0.03, dx + 0.25, 1.0, dz + 0.05);
+  for (const y of [0.32, 1.5]) W.box(0x3b3b3e, 0.32, 0.03, 0.012, dx - 0.2, y, dz + 0.045);
+  // window on the west side
+  W.box(0xf1ead8, 0.04, 0.5, 0.62, S.x0 - 0.02, 1.35, cz + 0.1);
+  W.box(0x58738c, 0.045, 0.4, 0.52, S.x0 - 0.025, 1.35, cz + 0.1, 0, 0, 0, null, 0.02);
+  W.box(0xf1ead8, 0.05, 0.4, 0.035, S.x0 - 0.026, 1.35, cz + 0.1); W.box(0xf1ead8, 0.05, 0.035, 0.52, S.x0 - 0.026, 1.35, cz + 0.1);
+}
+
+// the coop: raised on legs, pent roof, pop-hole with sliding door, ramp, nest box with the lid propped open
+const NEST = { x0: 2.86, x1: 3.4, z0: -2.5, z1: -2.18, y0: 0.6, straw: 0.66 };
+{
+  const C = COOP, w = C.x1 - C.x0, d = C.z1 - C.z0, cx = (C.x0 + C.x1) / 2, cz = (C.z0 + C.z1) / 2;
+  for (const [x, z] of [[C.x0 + 0.05, C.z0 + 0.05], [C.x1 - 0.05, C.z0 + 0.05], [C.x0 + 0.05, C.z1 - 0.05], [C.x1 - 0.05, C.z1 - 0.05]]) W.box(COL.coopTrim, 0.07, C.floor + 0.05, 0.07, x, (C.floor + 0.05) / 2, z);
+  W.add(slopedBox(w, d, C.hF - C.floor, C.hB - C.floor), COL.coop, mat4(cx, C.floor, cz));
+  W.box(COL.coopTrim, w + 0.04, 0.06, d + 0.04, cx, C.floor + 0.02, cz);   // floor frame
+  // horizontal shiplap on the front and the open east side
+  const bh = 0.107;
+  for (let y = C.floor + 0.06 + bh / 2; y < C.hF - 0.02; y += bh) W.box(pick([0xdcb179, 0xe6be88, 0xd9ad74]), w - 0.04, bh - 0.012, 0.025, cx, y, C.z1 + 0.012, 0, 0, 0, null, 0.04);
+  for (let y = C.floor + 0.06 + bh / 2; y < C.hB - 0.02; y += bh) W.box(pick([0xdcb179, 0xe6be88, 0xd9ad74]), 0.025, bh - 0.012, d - 0.04, C.x1 + 0.012, y, cz, 0, 0, 0, null, 0.04);
+  for (const [x, z] of [[C.x0, C.z1], [C.x1, C.z1], [C.x1, C.z0]]) W.box(COL.coopTrim, 0.06, (C.hF - C.floor), 0.06, x, (C.hF + C.floor) / 2, z);
+  const slope = Math.atan2(C.hF - C.hB, d);
+  W.box(COL.coopRoof, w + 0.24, 0.05, d / Math.cos(slope) + 0.28, cx, (C.hF + C.hB) / 2 + 0.04, cz + 0.04, -slope, 0, 0, null, 0.05);
+  // pop-hole + sliding door
+  W.box(0x2e241c, 0.27, 0.33, 0.02, RAMP.x, C.floor + 0.18, C.z1 + 0.03, 0, 0, 0, null, 0.02);
+  W.box(0xb98a5a, 0.32, 0.3, 0.02, RAMP.x, C.floor + 0.52, C.z1 + 0.04);
+  for (const s of [-1, 1]) W.box(COL.coopTrim, 0.03, 0.72, 0.03, RAMP.x + s * 0.18, C.floor + 0.36, C.z1 + 0.04);
+  // vent window with mesh
+  W.box(0x3a3028, 0.34, 0.18, 0.02, 2.585, C.floor + 0.66, C.z1 + 0.03, 0, 0, 0, null, 0.02);
+  W.box(COL.coopTrim, 0.42, 0.035, 0.035, 2.585, C.floor + 0.77, C.z1 + 0.04); W.box(COL.coopTrim, 0.42, 0.035, 0.035, 2.585, C.floor + 0.55, C.z1 + 0.04);
+  // ramp with slats
+  const rl = Math.hypot(RAMP.zBot - RAMP.zTop, RAMP.hTop), ra = Math.atan2(RAMP.hTop, RAMP.zBot - RAMP.zTop);
+  const RP = mat4(RAMP.x, RAMP.hTop / 2, (RAMP.zTop + RAMP.zBot) / 2, ra, 0, 0);
+  W.box(0xc49766, 0.3, 0.025, rl, 0, 0, 0, 0, 0, 0, RP);
+  for (let i = 0; i < 7; i++) W.box(COL.coopTrim, 0.3, 0.018, 0.022, 0, 0.02, -rl / 2 + 0.08 + i * (rl - 0.12) / 6, 0, 0, 0, RP);
+  // nest box: hollow box, straw, lid propped open
+  const N = NEST, nw = N.x1 - N.x0, nd = N.z1 - N.z0, ncx = (N.x0 + N.x1) / 2, ncz = (N.z0 + N.z1) / 2;
+  W.box(COL.coopTrim, nw, 0.03, nd, ncx, N.y0, ncz);
+  W.box(0xd9ad74, nw, 0.1, 0.025, ncx, N.y0 + 0.05, N.z1);          // low front lip
+  for (const s of [N.x0, N.x1]) W.add(slopedBox(0.025, nd, 0.18, 0.3), 0xd9ad74, mat4(s, N.y0, ncz));
+  W.box(0xead27e, nw - 0.04, 0.05, nd - 0.04, ncx, N.straw - 0.025, ncz, 0, 0, 0, null, 0.15);
+  for (let i = 0; i < 14; i++) W.box(pick([0xf0dc8a, 0xe2c46a, 0xf4e49c]), rand(0.06, 0.12), 0.008, 0.012, rand(N.x0 + 0.05, N.x1 - 0.05), N.straw + 0.003, rand(N.z0 + 0.04, N.z1 - 0.03), 0, rand(0, 3), 0, null, 0.05);
+  W.box(COL.coopRoof, nw + 0.06, 0.03, nd + 0.06, 0, 0.015, nd / 2 + 0.03, 0, 0, 0, mat4(ncx, N.y0 + 0.31, N.z0, -0.95, 0, 0));
+  W.box(0x8b6040, 0.02, 0.34, 0.02, N.x1 - 0.03, N.y0 + 0.27, N.z1 - 0.06, -0.2, 0, 0);   // prop stick
+}
+
+// waterer, log
+{
+  W.add(new THREE.CylinderGeometry(0.2, 0.21, 0.045, 10), 0xb5c0c6, mat4(WATER.x, 0.022, WATER.z), 0.05);
+  W.add(new THREE.CylinderGeometry(0.17, 0.17, 0.01, 10), 0x8ec6dc, mat4(WATER.x, 0.042, WATER.z), 0.02);
+  W.add(new THREE.CylinderGeometry(0.13, 0.13, 0.3, 8), 0xc4ced3, mat4(WATER.x, 0.2, WATER.z), 0.06);
+  W.add(new THREE.SphereGeometry(0.13, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), 0xc4ced3, mat4(WATER.x, 0.35, WATER.z), 0.06);
+  W.add(new THREE.TorusGeometry(0.06, 0.008, 4, 8, Math.PI), 0x9aa4aa, mat4(WATER.x, 0.47, WATER.z), 0.04);
+  W.add(new THREE.CylinderGeometry(0.09, 0.1, 0.9, 7), COL.bark, mat4(LOG.x, 0.09, LOG.z, Math.PI / 2, 0.1, 0), 0.1);
+  W.add(new THREE.CylinderGeometry(0.075, 0.075, 0.005, 7), 0xdcbb8a, mat4(LOG.x - 0.045, 0.09, LOG.z + 0.45, Math.PI / 2, 0.1, 0));
+  W.add(new THREE.CylinderGeometry(0.075, 0.075, 0.005, 7), 0xdcbb8a, mat4(LOG.x + 0.045, 0.09, LOG.z - 0.45, Math.PI / 2, 0.1, 0));
+}
+
+// chicken-wire fences: wooden posts, top rail, gravel board, galvanised mesh
+const wireTex = (() => {
+  const c = document.createElement("canvas"); c.width = c.height = 128; const g = c.getContext("2d");
+  const cols = 4, w = 128 / cols, r = w / Math.sqrt(3), sy = 128 / (6 * r);
+  g.scale(1, sy); g.strokeStyle = "rgba(226,230,232,1)"; g.lineWidth = 2.4;
+  for (let row = -1; row <= 5; row++) for (let col = -1; col <= cols; col++) {
+    const cx = col * w + (row % 2 ? w / 2 : 0), cy = row * 1.5 * r;
+    g.beginPath(); for (let k = 0; k <= 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); } g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t;
+})();
+function wirePanel(x0, z0, x1, z1, y0, h) {
+  const len = Math.hypot(x1 - x0, z1 - z0), t = wireTex.clone(); t.needsUpdate = true; t.repeat.set(len / 0.2, h / 0.2);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(len, h), new THREE.MeshLambertMaterial({ map: t, transparent: true, side: THREE.DoubleSide, depthWrite: false, opacity: 0.9 }));
+  m.position.set((x0 + x1) / 2, y0 + h / 2, (z0 + z1) / 2); m.rotation.y = Math.atan2(-(z1 - z0), x1 - x0); m.renderOrder = 2; scene.add(m); return m;
+}
+function fence(x0, z0, x1, z1, H = 1.5) {
+  const len = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(len / 1.75), ang = Math.atan2(-(z1 - z0), x1 - x0);
+  for (let i = 0; i <= n; i++) { const t = i / n; W.box(COL.post, 0.075, H + 0.08, 0.075, lerp(x0, x1, t), (H + 0.08) / 2, lerp(z0, z1, t), 0, ang, 0, null, 0.1); }
+  const P = mat4((x0 + x1) / 2, 0, (z0 + z1) / 2, 0, ang, 0);
+  W.box(0x8f6a49, len, 0.045, 0.05, 0, H, 0, 0, 0, 0, P);
+  W.box(0x8f6a49, len, 0.16, 0.025, 0, 0.08, 0.04, 0, 0, 0, P, 0.05);
+  wirePanel(x0, z0, x1, z1, 0.14, H - 0.16);
+}
+fence(3.58, COOP.z0 - 0.02, 3.58, 3.58);   // east
+fence(-3.5, 3.58, 3.58, 3.58);              // south
+// a little gate in the south fence
+{
+  const gx0 = 1.55, gx1 = 2.45, z = 3.62, gc = 0xa27a56;
+  W.box(gc, gx1 - gx0, 0.07, 0.035, (gx0 + gx1) / 2, 1.3, z); W.box(gc, gx1 - gx0, 0.07, 0.035, (gx0 + gx1) / 2, 0.28, z);
+  W.box(gc, 0.07, 1.12, 0.035, gx0 + 0.04, 0.79, z); W.box(gc, 0.07, 1.12, 0.035, gx1 - 0.04, 0.79, z);
+  W.box(gc, 0.06, 1.3, 0.03, (gx0 + gx1) / 2, 0.79, z + 0.005, 0, 0, Math.atan2(gx1 - gx0 - 0.1, 1.0) - Math.PI / 2);
+  W.box(0x3b3b3e, 0.1, 0.03, 0.03, gx1 - 0.08, 0.95, z + 0.03);
+}
+
+// little apple tree near the south fence
+const treeTop = (() => {
+  const T = TREE, B = new Bake();
+  const branch = (a, b, r0, r1) => {
+    const d = new THREE.Vector3().subVectors(b, a), L = d.length(), g = new THREE.CylinderGeometry(r1, r0, L, 6).translate(0, L / 2, 0);
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+    W.add(g, COL.bark, new THREE.Matrix4().compose(a, q, new THREE.Vector3(1, 1, 1)), 0.1);
+  };
+  const base = new THREE.Vector3(T.x, 0, T.z), fork = new THREE.Vector3(T.x + 0.06, 0.95, T.z - 0.03);
+  branch(base, fork, 0.1, 0.07);
+  const ends = [[-0.5, 1.5, 0.15], [0.5, 1.55, -0.15], [0.05, 1.7, 0.4], [0.12, 1.65, -0.45], [-0.15, 1.85, -0.05]];
+  for (const [x, y, z] of ends) branch(fork, new THREE.Vector3(T.x + x, y, T.z + z), 0.055, 0.03);
+  // canopy is its own mesh so it can sway a touch
+  const blobs = [[0, 1.9, 0, 0.62], [-0.55, 1.6, 0.15, 0.48], [0.55, 1.65, -0.15, 0.5], [0.1, 1.75, 0.5, 0.46], [0.1, 1.7, -0.55, 0.47], [-0.3, 2.15, -0.25, 0.42], [0.35, 2.15, 0.2, 0.4], [-0.35, 1.95, 0.45, 0.38]];
+  for (const [x, y, z, r] of blobs) B.add(blob(r, 1, 0.12), pick(COL.leaf), mat4(x, y, z, rand(0, 3), rand(0, 3), 0, 1, 0.85, 1), 0.1);
+  for (let i = 0; i < 14; i++) {
+    const [x, y, z, r] = pick(blobs), a = rand(0, Math.PI * 2), e = rand(-0.9, 0.2);
+    B.add(new THREE.IcosahedronGeometry(0.04, 0), pick([0xd9503c, 0xe0643f, 0xc94a3a]), mat4(x + Math.cos(a) * Math.cos(e) * r * 0.98, y + Math.sin(e) * r * 0.85, z + Math.sin(a) * Math.cos(e) * r * 0.98), 0.05);
+  }
+  const m = B.build(true, true); scene.remove(m);
+  const g = new THREE.Group(); g.position.set(T.x, 0, T.z); g.add(m); scene.add(g); return g;
+})();
+
+// the house behind the north wall, hedges and trees further out (no shadows needed there)
+{
+  const F = new Bake();
+  const hx = -1.5, hz = -14, hw = 13, hd = 7.5, hh = 5.6;
+  F.box(0xefe2c8, hw, hh, hd, hx, hh / 2 - 0.2, hz, 0, 0, 0, null, 0.03);
+  const roof = new THREE.Shape(); roof.moveTo(-hd / 2 - 0.35, 0); roof.lineTo(hd / 2 + 0.35, 0); roof.lineTo(0, 2.7); roof.closePath();
+  const rg = new THREE.ExtrudeGeometry(roof, { depth: hw + 0.5, bevelEnabled: false }).rotateY(Math.PI / 2).translate(-(hw + 0.5) / 2, 0, 0);
+  F.add(rg, 0xc26a52, mat4(hx, hh - 0.25, hz), 0.06);
+  F.box(0xe6d6b8, 0.7, 1.4, 0.7, hx + 3.2, hh + 1.4, hz - 0.5, 0, 0, 0, null, 0.03);   // chimney
+  const front = hz + hd / 2;
+  const win = (x, y, w, h) => { F.box(0xfbf7ee, w + 0.14, h + 0.14, 0.08, x, y, front + 0.03, 0, 0, 0, null, 0.02); F.box(0x5d7890, w, h, 0.1, x, y, front + 0.04, 0, 0, 0, null, 0.02); F.box(0xfbf7ee, 0.05, h, 0.12, x, y, front + 0.05, 0, 0, 0, null, 0); F.box(0xfbf7ee, w + 0.2, 0.08, 0.2, x, y - h / 2 - 0.08, front + 0.08, 0, 0, 0, null, 0); };
+  for (const x of [-5.5, -2.8, 2.2, 4.4]) win(hx + x, 3.9, 1.0, 1.15);
+  for (const x of [-5.5, -2.8, 4.4]) win(hx + x, 1.5, 1.0, 1.25);
+  F.box(0x5f8a76, 0.95, 2.05, 0.1, hx + 1.0, 1.0, front + 0.04, 0, 0, 0, null, 0.02);
+  F.box(0xfbf7ee, 1.15, 0.12, 0.14, hx + 1.0, 2.1, front + 0.05);
+  F.box(0xcfc5b2, 3.2, 0.12, 1.8, hx + 1.0, 0.04, front + 0.9, 0, 0, 0, null, 0.05);   // patio step
+  // hedges
+  const hedge = (x0, z0, x1, z1) => {
+    const len = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(len / 0.95);
+    for (let i = 0; i <= n; i++) { const t = i / n, x = lerp(x0, x1, t), z = lerp(z0, z1, t), r = rand(0.75, 1.05); F.add(blob(r, 0, 0.2), pick([0x5f9440, 0x6a9f48, 0x578a3c]), mat4(x, gardenH(x, z) + r * 0.85, z, rand(0, 3), rand(0, 3), 0, 1, rand(1.1, 1.45), 1), 0.1); }
+  };
+  hedge(10, -9, 10, 11); hedge(-11, 11, 10, 11); hedge(-11, -9, -11, 11);
+  const tree = (x, z, s) => {
+    const y = gardenH(x, z);
+    F.add(new THREE.CylinderGeometry(0.12 * s, 0.18 * s, 2.2 * s, 6).translate(0, 1.1 * s, 0), COL.bark, mat4(x, y, z));
+    for (let i = 0; i < 5; i++) F.add(blob(rand(0.7, 1.0) * s, 1, 0.15), pick(COL.leaf), mat4(x + rand(-0.6, 0.6) * s, y + (2.4 + rand(0, 1)) * s, z + rand(-0.6, 0.6) * s), 0.08);
+  };
+  tree(-8, 4, 1.6); tree(7.5, -6.5, 1.8); tree(6, 13.5, 2); tree(-7.5, -7.5, 1.3); tree(-13, 2, 2.2); tree(13.5, 4, 1.9);
+  F.build(false, true);
+}
+const builtStatic = W.build(true, true);
+structures.add(builtStatic);
+
+// grass tufts and a scattering of daisies
+{
+  const g = new THREE.BufferGeometry(), P = [], N = [];
+  for (let k = 0; k < 4; k++) {
+    const a = k / 4 * Math.PI * 2 + 0.3, ca = Math.cos(a), sa = Math.sin(a), lean = 0.28, w = 0.16;
+    // both windings, normals pointing up, so blades are lit the same from either side
+    P.push(-w * sa, 0, w * ca, w * sa, 0, -w * ca, ca * lean, 1, sa * lean);
+    P.push(w * sa, 0, -w * ca, -w * sa, 0, w * ca, ca * lean, 1, sa * lean);
+    for (let i = 0; i < 6; i++) N.push(0, 1, 0);
+  }
+  g.setAttribute("position", new THREE.Float32BufferAttribute(P, 3)); g.setAttribute("normal", new THREE.Float32BufferAttribute(N, 3));
+  const spots = [];
+  for (let i = 0; i < 1700; i++) {
+    const x = rand(RUN.x0 + 0.1, RUN.x1 - 0.1), z = rand(RUN.z0 + 0.1, RUN.z1 - 0.1);
+    if (dirt(x, z) > 0.25 || !isFree(x, z, 0.05, true)) continue;
+    spots.push([x, 0, z, rand(0.035, 0.075)]);
+  }
+  for (let i = 0; i < 3200; i++) {
+    const x = rand(-10, 10), z = rand(-9.5, 11);
+    if (x > -3.9 && x < 3.75 && z > -3.9 && z < 3.75) continue;
+    spots.push([x, gardenH(x, z), z, rand(0.06, 0.13)]);
+  }
+  const im = new THREE.InstancedMesh(g, new THREE.MeshLambertMaterial(), spots.length), c = new THREE.Color();
+  spots.forEach(([x, y, z, s], i) => {
+    _o.position.set(x, y, z); _o.rotation.set(0, rand(0, 6.3), 0); _o.scale.set(s, s * rand(0.8, 1.3), s); _o.updateMatrix(); im.setMatrixAt(i, _o.matrix);
+    c.set(pick([0x7cae4a, 0x8cbc55, 0x6fa243, 0x98c45e])); im.setColorAt(i, c);
+  });
+  im.receiveShadow = true; scene.add(im);
+  const fl = [];
+  for (let i = 0; i < 260; i++) {
+    const x = rand(-9.5, 9.5), z = rand(-9, 10.5);
+    if (x > -3.95 && x < 3.8 && z > -3.95 && z < 3.8) continue;
+    if (z < -7 && x > -8.5 && x < 5.5) continue;
+    fl.push([x, gardenH(x, z) + 0.035, z]);
+  }
+  const fm = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.03, 0), new THREE.MeshLambertMaterial(), fl.length);
+  fl.forEach(([x, y, z], i) => { _o.position.set(x, y, z); _o.rotation.set(0, 0, 0); _o.scale.set(1, 0.45, 1); _o.updateMatrix(); fm.setMatrixAt(i, _o.matrix); c.set(pick([0xfbf8f0, 0xfbf8f0, 0xfbf8f0, 0xf4d55a, 0xf0b8c8])); fm.setColorAt(i, c); });
+  scene.add(fm);
+}
+
+// ===================================================================
+//  chickens
+// ===================================================================
+function prep(geo, j = 0.1, wob = 0) {
+  if (wob) { const p = geo.attributes.position, v = new THREE.Vector3(); for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const k = 1 + (vnoise(v.x * 3 + 1.3, v.y * 3 + v.z * 2.1 + 4.7) - 0.5) * wob; p.setXYZ(i, v.x * k, v.y * k, v.z * k); } }
+  const g = geo.index ? geo.toNonIndexed() : geo; g.computeVertexNormals();
+  const n = g.attributes.position.count, c = new Float32Array(n * 3);
+  for (let i = 0; i < n; i += 3) { const t = 1 - j / 2 + Math.random() * j; for (let k = 0; k < 9; k++) c[i * 3 + k] = t; }
+  g.setAttribute("color", new THREE.BufferAttribute(c, 3)); return g;
+}
+const GEO = {
+  ell: prep(new THREE.SphereGeometry(1, 9, 7), 0.12, 0.14),
+  head: prep(new THREE.SphereGeometry(1, 7, 5), 0.08),
+  neck: prep(new THREE.CylinderGeometry(0.03, 0.052, 1, 7, 1).translate(0, 0.5, 0), 0.1),
+  leg: prep(new THREE.CylinderGeometry(0.0095, 0.012, 1, 5, 1).translate(0, 0.5, 0), 0.04),
+  beak: prep(new THREE.ConeGeometry(0.012, 0.032, 5).rotateX(Math.PI / 2), 0.05),
+  toe: prep(new THREE.BoxGeometry(0.007, 0.006, 0.042).translate(0, 0.003, 0.019), 0.04),
+};
+const lam = (c) => new THREE.MeshLambertMaterial({ color: c, vertexColors: true });
+const MAT = { comb: lam(0xd83a32), beak: lam(0xe8c070), leg: lam(0xe8b84a), iris: lam(0xd88a2a), pupil: lam(0x1a1412) };
+const TAIL_MAT = new THREE.MeshPhongMaterial({ color: 0x1d5a3c, vertexColors: true, flatShading: true, specular: 0x5ad6a0, shininess: 42 });
+const HEN_COLS = [0xa9643a, 0x9b5631, 0xb87444, 0x8f4f2c, 0xb06a3e, 0xa25d35];
+const HEN_STANCE = { hip: 0.18, pitch: 0, hy: 0.37, hz: 0.13 }, ROO_STANCE = { hip: 0.2, pitch: -0.12, hy: 0.41, hz: 0.12 };
+const SHOULDER = new THREE.Vector3(0, 0.05, 0.085);
+const HIPL = [new THREE.Vector3(-0.045, -0.06, 0), new THREE.Vector3(0.045, -0.06, 0)];
+const birdRoot = new THREE.Group(); scene.add(birdRoot);
+
+function makeBird(i, rooster) {
+  const s = rooster ? 1.16 : rand(0.94, 1.04);
+  const base = new THREE.Color(rooster ? 0x8e3c20 : HEN_COLS[i % HEN_COLS.length]);
+  const mBody = lam(base), mWing = lam(base.clone().offsetHSL(0, 0, -0.05));
+  const mNeck = lam(rooster ? 0xdc8c3c : base.clone().offsetHSL(0.012, 0.05, 0.09));
+  const mBreast = lam(rooster ? 0x46322a : base.clone().offsetHSL(0, 0, 0.03));
+  const mTail = rooster ? TAIL_MAT : lam(base.clone().offsetHSL(-0.01, -0.05, -0.13));
+  const root = new THREE.Group(), body = new THREE.Group(), torso = new THREE.Group();
+  root.add(body); body.add(torso); root.scale.setScalar(s); birdRoot.add(root);
+  const add = (geo, mat, sc, pos, parent = torso, cast = true) => { const m = new THREE.Mesh(geo, mat); m.scale.set(sc[0], sc[1], sc[2]); m.position.set(pos[0], pos[1], pos[2]); m.castShadow = cast; parent.add(m); return m; };
+  const main = add(GEO.ell, mBody, [0.105, 0.1, 0.15], [0, 0, -0.005]); main.rotation.x = -0.18; main.receiveShadow = true;
+  add(GEO.ell, mBreast, [0.092, 0.088, 0.085], [0, -0.014, 0.07]);
+  add(GEO.ell, mBody, [0.086, 0.08, 0.085], [0, 0.02, -0.1]);
+  // tail
+  const tail = new THREE.Group(); tail.position.set(0, 0.05, -0.12); torso.add(tail);
+  if (!rooster) {
+    tail.rotation.x = -0.65;
+    for (const k of [-1, 0, 1]) { const f = add(GEO.ell, mTail, [0.014, 0.08, 0.048], [k * 0.016, 0.06, 0], tail); f.rotation.set(-0.15, 0, -k * 0.22); }
+  } else {
+    tail.rotation.x = -0.3;
+    for (const k of [-1, 0, 1]) { const f = add(GEO.ell, mTail, [0.014, 0.1, 0.045], [k * 0.016, 0.08, 0], tail); f.rotation.set(-0.35, 0, -k * 0.2); }
+    for (let k = 0; k < 7; k++) {
+      const R = rand(0.11, 0.17), m = new THREE.Mesh(prep(new THREE.TorusGeometry(R, 0.019, 4, 12, rand(2.1, 2.6)), 0.15), TAIL_MAT);
+      m.rotation.y = -Math.PI / 2; m.position.set(0, 0, -R); m.scale.z = 0.32; m.castShadow = true;
+      const w = new THREE.Group(); w.rotation.set(rand(-0.3, 0.1), 0, (k - 3) * 0.07); w.position.set((k - 3) * 0.006, 0.02, 0); w.add(m); tail.add(w);
+    }
+    for (const k of [-1, 1]) { const sd = add(GEO.ell, mNeck, [0.03, 0.045, 0.085], [k * 0.07, 0.055, -0.085]); sd.rotation.set(-0.5, 0, k * 0.3); }   // saddle hackles
+  }
+  // wings
+  const wings = [];
+  for (const k of [-1, 1]) {
+    const pv = new THREE.Group(); pv.position.set(k * 0.086, 0.035, 0.05); torso.add(pv);
+    const w = add(GEO.ell, mWing, [0.024, 0.065, 0.125], [k * 0.006, -0.03, -0.075], pv); w.rotation.x = -0.12;
+    if (rooster) add(GEO.ell, TAIL_MAT, [0.02, 0.022, 0.085], [k * 0.014, -0.07, -0.09], pv);
+    wings.push({ pv, w });
+  }
+  // neck + head
+  const neck = new THREE.Mesh(GEO.neck, mNeck); neck.castShadow = true; body.add(neck);
+  const head = new THREE.Group(); head.rotation.order = "YXZ"; body.add(head);
+  add(GEO.head, mNeck, [0.04, 0.043, 0.05], [0, 0, 0], head);
+  for (const k of [-1, 1]) {
+    add(GEO.head, MAT.comb, [0.008, 0.02, 0.024], [k * 0.034, -0.006, 0.018], head, false);
+    add(GEO.head, MAT.iris, [0.009, 0.009, 0.009], [k * 0.039, 0.008, 0.022], head, false);
+    add(GEO.head, MAT.pupil, [0.0055, 0.0055, 0.0055], [k * 0.0465, 0.009, 0.025], head, false);
+  }
+  const beak = new THREE.Mesh(GEO.beak, MAT.beak); beak.position.set(0, -0.008, 0.055); beak.rotation.x = 0.3; head.add(beak);
+  if (rooster) {
+    for (let k = 0; k < 5; k++) add(GEO.head, MAT.comb, [0.008, 0.026 + Math.sin(k / 4 * Math.PI) * 0.01, 0.017], [0, 0.048 + Math.sin(k / 4 * Math.PI) * 0.012, 0.036 - k * 0.017], head);
+    for (const k of [-1, 1]) add(GEO.head, MAT.comb, [0.008, 0.026, 0.017], [k * 0.008, -0.052, 0.036], head);
+  } else {
+    for (let k = 0; k < 3; k++) add(GEO.head, MAT.comb, [0.006, 0.016, 0.013], [0, 0.045 + (k === 1 ? 0.004 : 0), 0.03 - k * 0.016], head);
+    for (const k of [-1, 1]) add(GEO.head, MAT.comb, [0.006, 0.015, 0.011], [k * 0.007, -0.042, 0.034], head, false);
+  }
+  // legs and feet (root space)
+  const legs = [], feet = [];
+  for (let k = 0; k < 2; k++) {
+    const l = new THREE.Mesh(GEO.leg, MAT.leg); l.castShadow = true; root.add(l); legs.push(l);
+    const f = new THREE.Group(); root.add(f); feet.push(f);
+    for (const a of [-0.45, 0, 0.45]) { const t = new THREE.Mesh(GEO.toe, MAT.leg); t.rotation.y = a; f.add(t); }
+    const bt = new THREE.Mesh(GEO.toe, MAT.leg); bt.rotation.y = Math.PI; bt.scale.z = 0.5; f.add(bt);
+  }
+  const pose = () => ({ hip: 0.18, pitch: 0, roll: 0, head: new THREE.Vector3(0, 0.37, 0.13), hp: 0, hyaw: 0, hroll: 0, wingL: 0, wingR: 0, flap: 0, fluff: 1, kickL: 0, kickR: 0, headK: 9 });
+  const b = {
+    i, rooster, s, root, body, torso, neck, head, wings, legs, feet, stance: rooster ? ROO_STANCE : HEN_STANCE,
+    x: 0, z: 0, y: 0, yaw: rand(0, 6.28), speed: 0, phase: 0, tgt: pose(), cur: pose(), fp: [new THREE.Vector3(), new THREE.Vector3()],
+    state: "idle", sub: 0, t: 1, st: 0, pk: -0.3, goal: null, walkT: 0, other: null, food: null, n: 0, side: 1, react: null,
+    crop: rand(0, 0.3), full: false, digest: 90, layCd: rooster ? 1e9 : rand(25, 160), restCd: rand(0, 20), lookT: 0, lookYaw: 0, lookTilt: 0, wait: 0,
+  };
+  const cur = b.cur, st = b.stance; cur.hip = st.hip; cur.pitch = st.pitch; cur.head.set(0, st.hy, st.hz);
+  return b;
+}
+const birds = [makeBird(0, true)];
+for (let i = 0; i < 6; i++) birds.push(makeBird(i, false));
+
+// ===================================================================
+//  feed and eggs
+// ===================================================================
+const GMAX = 600, grains = [];
+const grainMesh = new THREE.InstancedMesh(prep(new THREE.IcosahedronGeometry(0.016, 0), 0.1), new THREE.MeshLambertMaterial({ vertexColors: true }), GMAX);
+grainMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); grainMesh.receiveShadow = true; scene.add(grainMesh);
+const GRAIN_COLS = [0xf0c040, 0xe8b030, 0xd9a858, 0xf2e0a0, 0xe08a30].map((c) => new THREE.Color(c));
+for (let i = 0; i < GMAX; i++) grainMesh.setColorAt(i, GRAIN_COLS[0]);   // (creates the colour buffer at full size)
+grainMesh.count = 0;
+let landed = 0, airborne = 0;
+function throwFeed(x, z) {
+  const dx = camera.position.x - x, dz = camera.position.z - z, L = Math.hypot(dx, dz) || 1;
+  const fx = x + dx / L * 1.0, fz = z + dz / L * 1.0, fy = 1.15, n = 34;
+  for (let i = 0; i < n && grains.length < GMAX; i++) {
+    const a = rand(0, Math.PI * 2), r = Math.sqrt(Math.random()) * 0.34;
+    const o = pushOut({ x: x + Math.cos(a) * r * 1.2, z: z + Math.sin(a) * r }, 0.015);
+    const T = rand(0.42, 0.68);
+    grains.push({ x: fx + rand(-0.05, 0.05), y: fy + rand(-0.05, 0.05), z: fz + rand(-0.05, 0.05), vx: 0, vy: 0, vz: 0, tx: o.x, tz: o.z, T, age: 0, landed: false, life: rand(200, 260), col: pick(GRAIN_COLS), ry: rand(0, 6), claims: 0 });
+    const g = grains[grains.length - 1]; g.vx = (g.tx - g.x) / T; g.vz = (g.tz - g.z) / T; g.vy = (0.008 - g.y + 0.5 * 9.8 * T * T) / T;
+  }
+}
+function updateGrains(dt) {
+  landed = 0; airborne = 0;
+  for (let i = grains.length - 1; i >= 0; i--) {
+    const g = grains[i]; g.age += dt;
+    if (!g.landed) {
+      g.vy -= 9.8 * dt; g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt;
+      if (g.age >= g.T || g.y <= 0.008) { g.landed = true; g.x = g.tx; g.z = g.tz; g.y = 0.008; }
+      airborne++;
+    } else landed++;
+    if (g.age > g.life) grains.splice(i, 1);
+  }
+  for (let i = 0; i < grains.length; i++) {
+    const g = grains[i]; _o.position.set(g.x, g.y, g.z); _o.rotation.set(0, g.ry, 0); _o.scale.set(1, 0.7, 1); _o.updateMatrix();
+    grainMesh.setMatrixAt(i, _o.matrix); grainMesh.setColorAt(i, g.col);
+  }
+  grainMesh.count = grains.length; grainMesh.instanceMatrix.needsUpdate = true; if (grainMesh.instanceColor) grainMesh.instanceColor.needsUpdate = true;
+}
+
+const eggGeo = (() => {
+  const pts = []; for (let i = 0; i <= 10; i++) { const a = i / 10 * Math.PI; pts.push(new THREE.Vector2(Math.max(0.0005, Math.sin(a) * 0.021 * (1 + 0.12 * Math.cos(a))), -Math.cos(a) * 0.028)); }
+  return prep(new THREE.LatheGeometry(pts, 9), 0.05);
+})();
+const eggMats = [0xd8a87c, 0xcf9c70, 0xe2b88e].map((c) => new THREE.MeshLambertMaterial({ color: c, vertexColors: true }));
+const NEST_SLOTS = [[2.98, -2.36], [3.14, -2.29], [3.28, -2.38], [3.05, -2.26]].map(([x, z]) => ({ x, z, egg: null }));
+const eggs = [];
+let eggCount = 0;
+function addEgg(x, y, z, slot) {
+  const m = new THREE.Mesh(eggGeo, pick(eggMats)); m.position.set(x, y + 0.02, z); m.rotation.set(0, rand(0, 6.28), Math.PI / 2 + rand(-0.12, 0.12));
+  m.castShadow = true; m.scale.setScalar(0.01); scene.add(m);
+  const e = { m, age: 0, life: slot ? rand(220, 320) : rand(160, 240), slot }; if (slot) slot.egg = e; eggs.push(e); eggCount++;
+  while (eggs.length > 10) removeEgg(eggs[0]);
+}
+function removeEgg(e) { scene.remove(e.m); if (e.slot) e.slot.egg = null; eggs.splice(eggs.indexOf(e), 1); }
+function updateEggs(dt) {
+  for (let i = eggs.length - 1; i >= 0; i--) {
+    const e = eggs[i]; e.age += dt;
+    const s = Math.min(1, e.age / 0.4) * clamp((e.life - e.age) / 1.2, 0, 1);
+    e.m.scale.setScalar(Math.max(0.001, s));
+    if (e.age > e.life) removeEgg(e);
+  }
+}
+
+// ===================================================================
+//  behaviour
+// ===================================================================
+let simT = 0, coopUser = null;
+function setState(b, s, o = {}) {
+  b.state = s; b.sub = 0; b.st = 0; b.pk = -rand(0.05, 0.3); b.goal = null; b.walkT = 14; b.other = o.other || null; b.food = null; b.wait = 0; b.react = null;
+  b.side = Math.random() < 0.5 ? -1 : 1;
+  switch (s) {
+    case "idle": b.t = rand(1.2, 3.5); break;
+    case "wander": b.goal = wanderSpot(b); b.goal.spd = rand(0.26, 0.38); break;
+    case "forage": b.t = rand(4, 9); b.n = 2 + Math.floor(rand(0, 4)); b.px = rand(-0.03, 0.03); b.pz = rand(0.19, 0.25); break;
+    case "scratch": b.t = rand(4.5, 8); break;
+    case "preen": b.t = rand(3, 6); break;
+    case "sit": b.t = rand(15, 40); b.restCd = 50; if (Math.random() < 0.6) { b.goal = shadeSpot(b); b.goal.spd = 0.3; } break;
+    case "sunbathe": b.t = rand(20, 45); b.restCd = 60; b.goal = sunnySpot(b); b.goal.spd = 0.3; break;
+    case "drink": { const a = Math.atan2(b.x - WATER.x, b.z - WATER.z); b.goal = { x: WATER.x + Math.sin(a) * 0.38 * b.s, z: WATER.z + Math.cos(a) * 0.38 * b.s, spd: 0.34 }; break; }
+    case "crow": b.t = 3.2; break;
+    case "chase": b.t = rand(1.8, 3.2); break;
+    case "flee": b.t = o.t || 2.5; break;
+    case "eat": break;
+    case "lay": b.goal = { x: RAMP.x, z: RAMP.zBot + 0.18, spd: 0.32 }; break;
+    case "layg": b.goal = nestGroundSpot(b); b.goal.spd = 0.3; b.t = rand(14, 24); break;
+  }
+}
+function think(b) {
+  if (!b.full && landed > 0) return setState(b, "eat");
+  const r = b.rooster, rest = b.restCd <= 0;
+  const opts = [["wander", 26], ["forage", 26], ["scratch", 15], ["idle", 9], ["preen", 6], ["sit", rest ? 5 : 0], ["sunbathe", rest ? 4.5 : 0], ["drink", 4],
+    ["chase", r ? 4 : 1.2], ["crow", r ? 2.5 : 0], ["lay", !r && b.layCd < 0 ? 60 : 0]];
+  let tot = 0; for (const o of opts) tot += o[1];
+  let x = Math.random() * tot, s = "wander"; for (const o of opts) { x -= o[1]; if (x <= 0) { s = o[0]; break; } }
+  if (s === "chase") {
+    const cands = birds.filter((o) => o !== b && o.root.visible && ["idle", "wander", "forage", "scratch", "preen"].includes(o.state) && Math.hypot(o.x - b.x, o.z - b.z) < 2.6);
+    if (!cands.length) return setState(b, "forage");
+    const o = pick(cands); setState(b, "chase", { other: o }); setState(o, "flee", { other: b, t: b.t + 0.4 }); return;
+  }
+  if (s === "lay") { if (coopUser || Math.random() < 0.3) return setState(b, "layg"); }
+  setState(b, s);
+}
+function spotNear(x, z, r, tries, test) {
+  for (let i = 0; i < tries; i++) { const a = rand(0, 6.28), d = rand(0.3, r), px = x + Math.cos(a) * d, pz = z + Math.sin(a) * d; if (test(px, pz)) return { x: px, z: pz }; }
+  return null;
+}
+function wanderSpot(b) {
+  let cx = b.x, cz = b.z, r = 2.2;
+  if (Math.random() < 0.45) { cx = 0; cz = 0; let n = 0; for (const o of birds) if (o !== b && o.root.visible) { cx += o.x; cz += o.z; n++; } if (n) { cx /= n; cz /= n; r = 1.3; } }
+  return spotNear(cx, cz, r, 20, (x, z) => isFree(x, z, 0.16, b.rooster)) || { x: rand(-2.5, 2.5), z: rand(-1.5, 2.5) };
+}
+function shadeSpot(b) {
+  if (!b.rooster && Math.random() < 0.5) { const s = { x: rand(1.98, 3.25), z: rand(-3.35, -2.75) }; if (isFree(s.x, s.z, 0.14)) return s; }
+  return spotNear(TREE.x, TREE.z, 0.9, 20, (x, z) => isFree(x, z, 0.16, b.rooster)) || wanderSpot(b);
+}
+function sunnySpot(b) {
+  for (let i = 0; i < 40; i++) {
+    const x = rand(-2.8, 3.2), z = rand(-1.4, 2.3);
+    if (Math.hypot(x - TREE.x, z - TREE.z) < 1.6 || !isFree(x, z, 0.3, b.rooster)) continue;
+    if (birds.some((o) => o !== b && Math.hypot(o.x - x, o.z - z) < 0.6)) continue;
+    return { x, z };
+  }
+  return wanderSpot(b);
+}
+function nestGroundSpot(b) {
+  const opts = [() => ({ x: rand(1.98, 3.25), z: rand(-3.35, -2.75) }), () => ({ x: rand(-3.3, -2.9), z: rand(-1.6, -0.4) }), () => spotNear(TREE.x, TREE.z, 0.7, 10, (x, z) => isFree(x, z, 0.16))];
+  for (let i = 0; i < 10; i++) { const s = pick(opts)(); if (s && isFree(s.x, s.z, 0.15)) return s; }
+  return wanderSpot(b);
+}
+// steer toward a point; returns true when there
+function walkTo(b, tx, tz, spd, dt, near = 0.07) {
+  const dx = tx - b.x, dz = tz - b.z, d = Math.hypot(dx, dz);
+  if (d < near) { b.speed = damp(b.speed, 0, 12, dt); return true; }
+  const da = angDiff(b.yaw, Math.atan2(dx, dz));
+  b.yaw += clamp(da, -dt * 5.5, dt * 5.5);
+  b.speed = damp(b.speed, spd * clamp(Math.cos(da), 0, 1) * Math.min(1, d / 0.2 + 0.35), 8, dt);
+  return false;
+}
+function face(b, tx, tz, dt) { b.yaw += clamp(angDiff(b.yaw, Math.atan2(tx - b.x, tz - b.z)), -dt * 5, dt * 5); }
+function walking(b, dt) {   // walk to b.goal if there is one; true while still walking
+  if (!b.goal) return false;
+  b.walkT -= dt;
+  if (walkTo(b, b.goal.x, b.goal.z, b.goal.spd || 0.3, dt) || b.walkT < 0) { b.goal = null; return false; }
+  return true;
+}
+function toLocal(b, x, z) {
+  const dx = x - b.x, dz = z - b.z, c = Math.cos(b.yaw), s = Math.sin(b.yaw);
+  return { x: (dx * c - dz * s) / b.s, z: (dx * s + dz * c) / b.s };
+}
+const HOV = new THREE.Vector3(), HIT = new THREE.Vector3();
+// pecking at a point (bird-local); true on the frame the beak touches the ground
+function peck(b, T, lx, lz, dt) {
+  T.pitch = b.stance.pitch + 0.38; T.hip = b.stance.hip - 0.025; T.hp = 1.05; T.headK = 30;
+  HOV.set(lx * 0.7, 0.13, lz - 0.02); HIT.set(lx, 0.035, lz);
+  const prev = b.pk; b.pk += dt * 3.3;
+  if (b.pk < 0) T.head.copy(HOV);
+  else if (b.pk < 1) T.head.lerpVectors(HOV, HIT, Math.sin(Math.PI * b.pk));
+  else { b.pk = -rand(0.06, 0.55); T.head.copy(HOV); }
+  return prev < 0.5 && b.pk >= 0.5;
+}
+function lookAround(b, T, dt, calm = 1) {
+  b.lookT -= dt;
+  if (b.lookT < 0) { b.lookT = rand(0.4, 1.8) * calm; b.lookYaw = Math.random() < 0.35 ? 0 : rand(-0.8, 0.8); b.lookTilt = Math.random() < 0.3 ? rand(-0.6, 0.6) : 0; }
+  T.hyaw = b.lookYaw; T.hroll = b.lookTilt;
+}
+const FEEDABLE = { idle: 1, wander: 1, forage: 1, scratch: 1, preen: 1, sit: 1, sunbathe: 1, drink: 1, chase: 1, flee: 1 };
+function nearestGrain(b) {
+  let best = null, bd = 1e9;
+  for (const g of grains) {
+    if (!g.landed) continue;
+    if (b.rooster && g.x > COOP.x0 - 0.15 && g.x < COOP.x1 + 0.15 && g.z < COOP.z1 + 0.15) continue;
+    const d = Math.hypot(g.x - b.x, g.z - b.z) + g.claims * 0.25; if (d < bd) { bd = d; best = g; }
+  }
+  return best;
+}
+
+function updateBird(b, dt) {
+  const T = b.tgt, st = b.stance;
+  // digestion: a full bird slowly slims back down and gets hungry again
+  if (b.full) { b.crop -= dt / b.digest; if (b.crop <= 0) { b.crop = 0; b.full = false; } }
+  else b.crop = Math.max(0, b.crop - dt / 160);
+  b.layCd -= dt; b.restCd -= dt;
+  // feed thrown: hungry birds come running (sitting ones take a moment)
+  if (!b.full && landed + airborne > 0 && FEEDABLE[b.state]) {
+    if (b.react === null) b.react = b.state === "sit" || b.state === "sunbathe" ? rand(1.5, 3.5) : rand(0.2, 1.1);
+    b.react -= dt;
+    if (b.react <= 0 && landed > 0) { if (b.other && b.other.other === b) setState(b.other, "idle"); setState(b, "eat"); }
+  }
+  // default pose
+  T.hip = st.hip; T.pitch = st.pitch; T.roll = 0; T.head.set(0, st.hy, st.hz); T.hp = 0.05; T.hyaw = 0; T.hroll = 0;
+  T.wingL = T.wingR = 0; T.flap = 0; T.fluff = 1; T.kickL = T.kickR = 0; T.headK = 9;
+  let move = true;
+  switch (b.state) {
+    case "idle":
+      b.speed = damp(b.speed, 0, 8, dt); lookAround(b, T, dt);
+      if ((b.t -= dt) < 0) think(b);
+      break;
+    case "wander":
+      if (!walking(b, dt)) { if (Math.random() < 0.5) setState(b, "forage"); else think(b); }
+      break;
+    case "forage":
+      if (b.sub === 0) {
+        b.speed = damp(b.speed, 0, 10, dt);
+        if (peck(b, T, b.px, b.pz, dt)) { if (--b.n <= 0) { b.sub = 1; const a = b.yaw + rand(-0.8, 0.8), d = rand(0.1, 0.25); b.goal = { x: b.x + Math.sin(a) * d, z: b.z + Math.cos(a) * d, spd: 0.22 }; b.walkT = 2; } else { b.px = rand(-0.035, 0.035); b.pz = rand(0.18, 0.25); } }
+      } else if (!walking(b, dt)) { b.sub = 0; b.n = 2 + Math.floor(rand(0, 4)); }
+      if ((b.t -= dt) < 0 && b.pk < 0) think(b);
+      break;
+    case "scratch": {
+      b.st += dt; const c = b.st % 2.7;
+      if (c < 1.0) {   // kick backwards: left, right, left, right
+        b.speed = damp(b.speed, 0, 10, dt);
+        const k = Math.floor(c / 0.25), p = Math.sin((c % 0.25) / 0.25 * Math.PI);
+        if (k % 2) T.kickR = p; else T.kickL = p;
+        T.pitch = st.pitch + 0.2; T.head.set(0, st.hy - 0.04, st.hz + 0.02); T.hp = 0.5;
+      } else if (c < 1.3) { b.speed = -0.22; T.pitch = st.pitch + 0.2; }
+      else { b.speed = damp(b.speed, 0, 12, dt); peck(b, T, 0, 0.23, dt); }
+      if ((b.t -= dt) < 0 && c > 2.5) think(b);
+      break;
+    }
+    case "preen":
+      b.speed = damp(b.speed, 0, 8, dt);
+      T.head.set(b.side * 0.075, 0.27 + Math.sin(simT * 9 + b.i) * 0.012, 0.0 + Math.sin(simT * 6 + b.i) * 0.02);
+      T.hyaw = b.side * 1.7; T.hp = 0.7; T.headK = 12; T.fluff = 1.04;
+      if (b.side > 0) T.wingR = 0.15; else T.wingL = 0.15;
+      if ((b.t -= dt) < 0) think(b);
+      break;
+    case "sit":
+      if (walking(b, dt)) break;
+      b.speed = damp(b.speed, 0, 8, dt);
+      T.hip = 0.085; T.pitch = 0.02; T.head.set(0, 0.28, 0.1); T.fluff = 1.07; lookAround(b, T, dt, 2.5);
+      if ((b.t -= dt) < 0) setState(b, "idle");
+      break;
+    case "sunbathe":
+      if (walking(b, dt)) break;
+      b.speed = damp(b.speed, 0, 8, dt);
+      b.st += dt;
+      T.hip = 0.065; T.roll = b.side * 0.16; T.pitch = 0.06; T.fluff = 1.12; T.wingL = T.wingR = 1;
+      if (b.st % 9 < 7.5) { T.head.set(b.side * 0.03, 0.075, 0.26); T.hp = 0.25; T.hroll = b.side * 1.1; T.headK = 3; }
+      else { T.head.set(0, 0.22, 0.15); T.headK = 4; lookAround(b, T, dt); }
+      if ((b.t -= dt) < 0) setState(b, "idle");
+      break;
+    case "drink":
+      if (walking(b, dt)) break;
+      b.speed = damp(b.speed, 0, 10, dt); face(b, WATER.x, WATER.z, dt); b.st += dt;
+      { const c = b.st % 1.6; if (c < 0.6) { T.pitch = st.pitch + 0.3; T.head.set(0, 0.1, 0.24); T.hp = 0.9; T.headK = 14; } else { T.head.set(0, st.hy + 0.03, st.hz - 0.03); T.hp = -0.75; T.headK = 10; } }
+      if (b.st > 4.7) think(b);
+      break;
+    case "crow":
+      b.speed = damp(b.speed, 0, 10, dt); b.st += dt;
+      if (b.st < 0.7) { T.wingL = T.wingR = 0.3; T.flap = Math.abs(Math.sin(b.st * 18)) * 0.6; T.pitch = st.pitch - 0.1; }
+      else if (b.st < 2.6) { T.hip = st.hip + 0.02; T.pitch = st.pitch - 0.22; T.head.set(0, 0.5, 0.12); T.hp = -0.85; T.headK = 5; }
+      if (b.st > b.t) think(b);
+      break;
+    case "chase": {
+      const o = b.other;
+      if (!o || o.state !== "flee" || (b.t -= dt) < 0) { think(b); break; }
+      walkTo(b, o.x, o.z, 0.95, dt, 0.25);
+      T.pitch = st.pitch + 0.25; T.head.set(0, st.hy - 0.06, st.hz + 0.07); T.wingL = T.wingR = 0.2;
+      break;
+    }
+    case "flee": {
+      const o = b.other;
+      if (!o || (b.t -= dt) < 0) { setState(b, Math.random() < 0.5 ? "preen" : "idle"); break; }
+      let ax = b.x - o.x, az = b.z - o.z; const L = Math.hypot(ax, az) || 1; ax /= L; az /= L;
+      let tx = b.x + ax, tz = b.z + az;
+      if (!isFree(tx, tz, 0.2, b.rooster)) { const s = b.side; tx = b.x + (ax * 0.3 - az * s), tz = b.z + (az * 0.3 + ax * s); }
+      walkTo(b, tx, tz, 1.05, dt, 0.01);
+      T.pitch = st.pitch + 0.15; T.wingL = T.wingR = 0.3; T.flap = Math.sin(simT * 26) * 0.3;
+      break;
+    }
+    case "eat": {
+      if (b.full || landed === 0) { if (landed === 0 && airborne > 0 && !b.full) { b.speed = damp(b.speed, 0, 8, dt); lookAround(b, T, dt); break; } think(b); break; }
+      if (!b.food || !grains.includes(b.food)) { if (b.food) b.food.claims--; b.food = nearestGrain(b); if (!b.food) { think(b); break; } b.food.claims++; }
+      const g = b.food, loc = toLocal(b, g.x, g.z), d = Math.hypot(g.x - b.x, g.z - b.z);
+      if (loc.z < 0.12 || loc.z > 0.3 || Math.abs(loc.x) > 0.07) {
+        const a = Math.atan2(g.x - b.x, g.z - b.z);
+        walkTo(b, g.x - Math.sin(a) * 0.21 * b.s, g.z - Math.cos(a) * 0.21 * b.s, d > 1 ? 0.85 : 0.35, dt, 0.03);
+        if (loc.z < 0.12 && d < 0.2) b.speed = -0.15;   // too close: shuffle back
+        if (d > 1) { T.pitch = st.pitch + 0.15; T.wingL = T.wingR = 0.14; T.flap = Math.sin(simT * 22 + b.i) * 0.12; }
+        b.pk = Math.min(b.pk, -0.05);
+      } else {
+        b.speed = damp(b.speed, 0, 12, dt); face(b, g.x, g.z, dt);
+        if (peck(b, T, loc.x, loc.z, dt)) {
+          const i = grains.indexOf(g); if (i >= 0) grains.splice(i, 1);
+          b.crop = Math.min(1, b.crop + 0.1); b.food = null;
+          if (b.crop >= 1) { b.full = true; b.digest = rand(60, 120); setState(b, Math.random() < 0.5 ? "preen" : "wander"); }
+        }
+      }
+      break;
+    }
+    case "lay":
+      if (b.sub === 0) {
+        if (walking(b, dt)) break;
+        b.speed = damp(b.speed, 0, 10, dt); face(b, RAMP.x, RAMP.zTop, dt); lookAround(b, T, dt);
+        if (coopUser && coopUser !== b) { if ((b.wait += dt) > 20) setState(b, "layg"); break; }
+        if (Math.abs(angDiff(b.yaw, Math.PI)) < 0.3 && Math.hypot(b.x - RAMP.x, b.z - (RAMP.zBot + 0.18)) < 0.25) { coopUser = b; b.sub = 1; b.noCollide = true; }
+        else if (Math.hypot(b.x - RAMP.x, b.z - (RAMP.zBot + 0.18)) >= 0.25) b.goal = { x: RAMP.x, z: RAMP.zBot + 0.18, spd: 0.25 };
+      } else if (b.sub === 1) {   // up the ramp
+        b.x = damp(b.x, RAMP.x, 6, dt); b.yaw = damp(b.yaw, b.yaw + angDiff(b.yaw, Math.PI), 8, dt); b.speed = 0.22;
+        T.pitch = st.pitch - 0.28; T.head.set(0, st.hy, st.hz + 0.03);
+        if (b.z < RAMP.zTop - 0.06) { b.sub = 2; b.t = rand(14, 26); b.root.visible = false; b.speed = 0; }
+      } else if (b.sub === 2) {   // inside the coop
+        b.speed = 0; move = false;
+        if ((b.t -= dt) < 0) {
+          const free = NEST_SLOTS.filter((s) => !s.egg);
+          if (free.length) { const s = pick(free); addEgg(s.x, NEST.straw, s.z, s); }
+          b.sub = 3; b.root.visible = true; b.yaw = 0; b.z = RAMP.zTop - 0.06; b.x = RAMP.x;
+        }
+      } else {   // back down
+        b.speed = 0.25; T.pitch = st.pitch + 0.25; T.head.set(0, st.hy - 0.03, st.hz + 0.04);
+        if (b.z > RAMP.zBot + 0.15) { b.noCollide = false; coopUser = null; b.layCd = rand(300, 600); setState(b, "wander"); }
+      }
+      break;
+    case "layg":
+      if (walking(b, dt)) break;
+      b.speed = damp(b.speed, 0, 8, dt);
+      T.hip = 0.085; T.pitch = 0.03; T.head.set(0, 0.29, 0.1); T.fluff = 1.09; lookAround(b, T, dt, 3);
+      if ((b.t -= dt) < 0) {
+        const o = pushOut({ x: b.x - Math.sin(b.yaw) * 0.1 * b.s, z: b.z - Math.cos(b.yaw) * 0.1 * b.s }, 0.03);
+        addEgg(o.x, 0, o.z, null); b.layCd = rand(300, 600);
+        setState(b, "wander"); b.goal = spotNear(b.x, b.z, 1.6, 20, (x, z) => isFree(x, z, 0.16) && Math.hypot(x - o.x, z - o.z) > 0.6) || wanderSpot(b); b.goal.spd = 0.32;
+      }
+      break;
+  }
+  if (b.state !== "lay" && b.noCollide) { b.noCollide = false; b.root.visible = true; if (coopUser === b) coopUser = null; }
+
+  // move
+  if (move) {
+    b.x += Math.sin(b.yaw) * b.speed * dt; b.z += Math.cos(b.yaw) * b.speed * dt;
+    if (!b.noCollide) pushOut(b, 0.11 * b.s, b.rooster);
+  }
+  b.y = b.noCollide ? clamp((RAMP.zBot - b.z) / (RAMP.zBot - RAMP.zTop), 0, 1) * RAMP.hTop + 0.012 : 0;
+
+  // legs: stepping cycle driven by speed
+  const sp = Math.abs(b.speed), k = clamp(sp / 0.22, 0, 1);
+  b.phase += dt * Math.max(sp, 0.0) * 26 / b.s + dt * k * 0.5;
+  for (let i = 0; i < 2; i++) {
+    const a = b.phase + i * Math.PI, kick = i ? b.cur.kickR : b.cur.kickL;
+    let fz = Math.sin(a) * 0.055 * k * Math.sign(b.speed || 1), fy = Math.max(0, Math.cos(a)) * 0.03 * k;
+    if (kick > 0.01) { fz = -0.1 * kick; fy = 0.025 * kick; }
+    b.fp[i].set(i ? 0.042 : -0.042, fy, fz);
+  }
+  // head bob: hold still, then thrust forward with every step
+  if (sp > 0.03 && !["sit", "sunbathe", "layg"].includes(b.state)) {
+    const kb = clamp(sp / 0.2, 0, 1) * (sp > 0.6 ? 0.4 : 1), fr = ((b.phase / Math.PI) % 1 + 1) % 1;
+    const off = fr < 0.72 ? lerp(0.024, -0.02, fr / 0.72) : lerp(-0.02, 0.024, (fr - 0.72) / 0.28);
+    T.head.z += off * kb; T.head.y -= Math.abs(off) * 0.25 * kb; T.headK = Math.max(T.headK, 32);
+  }
+  if (b.state === "eat" || b.state === "chase") T.head.z += 0.03 * clamp(sp - 0.4, 0, 1);
+  applyPose(b, dt);
+}
+
+const INV = new THREE.Matrix4(), HL = new THREE.Vector3(), NB = new THREE.Vector3(), HW = new THREE.Vector3(), FT = new THREE.Vector3(), UPV = new THREE.Vector3(0, 1, 0), TV = new THREE.Vector3();
+function bone(m, a, b) {
+  TV.subVectors(b, a); const L = TV.length(); m.position.copy(a);
+  if (L > 1e-5) m.quaternion.setFromUnitVectors(UPV, TV.multiplyScalar(1 / L));
+  m.scale.set(1, Math.max(L, 1e-4), 1);
+}
+function applyPose(b, dt) {
+  const T = b.tgt, C = b.cur;
+  C.hip = damp(C.hip, T.hip, 4, dt); C.pitch = damp(C.pitch, T.pitch, 6, dt); C.roll = damp(C.roll, T.roll, 3, dt);
+  C.head.x = damp(C.head.x, T.head.x, T.headK, dt); C.head.y = damp(C.head.y, T.head.y, T.headK, dt); C.head.z = damp(C.head.z, T.head.z, T.headK, dt);
+  C.hp = damp(C.hp, T.hp, T.headK * 0.7, dt); C.hyaw = damp(C.hyaw, T.hyaw, 10, dt); C.hroll = damp(C.hroll, T.hroll, 8, dt);
+  C.wingL = damp(C.wingL, T.wingL, 4, dt); C.wingR = damp(C.wingR, T.wingR, 4, dt); C.flap = damp(C.flap, T.flap, 20, dt);
+  C.fluff = damp(C.fluff, T.fluff, 2, dt); C.kickL = damp(C.kickL, T.kickL, 25, dt); C.kickR = damp(C.kickR, T.kickR, 25, dt);
+  b.root.position.set(b.x, b.y, b.z); b.root.rotation.y = b.yaw;
+  const bd = b.body; bd.position.y = C.hip; bd.rotation.set(C.pitch, 0, C.roll); bd.updateMatrix();
+  const cb = b.crop; b.torso.scale.set((1 + 0.26 * cb) * C.fluff, (1 + 0.17 * cb) * C.fluff, (1 + 0.08 * cb) * C.fluff);
+  INV.copy(bd.matrix).invert();
+  HL.copy(C.head).applyMatrix4(INV);
+  b.head.position.copy(HL); b.head.rotation.set(C.hp - C.pitch, C.hyaw, C.hroll);
+  NB.copy(HL); NB.y -= 0.012; NB.z -= 0.012; bone(b.neck, SHOULDER, NB);
+  for (let i = 0; i < 2; i++) {
+    const w = b.wings[i], spread = i ? C.wingR : C.wingL, sgn = i ? 1 : -1;
+    w.pv.rotation.z = sgn * (spread * (Math.PI / 2 - 0.3) + C.flap);
+    w.pv.rotation.y = sgn * spread * 0.2;
+    w.w.scale.set(0.024 * (1 - 0.4 * spread), 0.065 * (1 + 0.6 * spread), 0.125 * (1 + 0.1 * spread));
+  }
+  const legsOn = C.hip > 0.115;
+  for (let i = 0; i < 2; i++) {
+    b.legs[i].visible = b.feet[i].visible = legsOn;
+    if (!legsOn) continue;
+    HW.copy(HIPL[i]).applyMatrix4(bd.matrix); FT.copy(b.fp[i]); FT.y += 0.008;
+    bone(b.legs[i], HW, FT); b.feet[i].position.copy(b.fp[i]);
+  }
+}
+function separate() {
+  for (let i = 0; i < birds.length; i++) for (let j = i + 1; j < birds.length; j++) {
+    const a = birds[i], c = birds[j]; if (a.noCollide || c.noCollide) continue;
+    const dx = c.x - a.x, dz = c.z - a.z, d = Math.hypot(dx, dz), m = 0.13 * (a.s + c.s);
+    if (d < m && d > 1e-5) { const p = (m - d) / 2 / d; a.x -= dx * p; a.z -= dz * p; c.x += dx * p; c.z += dz * p; pushOut(a, 0.11 * a.s, a.rooster); pushOut(c, 0.11 * c.s, c.rooster); }
+  }
+}
+
+// starting positions: a mix of activities so there is something to see straight away
+birds.forEach((b, i) => {
+  for (let k = 0; k < 50; k++) { b.x = rand(-2.8, 3); b.z = rand(-1.8, 2.8); if (isFree(b.x, b.z, 0.2, b.rooster) && !birds.some((o) => o !== b && o.i !== undefined && Math.hypot(o.x - b.x, o.z - b.z) < 0.5 && o !== b)) break; }
+  if (i === 2) { b.full = true; b.crop = 0.8; b.digest = 70; }
+  if (i === 3) { b.full = true; b.crop = 0.6; b.digest = 50; }
+  setState(b, ["wander", "forage", "sunbathe", "sit", "scratch", "forage", "idle"][i]);
+  if (i === 2 || i === 3) { const s = i === 2 ? sunnySpot(b) : shadeSpot(b); b.x = s.x; b.z = s.z; b.goal = null; b.restCd = 60; }
+  const C = b.cur, st = b.stance;
+  if (i === 2) { C.hip = 0.065; C.wingL = C.wingR = 1; C.fluff = 1.12; }
+  if (i === 3) { C.hip = 0.085; C.fluff = 1.07; }
+  applyPose(b, 0.016);
+});
+
+// ===================================================================
+//  camera: drag to orbit, wheel / pinch to zoom, slow drift when idle
+// ===================================================================
+const cam = { th: 0.5, ph: 1.0, r: 10.5, target: new THREE.Vector3(0.1, 0.4, -0.15), idle: 0 };
+let drag = null, pinch = null;
+const pointers = new Map(), gl = renderer.domElement;
+gl.addEventListener("pointerdown", (e) => {
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); gl.setPointerCapture(e.pointerId); gl.classList.add("grabbing");
+  if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t: performance.now() };
+  else if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), r: cam.r }; drag = null; }
+});
+gl.addEventListener("pointermove", (e) => {
+  if (!pointers.has(e.pointerId)) return; pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && pointers.size === 2) { const [a, b] = [...pointers.values()]; cam.r = clamp(pinch.r * pinch.d / Math.max(20, Math.hypot(a.x - b.x, a.y - b.y)), 2.5, 22); cam.idle = 0; return; }
+  if (!drag) return;
+  cam.th -= (e.clientX - drag.x) * 0.006; cam.ph = clamp(cam.ph - (e.clientY - drag.y) * 0.004, 0.22, 1.45);
+  drag.x = e.clientX; drag.y = e.clientY; cam.idle = 0;
+});
+const endPointer = (e) => {
+  pointers.delete(e.pointerId);
+  if (drag && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 7 && performance.now() - drag.t < 450) click(e);
+  if (pointers.size < 2) pinch = null;
+  if (!pointers.size) gl.classList.remove("grabbing");
+  drag = null;
+};
+gl.addEventListener("pointerup", endPointer); gl.addEventListener("pointercancel", endPointer);
+gl.addEventListener("wheel", (e) => { e.preventDefault(); cam.r = clamp(cam.r * Math.exp(e.deltaY * 0.001), 2.5, 22); cam.idle = 0; }, { passive: false });
+const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
+function click(e) {
+  ndc.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1); raycaster.setFromCamera(ndc, camera);
+  const hit = raycaster.intersectObjects([runGround, builtStatic, treeTop], true)[0];
+  if (hit && hit.object === runGround) { throwFeed(hit.point.x, hit.point.z); hintbar.style.opacity = 0; }
+}
+
+// ===================================================================
+//  panel
+// ===================================================================
+const $ = (id) => document.getElementById(id);
+const panel = $("panel"), openBtn = $("openPanel"), hintbar = $("hintbar");
+function setPanel(open) { panel.classList.toggle("hidden", !open); openBtn.hidden = open; }
+$("closePanel").onclick = () => setPanel(false);
+openBtn.onclick = () => setPanel(true);
+addEventListener("keydown", (e) => { if ((e.key === "h" || e.key === "H") && !e.ctrlKey && !e.metaKey && !e.altKey) setPanel(panel.classList.contains("hidden")); });
+document.querySelectorAll(".panel button, .fab").forEach((b) => b.addEventListener("click", () => b.blur()));
+if (isTouch) hintbar.textContent = "Drag to look around · tap the grass to throw feed";
+setPanel(!smallScreen);
+setTimeout(() => (hintbar.style.opacity = 0), 10000);
+
+// ===================================================================
+//  loop
+// ===================================================================
+let viewOff = -1, portrait = false;
+function resize() {
+  renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight;
+  portrait = innerWidth < innerHeight; camera.fov = portrait ? 52 : 40; camera.updateProjectionMatrix(); viewOff = -1;
+  if (portrait) cam.r = Math.max(cam.r, clamp(11 / (innerWidth / innerHeight) * 0.56, 10.5, 16));
+}
+addEventListener("resize", resize);
+
+function step(dt) {
+  simT += dt;
+  updateGrains(dt);
+  for (const b of birds) updateBird(b, dt);
+  separate();
+  updateEggs(dt);
+  treeTop.rotation.z = Math.sin(simT * 0.6) * 0.008; treeTop.rotation.x = Math.sin(simT * 0.47 + 1) * 0.006;
+}
+function render(dt) {
+  cam.idle += dt;
+  if (cam.idle > 6 && !drag && !pinch) { cam.th += dt * 0.025; cam.ph = damp(cam.ph, 0.98 + Math.sin(simT * 0.05) * 0.08, 0.3, dt); }
+  const r = cam.r;
+  camera.position.set(cam.target.x + r * Math.sin(cam.ph) * Math.sin(cam.th), cam.target.y + r * Math.cos(cam.ph), cam.target.z + r * Math.sin(cam.ph) * Math.cos(cam.th));
+  camera.lookAt(cam.target);
+  const off = !panel.classList.contains("hidden") && innerWidth > 760 ? (panel.offsetWidth + 16) / 2 : 0;
+  if (off !== viewOff) { viewOff = off; if (off) camera.setViewOffset(innerWidth, innerHeight, -off, 0, innerWidth, innerHeight); else camera.clearViewOffset(); }
+  renderer.render(scene, camera);
+}
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  step(dt); render(dt);
+  requestAnimationFrame(frame);
+}
+resize();
+render(0);
+requestAnimationFrame(frame);
+</script>
+<script>/* links to other websites open in a new tab */ document.querySelectorAll("a[href]").forEach((a) => { if (/^https?:$/.test(a.protocol) && a.origin !== location.origin) { a.target = "_blank"; a.rel = "noopener noreferrer"; } });</script>
+</body>
+</html>

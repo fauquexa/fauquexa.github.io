@@ -2,196 +2,434 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Julia of the Day</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Julia set of the day</title>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../assets/toy.css?v=20261122i">
+<link rel="stylesheet" href="../assets/toy.css?v=20261122k">
 <style>
-  #mset { width: 100%; aspect-ratio: 4 / 3; border-radius: 8px; cursor: crosshair; display: block; background: #000; border: 1px solid var(--rule); }
-  .name { font-size: 18px; color: var(--accent); margin: 2px 0 8px; }
-  .stage { cursor: grab; }
-  .stage:active { cursor: grabbing; }
+  #gl { touch-action: none; cursor: grab; }
+  #gl.dragging { cursor: grabbing; }
+  .panel { padding-top: 14px; }
+  .panel .close {
+    position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; padding: 0;
+    font-size: 14px; line-height: 1; border-radius: 50%;
+  }
+  .fab {
+    position: fixed; top: max(12px, env(safe-area-inset-top)); left: 12px; z-index: 12;
+    background: var(--panel); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    font-size: 12px; padding: 8px 12px; border-radius: 999px;
+  }
+  .fab[hidden] { display: none; }
+  .cval { font-family: var(--code); font-size: 15px; color: var(--accent); margin: 2px 0 2px; white-space: nowrap; }
+  .date { color: var(--soft); font-size: 12.5px; margin: 0; }
+  #mset { width: 100%; aspect-ratio: 4 / 3; border-radius: 8px; display: block; background: #000; border: 1px solid var(--rule); }
+  #depth { font-family: var(--code); font-size: 11.5px; margin: 8px 0 0; min-height: 1.5em; }
+  #nogl { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--soft); padding: 24px; text-align: center; }
+  #nogl[hidden] { display: none; }
 </style>
 </head>
 <body>
 <canvas class="stage" id="gl"></canvas>
+<div id="nogl" hidden>This page needs WebGL 2, which this browser does not provide.</div>
+
+<button class="fab" id="openPanel" hidden>☰ Menu</button>
 
 <div class="panel" id="panel">
+  <button class="close" id="closePanel" aria-label="Close panel" title="Close (H)">✕</button>
   <a class="back" href="../index.html">← Home</a>
   <h1>Julia set of the day</h1>
-  <p class="sub" id="date">—</p>
-  <div class="name" id="name">—</div>
-  <div class="kv">
-    <span>c</span><span id="cval">—</span>
-    <span>family</span><span id="family">—</span>
-  </div>
-  <div class="row" style="margin-top:12px">
-    <button id="prev" title="previous day">← day</button>
-    <button id="today">today</button>
-    <button id="next" title="next day">day →</button>
-    <button id="rand" title="random parameters">dice</button>
-  </div>
-  <hr>
-  <label>pick c on the Mandelbrot set (click / drag)</label>
-  <canvas id="mset" width="320" height="240"></canvas>
+  <p class="sub">A new parameter every day, picked near the edge of the Mandelbrot set.</p>
+  <div class="cval" id="cval">c = …</div>
+  <p class="date" id="date">…</p>
+  <label>where c sits in the Mandelbrot set</label>
+  <canvas id="mset" width="320" height="240" role="img" aria-label="Mandelbrot set with today's parameter marked"></canvas>
   <label>iterations <span id="itv"></span></label>
-  <input type="range" id="iters" min="50" max="1000" value="300">
-  <label>color cycles</label>
-  <input type="range" id="cyc" min="0.2" max="4" step="0.01">
-  <div class="row" style="margin-top:12px">
-    <button id="pal">new palette</button>
-    <button id="save">save png</button>
-    <button id="share">copy link</button>
+  <input type="range" id="iters" min="100" max="1000" step="50" value="300">
+  <div class="row" style="margin-top:14px">
+    <button id="dive" aria-pressed="false" title="Keep zooming into the edge of the set (D)">dive</button>
+    <button id="reset" title="Back to the whole set">reset view</button>
+    <button id="save">save PNG</button>
   </div>
-  <p class="hint" style="margin-top:12px">scroll to zoom · drag to pan · double-click to reset · <kbd>H</kbd> hide panel</p>
+  <p class="hint" id="depth"></p>
+  <p class="hint" id="howto" style="margin-top:10px">scroll or pinch to zoom · drag to pan · double-click to reset · <kbd>D</kbd> dive · <kbd>H</kbd> panel</p>
 </div>
-<button class="toggle-panel" id="tp">panel</button>
 
-<script src="../assets/julia-day.js?v=20261122i"></script>
+<script src="../assets/julia-day.js?v=20261122k"></script>
 <script>
-const gl = document.getElementById("gl").getContext("webgl", { preserveDrawingBuffer: true, antialias: false });
-const cv = gl.canvas;
+// ---------- today's parameters ----------
+const TODAY = new Date();
+const S = JuliaDay.spec(JuliaDay.dateKey(TODAY));
+// c rounded to single precision so the CPU reference orbits and the GPU iterate the same map
+const CR = Math.fround(S.c[0]), CI = Math.fround(S.c[1]);
 
-const VS = `attribute vec2 p; void main(){ gl_Position = vec4(p,0.,1.); }`;
-const FS = `
+const fmt = (v) => (v < 0 ? "−" : "") + Math.abs(v).toFixed(4);
+document.getElementById("cval").textContent = "c = " + fmt(S.c[0]) + (S.c[1] < 0 ? " − " : " + ") + Math.abs(S.c[1]).toFixed(4) + "i";
+document.getElementById("date").textContent = TODAY.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+
+// ---------- WebGL 2 setup ----------
+const cv = document.getElementById("gl");
+const gl = cv.getContext("webgl2", { antialias: false, alpha: false, depth: false, stencil: false });
+
+const VS = `#version 300 es
+in vec2 p; void main(){ gl_Position = vec4(p, 0., 1.); }`;
+
+/* Deep zoom = perturbation + renormalisation.
+   Each pixel is z = Z + d: Z is a reference orbit computed in double precision on the CPU
+   (texture row 0: orbit of the view centre; row 1: orbit of the critical point 0), and only the
+   small offset d is iterated in single precision: d' = 2 Z d + d^2. Once d has grown large the
+   pixel switches to plain z' = z^2 + c, which is then accurate enough. If z passes closer to 0
+   than d, the pixel is rebased onto the critical orbit (d = z). */
+const FS = `#version 300 es
 precision highp float;
-uniform vec2 uRes, uC, uCenter, uOff;
-uniform float uScale, uRot, uCycles;
-uniform int uMaxIt;
+precision highp int;
+uniform vec2 uRes, uOff, uC;
+uniform float uScale, uRot, uCycles, uNuOff, uDeep, uGlowK, uGlowA, uSlope, uEdge;
+uniform int uMaxIt, uSS;
+uniform ivec2 uLen;
+uniform highp sampler2D uRef;
 uniform vec3 pa, pb, pc, pd;
+out vec4 outColor;
 vec3 pal(float t){ return pa + pb*cos(6.2831853*(pc*t+pd)); }
+vec2 cmul(vec2 a, vec2 b){ return vec2(a.x*b.x - a.y*b.y, a.x*b.y + a.y*b.x); }
+float colourT(float nu){
+  // the original sqrt ramp, plus a constant-density term that only matters deep in a dive
+  float x = (nu - 80.) / 20.;
+  float sp = x > 15. ? x : log(1. + exp(x));
+  return (sqrt(max(nu, 0.) / 300.) * 3. + uSlope * 20. * sp) * uCycles;
+}
+vec3 outside(int i, float m2, vec2 dz){
+  float nu = float(i) - log2(log2(m2) * 0.5) + uNuOff;
+  if (uDeep <= 0.) return pal(colourT(nu)) * (1. - exp(-nu / 5.));
+  // glow: by escape count near the top level, by distance to the set relative to the view when
+  // deep (that measure is unchanged by renormalisation, so the look stays the same all the way)
+  float de = 0.25 * sqrt(m2) * log(m2) / length(dz);
+  float L = mix(nu, max(0., log2(uGlowK * uScale * min(uRes.x, uRes.y) / de)) * uGlowA, uDeep);
+  // deep down, points much closer to the set than a pixel fade to black: a clean lace instead of noise
+  float edge = mix(1., smoothstep(0., 1., de / (uScale * uEdge)), uDeep);
+  return pal(colourT(nu)) * (1. - exp(-L / 5.)) * edge;
+}
+vec3 inside(float trap){
+  return 0.03 + 0.22 * pal(0.5 + 0.8*sqrt(sqrt(trap)) * uCycles) * smoothstep(0., .6, sqrt(trap));
+}
 vec3 shade(vec2 frag){
   vec2 q = (frag - 0.5*uRes - uOff) * uScale;
   float cr = cos(uRot), sr = sin(uRot);
-  vec2 z = uCenter + vec2(q.x*cr - q.y*sr, q.x*sr + q.y*cr);
-  float m2 = 0., trap = 1e9; int n = 0;
-  for (int i = 0; i < 1000; i++) {
-    if (i >= uMaxIt) break;
-    z = vec2(z.x*z.x - z.y*z.y, 2.*z.x*z.y) + uC;
-    m2 = dot(z,z); trap = min(trap, m2);
-    n = i;
-    if (m2 > 256.) break;
+  vec2 d = vec2(q.x*cr - q.y*sr, q.x*sr + q.y*cr);
+  vec2 z = vec2(0.), Z = vec2(0.), dz = vec2(1., 0.);
+  int row = 0, m = 0, i = 0;
+  float m2, trap = 1e9;
+  // phase 1: perturbation around the reference orbits, while d is small
+  for (int g = 0; g < 4096; g++) {
+    Z = texelFetch(uRef, ivec2(m, row), 0).xy;
+    z = Z + d;
+    float dd = dot(d, d);
+    if (dd > 1e-4 || m >= uLen[row] - 1) break;
+    m2 = dot(z, z);
+    if (m2 < dd) {                       // rebase onto the critical orbit
+      d = z; row = 1; m = 0; Z = vec2(0.);
+      if (uLen.y < 2) break;
+    }
+    if (i > 0) trap = min(trap, m2);
+    if (m2 > 256.) return outside(i, m2, dz);
+    if (i >= uMaxIt) return inside(trap);
+    dz = 2. * cmul(z, dz);
+    d = 2. * cmul(Z, d) + cmul(d, d); m++; i++;
   }
-  if (m2 <= 256.) return 0.03 + 0.22 * pal(0.5 + 0.8*sqrt(sqrt(trap)) * uCycles) * smoothstep(0., .6, sqrt(trap));
-  float nu = float(n) + 1. - log2(log2(m2)*0.5);
-  return pal(sqrt(max(nu,0.)/float(uMaxIt)) * 3. * uCycles) * (1. - exp(-nu/5.));
+  // phase 2: plain iteration from z = z_i
+  m2 = dot(z, z);
+  if (i > 0) trap = min(trap, m2);
+  if (uDeep > 0.) {
+    for (int g = 0; g < 4096; g++) {
+      if (m2 > 256. || i >= uMaxIt) break;
+      dz = 2. * cmul(z, dz);
+      z = cmul(z, z) + uC; i++;
+      m2 = dot(z, z); trap = min(trap, m2);
+    }
+  } else {                               // near the top level the derivative is not needed
+    for (int g = 0; g < 4096; g++) {
+      if (m2 > 256. || i >= uMaxIt) break;
+      z = cmul(z, z) + uC; i++;
+      m2 = dot(z, z); trap = min(trap, m2);
+    }
+  }
+  return m2 > 256. ? outside(i, m2, dz) : inside(trap);
 }
 void main(){
-  // 2x2 supersampling
-  vec3 c = shade(gl_FragCoord.xy + vec2(-.25,-.25)) + shade(gl_FragCoord.xy + vec2(.25,-.25))
-         + shade(gl_FragCoord.xy + vec2(-.25,.25)) + shade(gl_FragCoord.xy + vec2(.25,.25));
-  gl_FragColor = vec4(c*0.25, 1.);
+  vec3 c;
+  if (uSS == 1) c = shade(gl_FragCoord.xy);
+  else c = 0.25 * (shade(gl_FragCoord.xy + vec2(-.25,-.25)) + shade(gl_FragCoord.xy + vec2(.25,-.25))
+                 + shade(gl_FragCoord.xy + vec2(-.25,.25)) + shade(gl_FragCoord.xy + vec2(.25,.25)));
+  outColor = vec4(c, 1.);
 }`;
 
-function sh(type, src) {
-  const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
-  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(s);
-  return s;
+const REFW = 1024;                       // max reference-orbit length (iterations slider tops out at 1000)
+let U = {}, refBuf = new Float32Array(REFW * 2 * 2);
+if (!gl) {
+  document.getElementById("nogl").hidden = false;
+} else {
+  const sh = (type, src) => {
+    const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(s);
+    return s;
+  };
+  const prog = gl.createProgram();
+  gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS));
+  gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+  gl.bindAttribLocation(prog, 0, "p");
+  gl.linkProgram(prog); gl.useProgram(prog);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  ["uRes","uOff","uC","uScale","uRot","uCycles","uNuOff","uDeep","uGlowK","uGlowA","uSlope","uEdge","uMaxIt","uSS","uLen","uRef","pa","pb","pc","pd"]
+    .forEach(n => U[n] = gl.getUniformLocation(prog, n));
+  const tex = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG32F, REFW, 2, 0, gl.RG, gl.FLOAT, refBuf);
+  gl.uniform1i(U.uRef, 0);
+  gl.uniform2f(U.uC, CR, CI);
+  gl.uniform1f(U.uCycles, S.cycles);
+  gl.uniform3fv(U.pa, S.palette.a); gl.uniform3fv(U.pb, S.palette.b);
+  gl.uniform3fv(U.pc, S.palette.c); gl.uniform3fv(U.pd, S.palette.d);
 }
-const prog = gl.createProgram();
-gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS));
-gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
-gl.linkProgram(prog); gl.useProgram(prog);
-gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
-gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
-const loc = gl.getAttribLocation(prog, "p");
-gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-const U = {};
-["uOff","uRes","uC","uCenter","uScale","uRot","uCycles","uMaxIt","pa","pb","pc","pd"].forEach(n => U[n] = gl.getUniformLocation(prog, n));
 
 // ---------- state ----------
-let day = new Date();
-let S = null;                 // current spec
-let view = { cx: 0, cy: 0, h: 3.0 };   // h = visible height in complex units
+const HOME = () => ({ cx: 0, cy: 0, h: 3.0, rot: S.rot });
+let view = HOME();           // h = visible extent of the shorter screen side, in complex units
+let nuOff = 0;               // iterations absorbed by renormalisation (keeps colours continuous)
+let extraLog10 = 0;          // zoom absorbed by renormalisation, as a power of ten
 let maxIt = 300;
-let pending = false;
+const glowK = 0.12, glowA = 1.5, colSlope = 0.03, edgePx = 0.25;   // deep-zoom look (see shader)
+let rs = 1;                  // render scale (lowered during a dive if frames get slow)
+let needs = true, lastMove = 0, didFinal = false;
+let refLen = [0, 0], refFor = { x: NaN, y: NaN, it: 0 };
 
-function fromHash() {
-  const m = location.hash.match(/^#(\d{4})-(\d{2})-(\d{2})$/);
-  if (m) day = new Date(+m[1], +m[2] - 1, +m[3]);
+// reference orbit of (x, y), written into row `row` of the texture buffer; returns its length
+function orbit(x, y, row) {
+  const o = row * REFW * 2;
+  let n = 0;
+  for (; n <= maxIt && n < REFW; n++) {
+    refBuf[o + 2 * n] = x; refBuf[o + 2 * n + 1] = y;
+    if (x * x + y * y > 256) { n++; break; }
+    const t = x * x - y * y + CR; y = 2 * x * y + CI; x = t;
+  }
+  return n;
 }
-function load(spec) {
-  S = spec;
-  view = { cx: 0, cy: 0, h: 3.0 };
-  document.getElementById("cyc").value = S.cycles;
-  updateLabels(); draw(); drawMarker();
-}
-function loadDay() {
-  load(JuliaDay.spec(JuliaDay.dateKey(day)));
-  history.replaceState(null, "", "#" + JuliaDay.dateKey(day));
-}
-function updateLabels() {
-  const isToday = JuliaDay.dateKey(day) === JuliaDay.dateKey(new Date());
-  document.getElementById("date").textContent = S.custom ? "custom parameters" :
-    day.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" }) + (isToday ? " · today" : "");
-  document.getElementById("name").textContent = "“" + S.name + "”";
-  const [a, b] = S.c;
-  document.getElementById("cval").textContent = a.toFixed(5) + (b < 0 ? " − " : " + ") + Math.abs(b).toFixed(5) + "i";
-  document.getElementById("family").textContent = S.family;
-  document.getElementById("itv").textContent = maxIt;
+function updateRef() {
+  if (refFor.x === view.cx && refFor.y === view.cy && refFor.it === maxIt) return;
+  if (refFor.it !== maxIt) refLen[1] = orbit(0, 0, 1);
+  refLen[0] = orbit(view.cx, view.cy, 0);
+  refFor = { x: view.cx, y: view.cy, it: maxIt };
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, REFW, 2, gl.RG, gl.FLOAT, refBuf);
 }
 
-function resize() {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  cv.width = Math.floor(innerWidth * dpr); cv.height = Math.floor(innerHeight * dpr);
-  gl.viewport(0, 0, cv.width, cv.height);
-  draw();
-}
-function draw() {
-  if (pending || !S) return;
-  pending = true;
-  requestAnimationFrame(() => {
-    pending = false;
-    gl.uniform2f(U.uRes, cv.width, cv.height);
-    gl.uniform2f(U.uOff, offPx() * cv.width / innerWidth, 0);
-    gl.uniform2f(U.uC, S.c[0], S.c[1]);
-    gl.uniform2f(U.uCenter, view.cx, view.cy);
-    gl.uniform1f(U.uScale, view.h / Math.min(cv.width, cv.height));
-    gl.uniform1f(U.uRot, S.rot);
-    gl.uniform1f(U.uCycles, S.cycles);
-    gl.uniform1i(U.uMaxIt, maxIt);
-    gl.uniform3fv(U.pa, S.palette.a); gl.uniform3fv(U.pb, S.palette.b);
-    gl.uniform3fv(U.pc, S.palette.c); gl.uniform3fv(U.pd, S.palette.d);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-  });
-}
-
-// keep the fractal centred in the free space next to the panel
-function offPx() {
+function offPx() {           // keep the fractal centred in the free space next to the panel
   const p = document.getElementById("panel");
   return innerWidth > 760 && !p.classList.contains("hidden") ? (p.offsetWidth + 16) / 2 : 0;
 }
 
-// ---------- pan / zoom ----------
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2) * rs;
+  cv.width = Math.max(1, Math.floor(innerWidth * dpr)); cv.height = Math.max(1, Math.floor(innerHeight * dpr));
+  needs = true;
+}
+
+function render(ss) {
+  if (!gl) return;
+  updateRef();
+  gl.viewport(0, 0, cv.width, cv.height);
+  gl.uniform2f(U.uRes, cv.width, cv.height);
+  gl.uniform2f(U.uOff, offPx() * cv.width / innerWidth, 0);
+  gl.uniform1f(U.uScale, view.h / Math.min(cv.width, cv.height));
+  gl.uniform1f(U.uRot, view.rot);
+  gl.uniform1f(U.uNuOff, nuOff);
+  const zl = Math.log10(3 / view.h) + extraLog10;          // blend the glow measure over zoom x10 .. x1000
+  gl.uniform1f(U.uDeep, Math.min(1, Math.max(0, (zl - 1) / 2)));
+  gl.uniform1f(U.uGlowK, glowK); gl.uniform1f(U.uGlowA, glowA);
+  gl.uniform1f(U.uSlope, colSlope); gl.uniform1f(U.uEdge, edgePx * cv.width / innerWidth);
+  gl.uniform1i(U.uMaxIt, maxIt);
+  gl.uniform1i(U.uSS, ss);
+  gl.uniform2i(U.uLen, refLen[0], refLen[1]);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+/* Renormalisation: the Julia set is invariant under f(z) = z^2 + c, and near the view centre p
+   f is almost exactly a rotation + scaling by f'(p) = 2p. So once the view is small we replace it
+   by its image under f (centre f(p), size |2p| h, rotation + arg p). The picture is the same to
+   far below a pixel, escape counts drop by exactly one (absorbed in nuOff), and the numbers
+   never get small: the zoom can go on for ever. */
+const H_LO = 2e-6;
+function renorm() {
+  for (let guard = 0; guard < 8 && view.h < H_LO; guard++) {
+    let px = view.cx, py = view.cy, tx = dive.tx, ty = dive.ty, D = 1, ang = 0, k = 0, ok = false;
+    while (k < 4000) {                          // near the critical point it can take many steps
+      const r = Math.hypot(px, py);
+      if (view.h * D > 1e-3 * r) break;          // too close to the critical point: f is not linear here
+      D *= 2 * r; ang += Math.atan2(py, px); k++;
+      [px, py] = [px * px - py * py + CR, 2 * px * py + CI];
+      [tx, ty] = [tx * tx - ty * ty + CR, 2 * tx * ty + CI];
+      if (px * px + py * py > 16) break;
+      if (D > 1.5) { ok = true; break; }
+    }
+    if (!ok) return;
+    view.cx = px; view.cy = py; view.h *= D; view.rot += ang;
+    dive.tx = tx; dive.ty = ty; dive.hAtTarget *= D;
+    nuOff += k; extraLog10 += Math.log10(D);
+  }
+}
+const MIN_H = 1e-12;          // only reached where renormalisation is impossible
+
+// ---------- dive ----------
+const dive = { on: false, tx: 0, ty: 0, hAtTarget: 0 };
+const ZOOM_RATE = Math.log(2) / 1.6;      // the view halves every 1.6 s
+
+// distance from (x, y) to the Julia set, or -1 if the point does not escape
+function distEst(x, y) {
+  let dx = 1, dy = 0;
+  for (let n = 0; n < maxIt; n++) {
+    const r2 = x * x + y * y;
+    if (r2 > 1e8) { const r = Math.sqrt(r2); return 0.5 * r * Math.log(r) / Math.hypot(dx, dy); }
+    const ndx = 2 * (x * dx - y * dy), ndy = 2 * (x * dy + y * dx);
+    dx = ndx; dy = ndy;
+    const t = x * x - y * y + CR; y = 2 * x * y + CI; x = t;
+  }
+  return -1;
+}
+// pick a point on the boundary near the current target (or anywhere in view when `wide`)
+function pickTarget(wide) {
+  const N = wide ? 40 : 18, R = (wide ? 0.42 : 0.22) * view.h;
+  const bx = wide ? view.cx : dive.tx, by = wide ? view.cy : dive.ty;
+  const c = [];
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+    const ux = (i + Math.random()) / N * 2 - 1, uy = (j + Math.random()) / N * 2 - 1;
+    const dist = Math.hypot(ux, uy);
+    if (dist > 1) continue;
+    const x = bx + ux * R, y = by + uy * R, de = distEst(x, y);
+    if (de < 0) continue;
+    c.push({ x, y, s: de / view.h + (wide ? 0 : 0.03 * dist) });
+  }
+  if (c.length) {
+    c.sort((a, b) => a.s - b.s);
+    const t = c[Math.floor(Math.random() * Math.min(c.length, wide ? 12 : 3))];
+    dive.tx = t.x; dive.ty = t.y;
+  }
+  dive.hAtTarget = view.h;
+}
+function setDive(on) {
+  if (on === dive.on) return;
+  dive.on = on;
+  const b = document.getElementById("dive");
+  b.classList.toggle("on", on); b.setAttribute("aria-pressed", on);
+  b.textContent = on ? "stop dive" : "dive";
+  if (on) { pickTarget(true); stats.n = 0; stats.sum = 0; }
+  else if (rs !== 1) { rs = 1; resize(); }
+  lastMove = performance.now(); didFinal = false; needs = true;
+}
+function diveStep(dt) {
+  if (view.h < dive.hAtTarget / 1.7) pickTarget(false);
+  const k = 1 - Math.exp(-2 * dt);
+  view.cx += (dive.tx - view.cx) * k; view.cy += (dive.ty - view.cy) * k;
+  view.h *= Math.exp(-ZOOM_RATE * dt);
+  renorm();
+  if (view.h < MIN_H) setDive(false);
+}
+
+// ---------- zoom readout ----------
+const depthEl = document.getElementById("depth");
+let lastDepth = "";
+function showDepth() {
+  const l = Math.log10(3 / view.h) + extraLog10;
+  let s = "";
+  if (l > 0.05) {
+    if (l < 4) s = "zoom ×" + Math.pow(10, l).toFixed(l < 1 ? 1 : 0);
+    else { const e = Math.floor(l); s = "zoom ×" + Math.pow(10, l - e).toFixed(1) + " × 10<sup>" + e + "</sup>"; }
+  }
+  if (s !== lastDepth) { depthEl.innerHTML = s; lastDepth = s; }
+}
+
+// ---------- main loop ----------
+const stats = { n: 0, sum: 0, last: 0 };
+let prevT = 0;
+function frame(t) {
+  const dt = prevT ? Math.min((t - prevT) / 1000, 0.1) : 0;
+  prevT = t;
+  if (dive.on) {
+    diveStep(dt);
+    needs = true;
+    // adaptive resolution: if frames are slow, render fewer pixels until the dive stops
+    if (dt > 0) { stats.n++; stats.sum += dt; }
+    if (stats.n >= 30) {
+      const avg = stats.sum / stats.n; stats.last = avg; stats.n = 0; stats.sum = 0;
+      if (avg > 0.026 && rs > 0.5) { rs = Math.max(0.5, rs * 0.8); resize(); }
+    }
+  }
+  const busy = dive.on || t - lastMove < 180;
+  if (needs) { render(1); needs = false; didFinal = false; showDepth(); }
+  else if (!busy && !didFinal) { render(2); didFinal = true; }   // supersampled once things settle
+  requestAnimationFrame(frame);
+}
+
+// ---------- pan / zoom (mouse, wheel, touch) ----------
 function toComplexDelta(dx, dy) {          // screen-pixel delta -> rotated complex delta
-  const dpr = cv.width / innerWidth;
-  const s = view.h / Math.min(cv.width, cv.height) * dpr;
+  const s = view.h / Math.min(innerWidth, innerHeight);
   const qx = dx * s, qy = -dy * s;
-  const c = Math.cos(S.rot), sn = Math.sin(S.rot);
+  const c = Math.cos(view.rot), sn = Math.sin(view.rot);
   return [qx * c - qy * sn, qx * sn + qy * c];
 }
-let drag = null;
-cv.addEventListener("pointerdown", e => { drag = { x: e.clientX, y: e.clientY }; cv.setPointerCapture(e.pointerId); });
-cv.addEventListener("pointermove", e => {
-  if (!drag) return;
-  const [dx, dy] = toComplexDelta(e.clientX - drag.x, e.clientY - drag.y);
-  view.cx -= dx; view.cy -= dy; drag = { x: e.clientX, y: e.clientY }; draw();
+function moved() { lastMove = performance.now(); needs = true; }
+function zoomAt(sx, sy, f) {
+  const nh = Math.max(MIN_H, Math.min(8, view.h * f));
+  f = nh / view.h;
+  const [ox, oy] = toComplexDelta(sx - innerWidth / 2 - offPx(), sy - innerHeight / 2);
+  view.cx += ox * (1 - f); view.cy += oy * (1 - f); view.h = nh;
+  renorm(); moved();
+}
+const ptrs = new Map();
+let pinch = null;
+cv.addEventListener("pointerdown", e => {
+  setDive(false);
+  try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+  ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  cv.classList.add("dragging"); pinch = null;
 });
-cv.addEventListener("pointerup", () => drag = null);
+cv.addEventListener("pointermove", e => {
+  const p = ptrs.get(e.pointerId);
+  if (!p) return;
+  if (ptrs.size === 1) {
+    const [dx, dy] = toComplexDelta(e.clientX - p.x, e.clientY - p.y);
+    view.cx -= dx; view.cy -= dy; moved();
+  } else if (ptrs.size === 2) {
+    const [a, b] = [...ptrs.values()];
+    const d0 = Math.hypot(a.x - b.x, a.y - b.y);
+    const mx0 = (a.x + b.x) / 2, my0 = (a.y + b.y) / 2;
+    p.x = e.clientX; p.y = e.clientY;
+    const d1 = Math.hypot(a.x - b.x, a.y - b.y);
+    const mx1 = (a.x + b.x) / 2, my1 = (a.y + b.y) / 2;
+    const [dx, dy] = toComplexDelta(mx1 - mx0, my1 - my0);
+    view.cx -= dx; view.cy -= dy;
+    if (d0 > 0 && d1 > 0) zoomAt(mx1, my1, d0 / d1); else moved();
+    return;
+  }
+  p.x = e.clientX; p.y = e.clientY;
+});
+const up = e => { ptrs.delete(e.pointerId); if (!ptrs.size) cv.classList.remove("dragging"); };
+cv.addEventListener("pointerup", up);
+cv.addEventListener("pointercancel", up);
 cv.addEventListener("wheel", e => {
-  e.preventDefault();
-  const f = Math.exp(e.deltaY * 0.0015);
-  const [ox, oy] = toComplexDelta(e.clientX - innerWidth / 2 - offPx(), e.clientY - innerHeight / 2);
-  view.cx += ox * (1 - f); view.cy += oy * (1 - f);
-  view.h = Math.max(1e-5, Math.min(8, view.h * f));
-  draw();
+  e.preventDefault(); setDive(false);
+  const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+  zoomAt(e.clientX, e.clientY, Math.exp(dy * 0.0015));
 }, { passive: false });
-cv.addEventListener("dblclick", () => { view = { cx: 0, cy: 0, h: 3.0 }; draw(); });
+function resetView() { setDive(false); view = HOME(); nuOff = 0; extraLog10 = 0; moved(); }
+cv.addEventListener("dblclick", resetView);
 
-// ---------- Mandelbrot picker ----------
-const ms = document.getElementById("mset"), mctx = ms.getContext("2d");
-const MB = { x0: -2.2, x1: 0.8, y0: -1.125, y1: 1.125 };
-const mImg = (() => {
+// ---------- Mandelbrot inset (display only) ----------
+(function () {
+  const ms = document.getElementById("mset"), mctx = ms.getContext("2d");
+  const MB = { x0: -2.2, x1: 0.8, y0: -1.125, y1: 1.125 };
   const W = ms.width, H = ms.height, img = mctx.createImageData(W, H);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const cr = MB.x0 + (x + .5) / W * (MB.x1 - MB.x0), ci = MB.y1 - (y + .5) / H * (MB.y1 - MB.y0);
@@ -201,69 +439,52 @@ const mImg = (() => {
     const v = n >= 120 ? 230 : Math.min(255, Math.sqrt(n / 120) * 150);
     img.data[o] = v * .85; img.data[o + 1] = v * .8; img.data[o + 2] = v; img.data[o + 3] = 255;
   }
-  return img;
-})();
-function drawMarker() {
-  mctx.putImageData(mImg, 0, 0);
-  const x = (S.c[0] - MB.x0) / (MB.x1 - MB.x0) * ms.width, y = (MB.y1 - S.c[1]) / (MB.y1 - MB.y0) * ms.height;
+  mctx.putImageData(img, 0, 0);
+  const x = (S.c[0] - MB.x0) / (MB.x1 - MB.x0) * W, y = (MB.y1 - S.c[1]) / (MB.y1 - MB.y0) * H;
   mctx.strokeStyle = "#e0b35a"; mctx.lineWidth = 1.5;
   mctx.beginPath(); mctx.arc(x, y, 6, 0, 7); mctx.stroke();
   mctx.beginPath(); mctx.moveTo(x - 11, y); mctx.lineTo(x - 7, y); mctx.moveTo(x + 7, y); mctx.lineTo(x + 11, y);
   mctx.moveTo(x, y - 11); mctx.lineTo(x, y - 7); mctx.moveTo(x, y + 7); mctx.lineTo(x, y + 11); mctx.stroke();
-}
-let picking = false;
-function pick(e) {
-  const r = ms.getBoundingClientRect();
-  const cr = MB.x0 + (e.clientX - r.left) / r.width * (MB.x1 - MB.x0);
-  const ci = MB.y1 - (e.clientY - r.top) / r.height * (MB.y1 - MB.y0);
-  S = Object.assign({}, S, { c: [cr, ci], family: "hand-picked", custom: true });
-  updateLabels(); draw(); drawMarker();
-}
-ms.addEventListener("pointerdown", e => { picking = true; ms.setPointerCapture(e.pointerId); pick(e); });
-ms.addEventListener("pointermove", e => { if (picking) pick(e); });
-ms.addEventListener("pointerup", () => picking = false);
+})();
 
 // ---------- controls ----------
-const shiftDay = n => { day = new Date(day.getFullYear(), day.getMonth(), day.getDate() + n); loadDay(); };
-document.getElementById("prev").onclick = () => shiftDay(-1);
-document.getElementById("next").onclick = () => shiftDay(1);
-document.getElementById("today").onclick = () => { day = new Date(); loadDay(); };
-document.getElementById("rand").onclick = () => {
-  const s = JuliaDay.spec("rand:" + Math.random()); s.custom = true; load(s);
-};
-document.getElementById("pal").onclick = () => {
-  const r = JuliaDay.rng((Math.random() * 4294967296) >>> 0);
-  S = Object.assign({}, S, { palette: { a: [.5,.5,.5], b: [.5,.5,.5], c: [1, 1, r() < .5 ? 1 : .5], d: [r(), r(), r()] } });
-  draw();
-};
 const iters = document.getElementById("iters");
-iters.oninput = () => { maxIt = +iters.value; updateLabels(); draw(); };
-const cyc = document.getElementById("cyc");
-cyc.oninput = () => { S.cycles = +cyc.value; draw(); };
+const itv = document.getElementById("itv");
+itv.textContent = maxIt;
+iters.oninput = () => { maxIt = +iters.value; itv.textContent = maxIt; moved(); };
+document.getElementById("dive").onclick = (e) => {
+  setDive(!dive.on); e.currentTarget.blur();
+  if (dive.on && (isTouch || innerWidth < 760)) setPanel(false);     // on phones, get the panel out of the way
+};
+document.getElementById("reset").onclick = resetView;
 document.getElementById("save").onclick = () => {
+  if (!gl) return;
+  render(2);                                   // read back in the same task, so no preserved buffer is needed
   const a = document.createElement("a");
-  a.download = "julia-" + (S.custom ? "custom" : JuliaDay.dateKey(day)) + ".png";
+  a.download = "julia-" + JuliaDay.dateKey(TODAY) + ".png";
   a.href = cv.toDataURL("image/png"); a.click();
+  needs = true;
 };
-document.getElementById("share").onclick = async (e) => {
-  try { await navigator.clipboard.writeText(location.href.split("#")[0] + "#" + JuliaDay.dateKey(day)); e.target.textContent = "copied ✓"; }
-  catch (_) { e.target.textContent = "copy failed"; }
-  setTimeout(() => e.target.textContent = "copy link", 1500);
-};
-const panel = document.getElementById("panel");
-const togglePanel = () => { panel.classList.toggle("hidden"); draw(); };
-document.getElementById("tp").onclick = togglePanel;
+
+// panel: close button + reopen button; starts closed on small screens
+const panel = document.getElementById("panel"), openBtn = document.getElementById("openPanel");
+function setPanel(open) { panel.classList.toggle("hidden", !open); openBtn.hidden = open; moved(); }
+document.getElementById("closePanel").onclick = () => setPanel(false);
+openBtn.onclick = () => setPanel(true);
+const isTouch = matchMedia("(pointer: coarse)").matches;
+if (isTouch) document.getElementById("howto").textContent = "pinch to zoom · drag to pan";
+setPanel(!(innerWidth < 760 || isTouch));
+
 addEventListener("keydown", e => {
-  if (e.key === "h" || e.key === "H") togglePanel();
-  if (e.key === "ArrowLeft") shiftDay(-1);
-  if (e.key === "ArrowRight") shiftDay(1);
+  if (e.target.tagName === "INPUT" && e.target.type === "text") return;
+  if (e.key === "h" || e.key === "H") setPanel(panel.classList.contains("hidden"));
+  if (e.key === "d" || e.key === "D") setDive(!dive.on);
 });
-addEventListener("hashchange", () => { fromHash(); loadDay(); });
 addEventListener("resize", resize);
 
-fromHash();
 resize();
-loadDay();
+if (gl) requestAnimationFrame(frame);
 </script>
+<script>/* links to other websites open in a new tab */ document.querySelectorAll("a[href]").forEach((a) => { if (/^https?:$/.test(a.protocol) && a.origin !== location.origin) { a.target = "_blank"; a.rel = "noopener noreferrer"; } });</script>
 </body>
 </html>
