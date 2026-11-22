@@ -125,6 +125,9 @@ footer { font-size: 14px; color: var(--ink-faint); border-top: 1px solid var(--r
 .playlist p { margin-top: 2px; }
 
 /* ---------- playground ---------- */
+/* the sticky side columns scroll if they must, but without a visible scrollbar */
+.side, .play { scrollbar-width: none; }
+.side::-webkit-scrollbar, .play::-webkit-scrollbar { display: none; }
 .play { padding: 64px 28px 32px 8px; }
 .play-head h2 { font-size: 23px; margin-bottom: 4px; }
 .play-head p { font-family: var(--sans); margin: 0 0 18px; color: var(--ink-soft); font-size: 14.5px; line-height: 1.5; }
