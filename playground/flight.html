@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Flight Simulator</title>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../assets/toy.css?v=20261122g">
+<link rel="stylesheet" href="../assets/toy.css?v=20261122h">
 <style>
   #gl, #hud { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
   #hud { pointer-events: none; }
@@ -346,8 +346,9 @@ function buildAirportMesh(a) {
   const lights = [];
   for (let z = -L / 2; z <= L / 2 + 1; z += 60) { lights.push([-W / 2 - 1, 0.8, z]); lights.push([W / 2 + 1, 0.8, z]); }
   for (const s of [-1, 1]) for (let d = 40; d <= 300; d += 30) {           // approach lights, on the real ground
-    const u = -s * (L / 2 + d), wx = a.x + a.dx * u, wz = a.z + a.dz * u;
-    lights.push([0, Math.max(height(wx, wz), 0) - a.elev + 2.5, s * (L / 2 + d)]);
+    const u = -s * (L / 2 + d), wx = a.x + a.dx * u, wz = a.z + a.dz * u, gy = Math.max(height(wx, wz), 0) - a.elev;
+    if (Math.abs(gy) > 12) break;   // stop where the ground leaves the runway level (no lights marching up a mountainside)
+    lights.push([0, gy + 2.5, s * (L / 2 + d)]);
   }
   g.add(inst(new THREE.SphereGeometry(0.9, 6, 5), lightMat, lights));
   const tx = W / 2 + 140;

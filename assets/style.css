@@ -131,8 +131,7 @@ footer { font-size: 14px; color: var(--ink-faint); border-top: 1px solid var(--r
 .tiles { display: grid; gap: 14px; }
 .tile { display: block; text-decoration: none; color: var(--ink); background: var(--tile); border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; transition: border-color .15s, box-shadow .15s; }
 .tile:hover { border-color: var(--ink-faint); }
-.tile canvas, .playlist canvas { display: block; width: 100%; aspect-ratio: 16 / 9; background: #0b0e12; filter: saturate(.35) brightness(.92) contrast(.95); transition: filter .25s; }
-.tile:hover canvas, .playlist li:hover canvas { filter: none; }
+.tile canvas, .tile img, .playlist canvas, .playlist img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; background: #0b0e12; }
 .tile .t { display: block; padding: 10px 12px 12px; }
 .tile b { display: block; font-size: 15px; font-weight: 600; }
 .tile .t span { display: block; font-size: 13.5px; color: var(--ink-soft); line-height: 1.45; margin-top: 2px; }
