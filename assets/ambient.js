@@ -67,7 +67,10 @@
 
   function setupMusic(name) {
     const M = MOODS[name] || MOODS.cats;
-    const KEY = "playground-music", VOL = 0.4;
+    const KEY = "playground-music", VKEY = "playground-volume";
+    let level = 50;   // 0-100 on the slider; 50 is the default loudness
+    try { const l = parseInt(localStorage.getItem(VKEY), 10); if (l >= 0 && l <= 100) level = l; } catch (e) { }
+    const gain = () => level / 100 * 0.8;
     let muted = false;
     muted = true;   // off until the visitor turns it on with the speaker; their choice is remembered
     try { const v = localStorage.getItem(KEY); if (v) muted = v !== "on"; } catch (e) { }
@@ -75,17 +78,29 @@
     // ---- the speaker button
     const css = document.createElement("style");
     css.textContent =
-      "#musicBtn{position:fixed;right:16px;bottom:16px;z-index:12;width:40px;height:40px;padding:0;border-radius:50%;" +
+      "#musicCtl{position:fixed;right:16px;bottom:16px;z-index:12;display:flex;flex-direction:column-reverse;align-items:center;gap:8px}" +
+      "body.cinema #musicCtl{display:none}" +
+      "#musicVol{position:relative;width:40px;height:140px;border-radius:20px;background:rgba(24,25,28,.82);border:1px solid rgba(255,255,255,.14);" +
+      "box-shadow:0 4px 14px rgba(0,0,0,.25);opacity:0;transform:translateY(8px);pointer-events:none;transition:opacity .18s,transform .18s}" +
+      "#musicCtl:hover #musicVol,#musicCtl:focus-within #musicVol{opacity:1;transform:none;pointer-events:auto}" +
+      "#musicCtl.muted:not(:focus-within) #musicVol{opacity:0;transform:translateY(8px);pointer-events:none}" +
+      "#musicVol input{position:absolute;left:50%;top:50%;width:112px;margin:0;transform:translate(-50%,-50%) rotate(-90deg);accent-color:#8fb4ec;cursor:pointer}" +
+      "#musicBtn{width:40px;height:40px;padding:0;border-radius:50%;flex:none;" +
       "display:grid;place-items:center;background:rgba(24,25,28,.82);border:1px solid rgba(255,255,255,.14);color:#ececea;cursor:pointer;" +
       "box-shadow:0 4px 14px rgba(0,0,0,.25);transition:background .15s,opacity .2s}" +
       "#musicBtn:hover{background:rgba(44,46,52,.92)}#musicBtn svg{width:20px;height:20px;display:block}" +
-      "#musicBtn.off{opacity:.75}body.cinema #musicBtn{display:none}" +
+      "#musicBtn.off{opacity:.75}" +
       "#musicBtn.waiting{animation:musicPulse 1.8s ease-in-out infinite}" +
       "@keyframes musicPulse{0%,100%{box-shadow:0 0 0 0 rgba(143,180,236,.55)}50%{box-shadow:0 0 0 8px rgba(143,180,236,0)}}";
     document.head.appendChild(css);
+    const ctl = document.createElement("div"); ctl.id = "musicCtl";
     const btn = document.createElement("button");
     btn.id = "musicBtn"; btn.type = "button";
-    document.body.appendChild(btn);
+    const volBox = document.createElement("div"); volBox.id = "musicVol";
+    const vol = document.createElement("input"); vol.type = "range"; vol.min = "0"; vol.max = "100"; vol.step = "1"; vol.value = String(level);
+    vol.setAttribute("aria-label", "Volume");
+    volBox.appendChild(vol); ctl.appendChild(btn); ctl.appendChild(volBox);
+    document.body.appendChild(ctl);
     const ICON_ON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" stroke="none"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6"/><path d="M18 6.5a7.6 7.6 0 0 1 0 11"/></svg>';
     const ICON_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" stroke="none"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></svg>';
     function paint() {
@@ -94,6 +109,7 @@
       btn.title = muted ? "Sound off" : "Sound on";
       btn.setAttribute("aria-label", muted ? "Turn the sound on" : "Mute the sound");
       btn.setAttribute("aria-pressed", String(!muted));
+      ctl.classList.toggle("muted", muted);
     }
     paint();
 
@@ -211,7 +227,7 @@
     function play() {
       if (!ctx) build();
       if (ctx.state === "suspended") ctx.resume();
-      fadeTo(VOL, 6);   // a slow fade in
+      fadeTo(gain(), 6);   // a slow fade in
     }
     function stop() {
       if (!ctx) return;
@@ -243,12 +259,27 @@
       e.stopPropagation();
       armed = true;
       muted = !muted;
-      try { localStorage.setItem(KEY, muted ? "off" : "on"); } catch (err) { }
+      if (!muted && level === 0) { level = 50; vol.value = "50"; }
+      try { localStorage.setItem(KEY, muted ? "off" : "on"); localStorage.setItem(VKEY, String(level)); } catch (err) { }
       paint();
       if (muted) stop(); else play();
       btn.blur();
     });
     btn.addEventListener("pointerdown", (e) => e.stopPropagation());   // don't feed the fish when muting
+    volBox.addEventListener("pointerdown", (e) => e.stopPropagation());
+    volBox.addEventListener("click", (e) => e.stopPropagation());
+    vol.addEventListener("keydown", (e) => e.stopPropagation());       // arrow keys move the slider, not the camera
+    // the volume slider: shows on hover while the sound is on; all the way down mutes
+    vol.addEventListener("input", () => {
+      armed = true;
+      level = parseInt(vol.value, 10) || 0;
+      try { localStorage.setItem(VKEY, String(level)); } catch (err) { }
+      if (level === 0) {
+        if (!muted) { muted = true; try { localStorage.setItem(KEY, "off"); } catch (err) { } paint(); stop(); }
+      } else if (muted) {
+        muted = false; try { localStorage.setItem(KEY, "on"); } catch (err) { } paint(); play(); fadeTo(gain(), 0.4);
+      } else fadeTo(gain(), 0.12);
+    });
 
     // ---- little cat sounds, also generated: a soft purr and a sweet "miu"
     let noiseBuf = null;
