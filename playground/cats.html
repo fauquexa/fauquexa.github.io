@@ -799,16 +799,16 @@ const APT_DOORS = [   // axis: the wall is a line of constant z ("z") or x ("x")
 // ---- diorama base: lawn, a chunky earth-and-stone edge, the building's plinth, a quiet one-lane road along the windows, a hedge and a few trees
 {
   const G = aptGarden;
-  B(G, M(0x8a6e55), -7.25, 4.2, -0.75, -0.32, -6.5, 6.5, 0.08);          // earth
-  B(G, M(0xa8a196), -7.3, 4.25, -0.4, -0.2, -6.55, 6.55, 0.06);          // a band of stone
-  B(G, M(0xa3bf8a), -7.25, 4.2, -0.22, -0.1, -6.5, 6.5, 0.06);           // lawn
+  B(G, M(0x8a6e55), -6.37, 4.2, -0.75, -0.32, -6.5, 6.5, 0.08);          // earth
+  B(G, M(0xa8a196), -6.42, 4.25, -0.4, -0.2, -6.55, 6.55, 0.06);          // a band of stone
+  B(G, M(0xa3bf8a), -6.37, 4.2, -0.22, -0.1, -6.5, 6.5, 0.06);           // lawn
   B(G, M(0xc9c2b6), -3.12, 3.12, -0.14, -0.005, 0.72, 5.42, 0.03);      // the building's plinth
   B(G, M(0xc9c2b6), -3.12, 3.12, -0.14, -0.005, -0.98, 0.9, 0.03);
   B(G, M(0xc9c2b6), -3.12, 1.82, -0.14, -0.005, -2.0, -0.85, 0.03);
   B(G, M(0xc9c2b6), -3.12, 1.42, -0.14, -0.005, -5.42, -1.8, 0.03);
-  // the road along the side of the building, between the windows and the hedge: about 3 m of plain grey asphalt, a low kerb each side
-  B(G, M(0x75777b), -6.22, -3.28, -0.13, -0.098, -6.5, 6.5, 0.006);
-  for (const [x0, x1] of [[-3.3, -3.13], [-6.4, -6.2]]) B(G, M(0xc6c1b7), x0, x1, -0.13, -0.06, -6.5, 6.5, 0.012);
+  // the road along the side of the building, between the windows and the hedge: about 2.1 m of plain grey asphalt, a low kerb each side
+  B(G, M(0x75777b), -5.34, -3.28, -0.13, -0.098, -6.5, 6.5, 0.006);
+  for (const [x0, x1] of [[-3.3, -3.13], [-5.52, -5.32]]) B(G, M(0xc6c1b7), x0, x1, -0.13, -0.06, -6.5, 6.5, 0.012);
   const r = mulberry(23), greens = [0x6f9f57, 0x66964f, 0x79a862, 0x5f8f4b];
   // hedge along the path (west), and round the back
   const hedge = (x0, x1, z0, z1, h) => {
@@ -820,7 +820,7 @@ const APT_DOORS = [   // axis: the wall is a line of constant z ("z") or x ("x")
       m.scale.set(x1 - x0 > z1 - z0 ? 0.85 : 0.75, h / 0.84 * (0.9 + r() * 0.2), x1 - x0 > z1 - z0 ? 0.75 : 0.85);
     }
   };
-  hedge(-7.15, -6.5, -6.2, 5.3, 1.8);
+  hedge(-6.27, -5.62, -6.2, 5.3, 1.8);
   hedge(-3.05, 1.4, -6.25, -5.7, 1.2);
   // trees: faceted crowns on a trunk
   const tree = (x, z, s) => {
@@ -829,7 +829,7 @@ const APT_DOORS = [   // axis: the wall is a line of constant z ("z") or x ("x")
       const m = mk(new THREE.IcosahedronGeometry(rr * s, 1), M(pick([0x7aa862, 0x6c9a55, 0x86b46c])), G, x + dx * s, dy * s, z + dz * s); m.rotation.y = r() * 3;
     }
   };
-  tree(-6.8, 5.95, 0.85); tree(2.4, -5.4, 0.9); tree(3.55, 5.95, 0.7);
+  tree(-5.92, 5.95, 0.85); tree(2.4, -5.4, 0.9); tree(3.55, 5.95, 0.7);
   for (const [x, z, s] of [[3.6, -0.4, 0.4], [3.55, 2.6, 0.35], [2.0, -3.6, 0.45], [3.3, -2.4, 0.4], [-1.5, 6.0, 0.3], [1.2, 6.05, 0.35]])
     mk(new THREE.IcosahedronGeometry(s, 1), M(pick(greens)), G, x, s * 0.55 - 0.1, z).scale.y = 0.8;
   // a few stepping stones to the front door
@@ -1874,7 +1874,7 @@ const TUNNEL = { c: { x: 0.15, z: -2.9 }, R: 0.225, r: 0.15, holes: [-0.88, -0.8
     B(D, UM.white, 1.32, 1.44, 1.42, 1.54, -2.46, -2.435, 0.01);
   }
   // small white table against the east wall (the window starts where it ends), an amber glass candle on it; two light bentwood
-  // chairs facing each other across it, one tucked in between the table and the closet
+  // chairs: one tucked in between the table and the closet, the other at the side of the table facing the wall
   B(S, UM.white, 1.0, 1.6, 0.72, 0.745, -1.85, -1.15, 0.006);
   for (const [x, z] of [[1.04, -1.81], [1.56, -1.81], [1.04, -1.19], [1.56, -1.19]]) Cy(S, UM.white, 0.018, 0.018, x, 0, 0.72, z, 6);
   Cy(S, new THREE.MeshStandardMaterial({ color: 0xc98a3a, roughness: 0.25, metalness: 0.1, transparent: true, opacity: 0.8, flatShading: true }), 0.04, 0.036, 1.42, 0.745, 0.86, -1.62, 9);
@@ -1885,7 +1885,7 @@ const TUNNEL = { c: { x: 0.15, z: -2.9 }, R: 0.225, r: 0.15, holes: [-0.88, -0.8
     mk(new THREE.CylinderGeometry(0.22, 0.2, 0.2, 10, 1, true, Math.PI - 0.95, 1.9), UM.wood, g, 0, 0.72, 0.02);
     for (const s of [-1, 1]) B(g, UM.black, s * 0.12 - 0.008, s * 0.12 + 0.008, 0.45, 0.63, -0.19, -0.17, 0.003);
   };
-  bentChair(1.3, -2.12, 0); bentChair(1.32, -0.92, Math.PI);
+  bentChair(1.3, -2.12, 0); bentChair(0.76, -1.5, Math.PI / 2);
   // the white fluffy cat tunnel: a plush ring (a donut, ~75 cm across, 30 cm tall), hollow inside, with three holes round its side
   {
     const T = TUNNEL, g = new THREE.Group(); g.position.set(T.c.x, 0, T.c.z); S.add(g); g.userData.jit = 0.004;
@@ -1951,7 +1951,7 @@ const OBST_US = [
   { r: [-1.6, 0.37, -5.32, -3.91], h: 0.86 },                                                   // bed
   { r: [1.01, 1.62, -5.32, -4.48], h: 0.76 }, { r: [1.32, 1.62, -5.07, -4.48], h: 1.9 }, { r: [0.95, 1.62, -5.32, -5.0], h: 1.6 },   // built-in desk (cat bed underneath), wall shelves, high sill
   { r: [0.96, 1.62, -4.47, -2.43], h: 2.6 },                                                    // closet
-  { r: [0.98, 1.62, -1.87, -1.13], h: 0.75 }, { c: [1.3, -2.12, 0.25], h: 0.85 }, { c: [1.32, -0.92, 0.25], h: 0.85 },   // table and chairs
+  { r: [0.98, 1.62, -1.87, -1.13], h: 0.75 }, { c: [1.3, -2.12, 0.25], h: 0.85 }, { c: [0.76, -1.5, 0.25], h: 0.85 },   // table and chairs
   { c: [0.15, -2.9, 0.39], h: 0.32 },                                                   // the cat tunnel
   { r: [-0.6, 1.62, -0.64, 0.02], h: 2.4 }, { r: [-0.72, -0.58, -0.72, 0.02], h: 2.6 }, { c: [0.62, -0.9, 0.1], h: 0.06 },   // kitchenette, the wall by it, water
   // hall
@@ -1978,7 +1978,7 @@ const PERCHES_US = linkPerches([
   { id: "table", kind: "table", where: "on the table", pos: V(1.25, 0.745, -1.62), approach: V(0.62, 0, -1.98), face: Math.PI / 2 },
   { id: "sillE", kind: "window", where: "on the windowsill", pos: V(1.47, 1.005, -0.95), parentId: "table", face: Math.PI, nap: true },
   { id: "chair1", kind: "chair", where: "on a chair", pos: V(1.3, 0.47, -2.12), approach: V(0.74, 0, -2.12), face: 0, nap: true, w: 0.5 },
-  { id: "chair2", kind: "chair", where: "on a chair", pos: V(1.32, 0.47, -0.94), approach: V(0.95, 0, -1.05), face: Math.PI, nap: true, w: 0.5 },
+  { id: "chair2", kind: "chair", where: "on a chair", pos: V(0.78, 0.47, -1.5), approach: V(0.25, 0, -1.55), face: Math.PI / 2, nap: true, w: 0.5 },
   { id: "counter", kind: "counter", where: "on the kitchen counter (naughty)", pos: V(-0.25, 0.9, -0.3), approach: V(-0.3, 0, -1.0), face: Math.PI },
   { id: "tunnel", kind: "tunnel", where: "in the cat tunnel", pos: V(0.15 + 0.225 * Math.cos(0.17), 0, -2.9 + 0.225 * Math.sin(0.17)), approach: V(0.53, 0, -3.36), face: 0, nap: true, crawl: true, soft: true },
   { id: "tub", kind: "tub", where: "on the edge of the bathtub", pos: V(0.0, 0.5, 1.88), approach: V(0.0, 0, 1.52), face: Math.PI / 2 },
