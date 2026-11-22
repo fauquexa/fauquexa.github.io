@@ -642,33 +642,69 @@ function palette(obj, r, keep = []) {
   return C;
 }
 
-// Tanganyika cichlids: lamprologine bodies, fairly deep, dark green with bold black bars from belly to back,
-// running on up into the dorsal fin. The bars are laid on the body's rings so their edges stay clean.
-const CICH_DEEP = 1.3;
-const CICH_P = { HU: [[0, .014], [.06, .055], [.18, .092], [.36, .102], [.6, .09], [.8, .062], [.92, .046], [1, .042]].map(([s, v]) => [s, v * CICH_DEEP]),
-  HL: [[0, .012], [.06, .042], [.18, .072], [.36, .084], [.6, .074], [.8, .052], [.92, .04], [1, .036]].map(([s, v]) => [s, v * CICH_DEEP]),
-  WW: [[0, .01], [.06, .036], [.2, .056], [.38, .06], [.6, .05], [.8, .034], [.92, .024], [1, .02]],
-  YC: [[0, -.012], [.12, -.004], [.3, 0], [1, 0]] };
-const CICH_NS = 36, CICH_BARS = [6, 13, 20, 27, 34];   // each bar covers three rings, with four-ring gaps between
-const cichBar = (ring) => CICH_BARS.some((b) => ring >= b && ring < b + 3);
+// Tanganyika cichlids on the old perch body (same loft, fin layout and forked tail), a fifth deeper,
+// dark green with bold black bars from belly to back that run on into the dorsal and anal fins.
+// The bars sit on the body's rings, and the fins have one segment per ring, so the edges stay clean.
+const CICH_DEEP = 1.2;
+const deepen = (keys) => keys.map(([s, v]) => [s, v * CICH_DEEP]);
+const CICH_P = { HU: deepen([[0, .012], [.07, .07], [.2, .135], [.38, .168], [.6, .142], [.8, .076], [.92, .05], [1, .045]]),
+  HL: deepen([[0, .012], [.07, .055], [.2, .1], [.38, .118], [.6, .104], [.8, .062], [.92, .043], [1, .038]]),
+  WW: [[0, .008], [.07, .04], [.2, .068], [.38, .08], [.6, .068], [.8, .043], [.92, .028], [1, .022]],
+  YC: [[0, -.025], [.12, -.01], [.3, 0], [1, 0]] };
+const CICH_NS = 36, CICH_BARS = [[7, 3], [14, 3], [21, 3], [28, 3], [34, 2]];   // [first ring, rings wide]
+const cichBar = (ring) => CICH_BARS.some(([b, n]) => ring >= b && ring < b + n);
 function cichlidGeo(seed, big) {
-  const r = mulberry(seed), K = fishKit(CICH_P), G = K.G;
+  const r = mulberry(seed), K = fishKit(CICH_P), G = K.G, { hu, hl, w, yc, zz } = K;
   const C = palette({ blk: 0x0b0f0b, g1: big ? 0x325c36 : 0x2b4f30, g2: big ? 0x426b3d : 0x3a6037, belly: 0x6f8a63, mouth: 0x24362a, fin: 0x141d17, fin2: 0x26382a,
     edge: 0x8cc4cc, pect: 0x5c7b52, eye: 0x2e6c78, pupil: 0x080a08 }, r, ["blk", "pupil"]);
   const jl = (c) => c.clone().offsetHSL(0, 0, (r() - 0.5) * 0.025);
-  fishBody(K, CICH_NS, 16, (s, kk) => {
+  fishBody(K, CICH_NS, 10, (s, kk) => {
     if (cichBar(Math.floor(s * CICH_NS))) return jl(C.blk);
-    if (s < 0.05 && kk >= 3) return jl(C.mouth);
-    return jl(kk >= 6 ? C.belly : kk >= 4 ? C.g2 : C.g1);
+    if (s < 0.06 && kk === 2) return jl(C.mouth);
+    return jl(kk <= 1 ? C.g1 : kk <= 3 ? C.g2 : C.belly);
   }, C.mouth, C.fin);
-  // dorsal and anal fins: one segment per ring, so the bars carry straight on into them
-  const barFin = (r0) => (j, o) => (o ? C.edge : cichBar(r0 + j) ? C.blk : C.fin2);
-  finLine(K, 6 / CICH_NS, 32 / CICH_NS, 26, (t) => 0.06 + 0.035 * t - (t < 0.08 ? (0.08 - t) * 0.3 : 0), 0.025, barFin(6), 0.8);
-  finLine(K, 20 / CICH_NS, 32 / CICH_NS, 12, (t) => 0.055 + 0.03 * t, 0.03, barFin(20), 0.8, true);
-  tailFan(K, 7, 0.125, 0.115, 0.18, 0, (j, o) => (o ? C.edge : j % 2 ? C.fin : C.fin2), 0.8);
-  pairFin(K, 0.33, 0, 0.08, 0.1, C.fin2, C.edge, true);
-  pairFin(K, 0.24, K.yc(0.24) - 0.02, 0.055, 0.11, C.pect, C.pect, false);
-  eyePair(K, 0.1, 0.28, 0.8, 0.014, 0.03, C.eye, C.pupil);
+  const ringS = (i) => i / CICH_NS, barFin = (r0) => (j, o) => (o ? C.edge : cichBar(r0 + j) ? C.blk : C.fin2);
+  { // spiny first dorsal
+    const r0 = 10, n = 10, base = [], top = [];
+    for (let j = 0; j <= n; j++) {
+      const t = j / n, s = ringS(r0 + j), by = yc(s) + hu(s) - 0.006, spine = j % 2 === 0;
+      const h = 0.13 * (t < 0.22 ? 0.55 + 2 * t : 1 - (t - 0.22) * 0.7) * (spine ? 1 : 0.74);
+      base.push(V(0, by, zz(s))); top.push(V(0, by + h, zz(s) - (spine ? 0.02 : 0.01)));
+    }
+    finStrip(G, base, top, barFin(r0), 0.8);
+  }
+  { // soft second dorsal
+    const r0 = 22, n = 7, base = [], top = [];
+    for (let j = 0; j <= n; j++) { const t = j / n, s = ringS(r0 + j), by = yc(s) + hu(s) - 0.006, h = 0.085 * (t < 0.25 ? 0.75 + t : 1 - (t - 0.25) * 0.55); base.push(V(0, by, zz(s))); top.push(V(0, by + h, zz(s) - 0.015)); }
+    finStrip(G, base, top, barFin(r0), 0.8);
+  }
+  { // anal fin
+    const r0 = 24, n = 5, base = [], top = [];
+    for (let j = 0; j <= n; j++) { const t = j / n, s = ringS(r0 + j), by = yc(s) - hl(s) + 0.006, h = 0.08 * (t < 0.2 ? 0.8 + t : 1 - (t - 0.2) * 0.6); base.push(V(0, by, zz(s))); top.push(V(0, by - h, zz(s) - 0.02)); }
+    finStrip(G, base, top, barFin(r0), 0.8);
+  }
+  { // forked tail, dark, with a pale edge round its outline
+    const R1 = V(0, yc(1) + hu(1) * 0.9, zz(1) + 0.005), R2 = V(0, yc(1) - hl(1) * 0.9, zz(1) + 0.005), mid = R1.clone().lerp(R2, 0.5);
+    const O = [V(0, 0.12, -0.4), V(0, 0.17, -0.53), V(0, 0.0, -0.44), V(0, -0.155, -0.52), V(0, -0.11, -0.4)], I = O.map((o) => mid.clone().lerp(o, 0.86));
+    G.tri(R1, I[0], I[1], C.fin); G.tri(R1, I[1], I[2], C.fin2); G.tri(R1, I[2], R2, C.fin); G.tri(R2, I[2], I[3], C.fin2); G.tri(R2, I[3], I[4], C.fin);
+    for (let k = 0; k < 4; k++) G.quad(I[k], O[k], O[k + 1], I[k + 1], C.edge);
+  }
+  for (const sd of [-1, 1]) {
+    { // pelvic fins
+      const s = 0.34, by = yc(s) - hl(s) * 0.92, z = zz(s);
+      const A = V(sd * 0.025, by, z), B = V(sd * 0.02, by + 0.004, z - 0.06), T = V(sd * 0.065, by - 0.085, z - 0.13), T2 = V(sd * 0.035, by - 0.05, z - 0.15);
+      G.tri(A, T, B, C.fin2); G.tri(B, T, T2, C.edge);
+    }
+    { // pectoral fins
+      const s = 0.24, x = sd * w(s) * 0.92, y = yc(s) - 0.02, z = zz(s);
+      const A = V(x, y + 0.022, z), B = V(x, y - 0.025, z - 0.005), T = V(x + sd * 0.06, y - 0.005, z - 0.12), T2 = V(x + sd * 0.03, y - 0.04, z - 0.1);
+      G.tri(A, T, B, C.pect); G.tri(B, T, T2, C.pect);
+    }
+    { // eyes
+      const s = 0.1, ex = sd * w(s) * 0.78, ey = yc(s) + hu(s) * 0.3, ez = zz(s);
+      blob(G, ex, ey, ez, 0.014, 0.032, 0.032, C.eye); blob(G, ex + sd * 0.013, ey, ez + 0.003, 0.008, 0.018, 0.018, C.pupil);
+    }
+  }
   return G.build();
 }
 
@@ -853,7 +889,7 @@ function makeFish(sp, o = {}) {
     headQ: new THREE.Quaternion(), baseQ: new THREE.Quaternion(), phase: Math.random() * 10, full: 0, fat: 0, meal: 0, rest: 0, dying: -1, enter: false, enterT: 0, fade: 1, eatenBy: null,
     hungryT: 0, eatT: 0, st: "", stT: 0, stLen: rand(4, 10), pitch: 0, pitchT: 0, dartT: 0, dartDir: new THREE.Vector3(), ang: Math.random() * 6.28, angDir: Math.random() < 0.5 ? -1 : 1,
     hOff: rand(1, 9), homeOwn: -1, homeT: 0, belly: 0.75, starve: 0, labelT: 0, seeking: false, chase: null, chaseT: 0, skip: null, skipT: 0, faceDir: null,
-    swim: sp !== "loach" && sp !== "shrimp", body: sp === "cichlid" ? 0.14 : 0.12, school: sp === "cichlid" && !o.big ? "c" : "", range: o.range || 120, seekMul: o.seekMul || 2, camR: o.camR || 30,
+    swim: sp !== "loach" && sp !== "shrimp", body: sp === "cichlid" ? 0.17 : 0.12, top: sp === "cichlid" ? 0.3 : 0.12, low: sp === "cichlid" ? 0.22 : 0.18, school: sp === "cichlid" && !o.big ? "c" : "", range: o.range || 120, seekMul: o.seekMul || 2, camR: o.camR || 30,
     u: { uPhase: { value: 0 }, uAmp: { value: 0.05 }, uFat: { value: 0 } } };
   f.v.setLength(f.cruise);
   let geo, mo = {};
@@ -984,7 +1020,7 @@ function updateSwimmer(f, dt, pred) {
   }
   f.full = Math.max(0, f.full - dt); f.meal = Math.max(0, f.meal - dt); f.eatT = Math.max(0, f.eatT - dt); f.stT += dt;
   const acc = A.set(0, 0, 0), fl = floorH(p.x, p.z), L = f.L, cr = f.cruise;
-  let vmax = cr, vmin = cr * 0.12, lo = fl + 2 + L * 0.2, hi = TOP - 5 - L * 0.12, goal = null, gSpeed = 0, yMax = TOP - 2 - L * (f.sp === "cichlid" ? 0.2 : 0.12);
+  let vmax = cr, vmin = cr * 0.12, lo = fl + 2 + L * 0.2, hi = TOP - 5 - L * 0.12, goal = null, gSpeed = 0, yMax = TOP - 2 - L * f.top;
   f.faceDir = null;
   f.wander.x += (Math.random() - 0.5) * dt * 2.5; f.wander.y += (Math.random() - 0.5) * dt * 0.8; f.wander.z += (Math.random() - 0.5) * dt * 2.5;
   f.wander.clampLength(0, 1);
@@ -1107,7 +1143,7 @@ function updateSwimmer(f, dt, pred) {
         const hd = headOf(f, T1).distanceTo(best.m.position);
         acc.addScaledVector(T1.subVectors(best.m.position, T1).normalize(), cr * 3.5);   // steer the mouth, not the middle
         vmax = Math.max(vmax, cr * (hd < L ? 1.2 : f.seekMul)); vmin = cr * 0.12;
-        lo = Math.min(lo, fl + L * 0.18 + 0.6); hi = Math.max(hi, TOP - 4);
+        lo = Math.min(lo, fl + L * f.low + 0.6); hi = Math.max(hi, TOP - 4);
         if (hd < L * 0.1 + 1.2 || bd < L * 0.2) eat(f, best);
       }
     }
@@ -1138,7 +1174,7 @@ function updateSwimmer(f, dt, pred) {
   p.addScaledVector(f.v, dt);
   if (!f.enter) p.x = clamp(p.x, -BX - 4, BX + 4);
   p.z = clamp(p.z, -BZ - 4, BZ + 4);
-  const yMin = () => floorH(p.x, p.z) + L * 0.18 + 0.6;
+  const yMin = () => floorH(p.x, p.z) + L * f.low + 0.6;
   p.y = clamp(p.y, yMin(), yMax);
   for (let i = 0; i < 2; i++) { if (!pushOutAll(p, L * f.body, false)) break; p.y = clamp(p.y, yMin(), yMax); }
   // face where it's going (pitch limited), or the thing it's feeling; rams tip forward to pick
