@@ -4,15 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Alain Fauquex</title>
-  <meta name="description" content="Alain Fauquex, physics PhD student at UC Berkeley working on superconducting quantum sensors for dark-matter and neutrino detection.">
+  <meta name="description" content="Alain Fauquex, physics PhD student at UC Berkeley building superconducting quantum sensors for dark-matter, neutrino and single-THz-photon detection.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23121315'/><text x='50' y='67' font-size='50' text-anchor='middle' fill='%23ecebe7' font-family='Georgia'>A</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/style.css?v=20261122f">
-  <script src="assets/site.js?v=20261122f"></script>
-  <script src="assets/julia-day.js?v=20261122f"></script>
-  <script src="assets/previews.js?v=20261122f" defer></script>
+  <link rel="stylesheet" href="assets/style.css?v=20261122g">
+  <script src="assets/site.js?v=20261122g"></script>
+  <script src="assets/julia-day.js?v=20261122g"></script>
+  <script src="assets/previews.js?v=20261122g" defer></script>
 </head>
 <body>
 <div class="layout">
@@ -30,8 +30,13 @@
       <a href="#projects">Projects</a>
       <a href="#publications">Publications</a>
       <a href="#experience">Experience</a>
-      <a href="#play">Playground</a>
+      <a href="#playground">Playground</a>
     </nav>
+
+    <a class="julia-chip" href="playground/julia.html">
+      <canvas id="julia-thumb" width="96" height="96" aria-hidden="true"></canvas>
+      <span><span class="jl">Today's Julia set</span><span id="julia-name" class="jn"></span></span>
+    </a>
 
     <div class="links">
       <a data-email href="#" aria-label="Email" title="Email">
@@ -49,15 +54,17 @@
   <main class="main">
 
     <section id="about">
-      <p class="lead">I'm a physics PhD student at UC Berkeley, working on superconducting quantum sensors for dark-matter and neutrino detection.</p>
-      <p>In Prof. Chiara Salemi's group I design, simulate, fabricate and operate superconducting devices that turn very small energy deposits into measurable signals.</p>
-      <p class="soft">Before physics I trained as a design engineer at Pilatus Aircraft, where I worked on the PC-24 business jet. I then spent six years building cryogenic infrastructure in the Quantum Device Lab at ETH Zürich while completing my high-school diploma in evening and weekend classes, followed by a BSc in physics at ETH with thesis work at the Paul Scherrer Institute and the University of Zürich.</p>
+      <p class="lead">I build superconducting quantum sensors for dark-matter, neutrino and single-THz-photon detection.</p>
+      <p>I'm a physics PhD student at UC Berkeley in the group of <a href="https://physics.berkeley.edu/research-faculty/salemi-group">Prof. Chiara Salemi</a>. I design, simulate, fabricate and operate superconducting devices that can detect minuscule energy depositions.</p>
+      <p class="soft">I came to physics sideways. I started with a design-engineering apprenticeship at Pilatus Aircraft, working on the PC-24 business jet. I then spent six years as a design engineer and technician in the Quantum Device Lab at ETH Zürich, finishing high school in evening and weekend classes. After that came a BSc at ETH, with thesis work at the Paul Scherrer Institute and the University of Zürich spanning nuclear materials science, dark-matter physics and machine learning.</p>
     </section>
 
     <section id="research">
       <h2>Research</h2>
-      <p>My main project is the <em>Superconducting Quasiparticle Amplifying Transmon</em> (SQUAT), a transmon-based sensor that detects phonons and photons through the quasiparticles they create. I lead the effort to scale these devices from a handful of sensors to wafer-scale arrays with thousands of them, which involves hafnium-based Josephson junctions, machine-learning-assisted device and array design, and scalable multiplexed readout.</p>
-      <p class="soft">Applications include the BREAD axion dark-matter search and, through a DARPA program, reactor-neutrino detection for nuclear non-proliferation monitoring.</p>
+      <p><em>Superconducting Quasiparticle Amplifying Transmons</em> (SQUATs) are transmon-based sensors and my main research focus. They detect phonons and photons through the quasiparticles created when that energy is deposited in the transmon's superconducting islands.</p>
+      <p>My work on them covers the full cycle. I developed an inverse-design pipeline that generates device layouts directly from the microwave properties the qubit should have. Using inverse-design and machine-learning methods, I am developing them into the first qubit antennas whose response is engineered by design rather than inherited from a standard geometry. I fabricate them in the nanofabrication cleanroom of the Molecular Foundry at Lawrence Berkeley National Laboratory, and I operate and characterize them at millikelvin temperatures.</p>
+      <p>I am also investigating new Josephson-junction materials such as hafnium, whose low critical temperature means a smaller superconducting gap, and therefore more quasiparticles and more signal for the same deposited energy. Beyond SQUATs, I work on multiplexing schemes for quantum devices and on other superconducting devices, including superconducting diodes, resonators and quantum parity detectors.</p>
+      <p class="soft">My main projects are the BREAD axion dark-matter search and reactor-neutrino detection for nuclear non-proliferation monitoring within the DARPA QuSeN program.</p>
     </section>
 
     <section id="projects">
@@ -76,17 +83,17 @@
         <li><span class="when">2019–2023</span><div>
           <h3>A 30-metre cryogenic link between two quantum computers</h3>
           <p class="meta">ETH Zürich, Quantum Device Lab</p>
-          <p>Final design, production drawings, commissioning, transport and quality control of 14 vacuum chambers with four-layer copper shielding and a superconducting waveguide, operated at about 15 mK. The link was used in the loophole-free Bell test with superconducting circuits (<a href="https://www.nature.com/articles/s41586-023-05885-0">Nature 617, 265, 2023</a>).</p>
+          <p>Final design, production drawings, commissioning, transport and quality control of 14 vacuum chambers with four-layer copper shielding and a 30-metre superconducting waveguide, operated at millikelvin temperatures. The link was used in the loophole-free Bell test with superconducting circuits (<a href="https://www.nature.com/articles/s41586-023-05885-0">Nature 617, 265, 2023</a>).</p>
         </div></li>
         <li><span class="when">2022–2023</span><div>
           <h3>Hydran: detecting hydrides in nuclear fuel cladding</h3>
           <p class="meta">Paul Scherrer Institute</p>
-          <p>A Python and machine-learning pipeline that detects and analyses hydrided regions in microscope images of fuel cladding; now a standard tool in PSI's Analytics of Radioactive Materials group.</p>
+          <p>A Python and machine-learning pipeline that detects and analyses hydrided regions in microscope images of fuel cladding; now a standard tool in PSI's Analytics of Radioactive Materials group for analysing ageing and decommissioned nuclear fuel rods.</p>
         </div></li>
         <li><span class="when">2020–2024</span><div>
           <h3>Dilution-refrigerator setups for the PSI Quantum Computing Center</h3>
           <p class="meta">ETH Zürich and Paul Scherrer Institute</p>
-          <p>Installation of Bluefors XLD dilution refrigerators for three 100-qubit-capable systems, and design, fabrication and commissioning of the cryogenic and vacuum hardware around them.</p>
+          <p>Extensive custom engineering and installation of three Bluefors XLD dilution refrigerators for 100-qubit-capable systems, and design and commissioning of the cryogenic and vacuum hardware around them.</p>
         </div></li>
       </ul>
     </section>
@@ -115,6 +122,18 @@
       </ul>
     </section>
 
+    <section id="playground">
+      <h2>Playground</h2>
+      <p class="soft">Small interactive projects that run in the browser.</p>
+      <ul class="entries playlist">
+        <li><a class="thumb" href="playground/flight.html" tabindex="-1" aria-hidden="true"><canvas data-preview="flight"></canvas></a><div><h3><a href="playground/flight.html">Flight simulator</a></h3><p>Fly Pilatus aircraft or a helicopter over procedurally generated mountains. Fuel runs out, so you have to land at airports along the way; scores go on an online leaderboard.</p></div></li>
+        <li><a class="thumb" href="playground/maze.html" tabindex="-1" aria-hidden="true"><canvas data-preview="maze"></canvas></a><div><h3><a href="playground/maze.html">Maze lab</a></h3><p>An interactive introduction to graph search: BFS, DFS, Dijkstra and A* on a known map, exploration strategies without a map, and teams of agents mapping a maze together.</p></div></li>
+        <li><a class="thumb" href="playground/aquarium.html" tabindex="-1" aria-hidden="true"><canvas data-preview="aquarium"></canvas></a><div><h3><a href="playground/aquarium.html">Aquarium</a></h3><p>A configurable 3D fish tank with schooling fish, plants and corals.</p></div></li>
+        <li><a class="thumb" href="playground/julia.html" tabindex="-1" aria-hidden="true"><canvas data-preview="julia"></canvas></a><div><h3><a href="playground/julia.html">Julia set of the day</a></h3><p>A different Julia set every day, which you can explore and download.</p></div></li>
+        <li><a class="thumb" href="playground/stereogram.html" tabindex="-1" aria-hidden="true"><canvas data-preview="stereogram"></canvas></a><div><h3><a href="playground/stereogram.html">Stereogram studio</a></h3><p>Random-dot autostereograms from text, shapes or your own images.</p></div></li>
+      </ul>
+    </section>
+
     <footer>
       <span>© <span id="yr"></span> Alain Fauquex · <a data-email="text" href="#">Email</a></span>
       <button class="theme-btn" type="button">Dark mode</button>
@@ -136,6 +155,13 @@
   </aside>
 </div>
 
-<script>document.getElementById("yr").textContent = new Date().getFullYear();</script>
+<script>
+  document.getElementById("yr").textContent = new Date().getFullYear();
+  (function () {   // today's Julia set in the sidebar
+    const spec = JuliaDay.spec(JuliaDay.dateKey(new Date()));
+    document.getElementById("julia-name").textContent = spec.name[0].toUpperCase() + spec.name.slice(1);
+    JuliaDay.renderCPU(document.getElementById("julia-thumb"), spec, { maxIt: 160 });
+  })();
+</script>
 </body>
 </html>

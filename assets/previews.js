@@ -210,7 +210,11 @@
   function init() {
     document.querySelectorAll("canvas[data-preview]").forEach((c) => {
       const kind = c.dataset.preview; if (!DRAW[kind]) return;
-      items.push({ c, kind, visible: false, dirty: true });
+      const it = { c, kind, visible: false, dirty: true, hover: false };
+      const host = c.closest("li, a") || c;   // animate only while the pointer is over the tile or row
+      host.addEventListener("pointerenter", () => { it.hover = true; });
+      host.addEventListener("pointerleave", () => { it.hover = false; it.dirty = true; });
+      items.push(it);
     });
     const io = "IntersectionObserver" in window ? new IntersectionObserver((ents) => ents.forEach((e) => { const it = items.find((i) => i.c === e.target); if (it) it.visible = e.isIntersecting; })) : null;
     items.forEach((it) => { size(it); if (io) io.observe(it.c); else it.visible = true; });
@@ -221,8 +225,8 @@
         last = now; const t = now / 1000;
         for (const it of items) {
           if (!it.visible) continue;
-          if (ANIMATED[it.kind] && !reduce) DRAW[it.kind](it.c, it.c.width, it.c.height, t);
-          else if (it.dirty) { DRAW[it.kind](it.c, it.c.width, it.c.height, 12); it.dirty = false; }
+          if (ANIMATED[it.kind] && !reduce && it.hover) { it.t0 = it.t0 ?? t - 4; DRAW[it.kind](it.c, it.c.width, it.c.height, t - it.t0 + 4); }
+          else if (it.dirty) { DRAW[it.kind](it.c, it.c.width, it.c.height, it.kind === "maze" ? 11 : 4); it.dirty = false; }
         }
       }
       requestAnimationFrame(loop);
