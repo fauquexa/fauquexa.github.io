@@ -53,7 +53,7 @@
 <body>
 <canvas id="gl"></canvas>
 <div id="dip"></div>
-<div id="hintbar">Drag to look around · click the grass to throw feed</div>
+<div id="hintbar">Drag to look around · right-drag to move · click the grass to throw feed</div>
 <button class="fab" id="openPanel" hidden>☰ Menu</button>
 <button class="fab" id="cinemaExit" hidden>✕ Exit cinema</button>
 
@@ -63,8 +63,8 @@
   <h1>Chickens</h1>
   <p class="sub">The chicken run from when I was little: Heinrich, five hens, and the little tree I planted. Click the grass to throw some feed.</p>
   <ul class="birdlist" id="birdList"></ul>
-  <div class="row"><button id="cinemaBtn">Cinema mode</button></div>
-  <p class="hint">Drag to look around, scroll or pinch to zoom. Hover or click a bird to see its name. <kbd>H</kbd> hides this panel, <kbd>V</kbd> starts cinema mode (<kbd>V</kbd> or <kbd>Esc</kbd> to leave).</p>
+  <div class="row"><button id="cinemaBtn">Cinema mode</button><button id="resetBtn">Reset view</button></div>
+  <p class="hint">Drag to look around, right-drag or shift-drag to move (two fingers on touch), scroll or pinch to zoom. Hover or click a bird to see its name. <kbd>R</kbd> resets the view, <kbd>H</kbd> hides this panel, <kbd>V</kbd> starts cinema mode (<kbd>V</kbd> or <kbd>Esc</kbd> to leave).</p>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -94,8 +94,8 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 const HORIZON = 0xf6efe0, SKY = 0xa6d1ef;
 scene.background = new THREE.Color(HORIZON);
-scene.fog = new THREE.Fog(HORIZON, 24, 62);
-const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 500);
+scene.fog = new THREE.Fog(HORIZON, 28, 85);
+const camera = new THREE.PerspectiveCamera(40, 1, 0.03, 400);   // near plane small enough to sit right up against a hen
 
 // warm golden key light, sky-blue / warm-bounce hemisphere, a touch of ambient so shadows never go black
 const hemi = new THREE.HemisphereLight(0xcfe6ff, 0xe2c79f, 0.56);
@@ -155,6 +155,10 @@ class Bake {
     if (g !== geo) g.dispose();
     if (!keep) geo.dispose();
     return this;
+  }
+  tri(a, b, c, col) {   // one triangle, as given (callers wind it)
+    _n.subVectors(b, a).cross(_e.subVectors(c, a)).normalize();
+    for (const v of [a, b, c]) { this.p.push(v.x, v.y, v.z); this.n.push(_n.x, _n.y, _n.z); this.c.push(col.r, col.g, col.b); }
   }
   box(color, w, h, d, x, y, z, rx = 0, ry = 0, rz = 0, parent, j) {
     let m = mat4(x, y, z, rx, ry, rz); if (parent) m = parent.clone().multiply(m);
@@ -678,6 +682,98 @@ const ISLE_TREES = [[-6.2, -11.0, 1.05], [5.5, -10.5, 1.2]];
     W.add(new THREE.CylinderGeometry(0.1 * s, 0.16 * s, 1.9 * s, 6).translate(0, 0.95 * s, 0), COL.bark, mat4(x, 0, z), 0.08);
     for (let i = 0; i < 5; i++) W.add(blob(rand(0.6, 0.8) * s, 0, 0.16), pick(COL.leaf), mat4(x + rand(-0.5, 0.5) * s, (2.1 + rand(0, 0.8)) * s, z + rand(-0.5, 0.5) * s, rand(0, 3), rand(0, 3)), 0.06);
   }
+}
+// ===================================================================
+//  the neighbours: smaller floating islands just behind the main one and a
+//  bit lower, each with a house. Backdrop only: merged, no shadows, and
+//  further out than the camera can reach (see minCamY).
+// ===================================================================
+function hipRoof(w, d, h, o) {   // hip roof over a w x d rectangle (w >= d), eaves at y = 0
+  const W2 = w / 2 + o, D = d / 2 + o, r = Math.max(0, W2 - D);
+  const NW = [-W2, 0, -D], NE = [W2, 0, -D], SE = [W2, 0, D], SW = [-W2, 0, D], RW = [-r, h, 0], RE = [r, h, 0];
+  const tris = [[SW, SE, RE], [SW, RE, RW], [NE, NW, RW], [NE, RW, RE], [SE, NE, RE], [NW, SW, RW]];
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(tris.flat(2), 3)); return g;
+}
+const ISLETS = [
+  { x: 10.5, z: -20.5, R: 6.6, top: -2.2, house: { kind: "hip", w: 8.4, d: 6.6, h: 5.2, wall: 0xf1ebdf, roof: 0x62676e, shut: 0x93b29c } },     // the house, behind the pool
+  { x: -20.5, z: -3.5, R: 6.2, top: -1.8, house: { kind: "flat", w: 6.2, d: 7.2, h: 3.2, wall: 0xf6f4ee, roof: 0xdcd9d1 } },                    // the neighbours' white flat-roofed building
+  { x: -7.5, z: -23.5, R: 6.0, top: -2.8, house: { kind: "gable", w: 7.0, d: 5.6, h: 3.6, wall: 0xf3e5cc, roof: 0xb9694f, shut: 0xa58b6b } },
+  { x: 20.5, z: -4.5, R: 5.6, top: -2.4, house: { kind: "gable", w: 6.2, d: 5.2, h: 3.4, wall: 0xf1dfb8, roof: 0x8a96a3, shut: 0x8fa9b9 } },
+];
+for (const I of ISLETS) { const H = I.house; H.top = H.h + (H.kind === "flat" ? 0.3 : H.kind === "hip" ? 2.7 : 2.5); }
+// how high the camera has to stay near a neighbouring island so it never ends up inside it or its house
+function minCamY(x, z) {
+  let m = -1e9;
+  for (const I of ISLETS) m = Math.max(m, I.top + I.house.top + 1.2 - Math.max(0, Math.hypot(x - I.x, z - I.z) - I.R - 0.5) * 2.5);
+  return m;
+}
+{
+  const B = new Bake(), c = new THREE.Color(), V = (a) => new THREE.Vector3(...a);
+  const BANDS = [[0, 0, null], [-0.14, 0.06, COL.grassLip], [-0.2, -0.02, COL.grassDark], [-0.8, -0.1, COL.soil], [-0.9, -0.08, COL.soilDark], [-1.5, -0.3, COL.soilDark],
+    [-1.62, -0.3, COL.soilDeep], [-2.2, -0.65, COL.stone]];
+  for (const I of ISLETS) {
+    const N = 26, phis = [], rad = [];
+    for (let i = 0; i < N; i++) { const phi = i / N * Math.PI * 2; phis.push(phi); rad.push(I.R * (1 + (vnoise(Math.cos(phi) * 1.8 + I.x, Math.sin(phi) * 1.8 + I.z) - 0.5) * 0.2)); }
+    const at = (i, f, off, y) => { const k = i % N, r = rad[k] * f + off; return [I.x + Math.cos(phis[k]) * r, I.top + y, I.z + Math.sin(phis[k]) * r]; };
+    const up = (a, b, d, col) => { const A = V(a), Bv = V(b), D = V(d); _n.subVectors(Bv, A).cross(_e.subVectors(D, A)); if (_n.y < 0) B.tri(A, D, Bv, col); else B.tri(A, Bv, D, col); };
+    const out = (a, b, d, col) => { const A = V(a), Bv = V(b), D = V(d); _n.subVectors(Bv, A).cross(_e.subVectors(D, A)); const cx = (A.x + Bv.x + D.x) / 3 - I.x, cz = (A.z + Bv.z + D.z) / 3 - I.z; if (_n.x * cx + _n.z * cz < 0) B.tri(A, D, Bv, col); else B.tri(A, Bv, D, col); };
+    // top: a fan from the middle plus one ring, gently jittered
+    const ctr = [I.x, I.top, I.z];
+    for (let i = 0; i < N; i++) {
+      const a = at(i, 0.55, 0, 0), b = at(i + 1, 0.55, 0, 0), e = at(i + 1, 1, 0, 0), d = at(i, 1, 0, 0);
+      up(ctr, a, b, grassCol(c, a[0], a[2])); up(a, e, b, grassCol(c, e[0], e[2])); up(a, d, e, grassCol(c, d[0] + 0.4, d[2]));
+    }
+    // sides in layers, then a rocky point underneath
+    for (let k = 0; k < BANDS.length - 1; k++) {
+      const col = new THREE.Color(BANDS[k + 1][2]);
+      for (let i = 0; i < N; i++) {
+        const j0 = k ? (hash2(i, k * 3.1) - 0.5) * 0.1 : 0, j1 = (hash2(i, k * 3.1 + 3.1) - 0.5) * 0.1;
+        const a = at(i, 1, BANDS[k][1] + j0, BANDS[k][0]), b = at(i + 1, 1, BANDS[k][1] + (k ? (hash2(i + 1, k * 3.1) - 0.5) * 0.1 : 0), BANDS[k][0]);
+        const d = at(i, 1, BANDS[k + 1][1] + j1, BANDS[k + 1][0]), e = at(i + 1, 1, BANDS[k + 1][1] + (hash2(i + 1, k * 3.1 + 3.1) - 0.5) * 0.1, BANDS[k + 1][0]);
+        c.copy(col).offsetHSL(0, 0, (hash2(i * 1.3, k * 7.1) - 0.5) * 0.035); out(a, b, e, c); out(a, e, d, c);
+      }
+    }
+    const tip = [I.x + 0.3, I.top - 4.2, I.z - 0.2], last = BANDS[BANDS.length - 1];
+    for (let i = 0; i < N; i++) {
+      const a = at(i, 1, last[1] + (hash2(i, (BANDS.length - 2) * 3.1 + 3.1) - 0.5) * 0.1, last[0]), b = at(i + 1, 1, last[1] + (hash2(i + 1, (BANDS.length - 2) * 3.1 + 3.1) - 0.5) * 0.1, last[0]);
+      c.set(COL.stoneDark).offsetHSL(0, 0, (hash2(i, 9) - 0.5) * 0.04); out(a, b, tip, c);
+    }
+    // the house, set back a little, front facing the chicken run, with a hedge and a bit of garden in front
+    const H = I.house, dx = -1 - I.x, dz = -2.3 - I.z, L = Math.hypot(dx, dz), ry = Math.atan2(dx, dz);
+    const hx = I.x - dx / L * 1.3, hz = I.z - dz / L * 1.3, M = mat4(hx, I.top, hz, 0, ry, 0), add = (g, col, m, j = 0.04) => B.add(g, col, M.clone().multiply(m), j);
+    const box = (col, w, h, d, x, y, z, rx = 0, ryy = 0, rz = 0, j) => add(new THREE.BoxGeometry(w, h, d), col, mat4(x, y, z, rx, ryy, rz), j);
+    box(H.wall, H.w, H.h, H.d, 0, H.h / 2, 0, 0, 0, 0, 0.02);
+    box(new THREE.Color(H.wall).multiplyScalar(0.88).getHex(), H.w + 0.08, 0.3, H.d + 0.08, 0, 0.15, 0);
+    if (H.kind === "hip") { add(hipRoof(H.w, H.d, 2.7, 0.45), H.roof, mat4(0, H.h - 0.04, 0), 0.03); box(0xe4ddd0, 0.55, 1.3, 0.55, H.w * 0.22, H.h + 1.9, -0.6); }
+    else if (H.kind === "gable") {
+      const sh = new THREE.Shape(); sh.moveTo(-H.d / 2 - 0.35, 0); sh.lineTo(H.d / 2 + 0.35, 0); sh.lineTo(0, 2.5); sh.closePath();
+      add(new THREE.ExtrudeGeometry(sh, { depth: H.w + 0.5, bevelEnabled: false }).rotateY(Math.PI / 2).translate(-(H.w + 0.5) / 2, 0, 0), H.roof, mat4(0, H.h - 0.05, 0), 0.03);
+      const gs = new THREE.Shape(); gs.moveTo(-H.d / 2, 0); gs.lineTo(H.d / 2, 0); gs.lineTo(0, 2.3); gs.closePath();
+      for (const x of [-H.w / 2, H.w / 2 - 0.05]) add(new THREE.ExtrudeGeometry(gs, { depth: 0.05, bevelEnabled: false }).rotateY(Math.PI / 2), H.wall, mat4(x, H.h - 0.05, 0), 0.02);
+      box(0xc9b9a3, 0.5, 1.2, 0.5, -H.w * 0.25, H.h + 1.6, -0.5);
+    } else { box(0xe9e7e1, H.w + 0.14, 0.26, H.d + 0.14, 0, H.h + 0.13, 0, 0, 0, 0, 0.02); box(H.roof, H.w - 0.3, 0.06, H.d - 0.3, 0, H.h + 0.2, 0); }
+    // windows (with shutters on the pitched-roof houses) on the front and one side, and a front door
+    const win = (x, y, z, w, h, side) => {
+      const m = side ? mat4(H.w / 2, 0, z, 0, Math.PI / 2, 0) : mat4(x, 0, H.d / 2, 0, 0, 0), wb = (col, ww, hh, dd, xx, yy, zz) => add(new THREE.BoxGeometry(ww, hh, dd), col, m.clone().multiply(mat4(xx, yy, zz)), 0.01);
+      wb(0xfbf8f1, w + 0.16, h + 0.16, 0.06, 0, y, 0.02); wb(0x86a2b2, w, h, 0.08, 0, y, 0.03); wb(0xfbf8f1, 0.05, h, 0.1, 0, y, 0.04);
+      if (H.shut) for (const s of [-1, 1]) wb(H.shut, w * 0.5, h + 0.04, 0.05, s * (w * 0.75 + 0.07), y, 0.04);
+    };
+    const rows = H.h > 4.5 ? [1.3, 3.8] : [1.4], cols = Math.max(2, Math.round(H.w / 2.3));
+    for (const y of rows) for (let k = 0; k < cols; k++) { const x = -H.w / 2 + (k + 0.5) * H.w / cols; if (y === rows[0] && k === Math.floor(cols / 2)) continue; win(x, y, 0, 0.85, 1.0, false); }
+    for (const y of rows) for (const z of [-H.d / 4, H.d / 4]) win(0, y, z, 0.8, 1.0, true);
+    const doorX = -H.w / 2 + (Math.floor(cols / 2) + 0.5) * H.w / cols;
+    box(0xfbf8f1, 1.1, 2.15, 0.06, doorX, 1.075, H.d / 2 + 0.02); box(H.kind === "flat" ? 0x7d8a92 : 0x9a7454, 0.9, 2.0, 0.08, doorX, 1.0, H.d / 2 + 0.03);
+    box(0xe2d9c8, 1.0, 0.05, 2.0, doorX, 0.025, H.d / 2 + 1.0, 0, 0, 0, 0.02);   // path to the hedge
+    // hedge along the front with a gap for the path, a small tree, some flowers
+    for (let x = -H.w / 2 - 0.3; x <= H.w / 2 + 0.3; x += 0.5) {
+      if (Math.abs(x - doorX) < 0.7) continue;
+      const r = rand(0.26, 0.33); add(blob(r, 0, 0.2), pick([0x7fae58, 0x86b45e, 0x79a753]), mat4(x, r * 0.8, H.d / 2 + 2.1, rand(0, 3), rand(0, 3), 0, 1, 1.25, 1), 0.04);
+    }
+    add(new THREE.CylinderGeometry(0.07, 0.1, 1.3, 5).translate(0, 0.65, 0), COL.bark, mat4(H.w / 2 - 0.6, 0, H.d / 2 + 1.1), 0.04);
+    for (let k = 0; k < 3; k++) add(blob(rand(0.4, 0.55), 0, 0.18), pick(COL.leaf), mat4(H.w / 2 - 0.6 + rand(-0.3, 0.3), rand(1.4, 1.9), H.d / 2 + 1.1 + rand(-0.3, 0.3)), 0.04);
+    for (let k = 0; k < 14; k++) add(new THREE.IcosahedronGeometry(0.06, 0), pick([0xfdf9f0, 0xf6dc78, 0xf2c2d2, 0xd9c8f0]), mat4(rand(-H.w / 2, H.w / 2 - 1.2), 0.08, H.d / 2 + rand(0.4, 1.6)), 0.02);
+  }
+  B.build(false, false);
 }
 const builtStatic = W.build(true, true);
 structures.add(builtStatic);
@@ -1414,34 +1510,63 @@ addEgg(NESTS[2].spots[0].x, NEST.y, NESTS[2].spots[0].z, NESTS[2].spots[0]);
 // ===================================================================
 //  camera: drag to orbit, wheel / pinch to zoom, slow drift when idle
 // ===================================================================
-const CAM_TARGET = new THREE.Vector3(0.7, 0.45, -3.0);
-const cam = { th: 0.78, ph: 0.98, r: 17, target: CAM_TARGET.clone(), idle: 0, follow: null, followT: 0 };
+const CAM_TARGET = new THREE.Vector3(0.7, 0.45, -3.0), CAM_DEF = { th: 0.78, ph: 0.98, r: 17 }, R_MIN = 0.65, R_MAX = 24;
+// where the look-at point may wander when panning: the run, the strip with the passage, and the coop, with a little margin
+const PAN = { x0: -3.25, x1: 4.4, z0: -9.7, z1: 4.3 }, PAN_AREA = [[-3.25, 4.4, -3.25, 4.3], [1.5, 4.4, -9.7, -3.0], [0.6, 4.4, -9.7, -7.5]];
+const cam = { th: CAM_DEF.th, ph: CAM_DEF.ph, r: CAM_DEF.r, rEff: CAM_DEF.r, target: CAM_TARGET.clone(), goal: CAM_TARGET.clone(), idle: 0, follow: null, followT: 0, ease: null };
 let drag = null, pinch = null;
+function panBy(dx, dy) {   // screen pixels -> move the look-at goal across the ground
+  const k = 0.73 * cam.rEff / innerHeight * 1.25, s = Math.sin(cam.th), c = Math.cos(cam.th);
+  cam.goal.x -= (dx * c + dy * s) * k; cam.goal.z -= (-dx * s + dy * c) * k;
+  keepGoal(); cam.follow = null; cam.ease = null; cam.idle = 0;
+}
+// the look-at goal stays in the chicken area (so never in the garage or the outbuilding) and off the mixer and the tree trunk
+function keepGoal() {
+  const g = cam.goal, m = 0.3, inArea = ([x, z]) => PAN_AREA.some((q) => x >= q[0] && x <= q[1] && z >= q[2] && z <= q[3]);
+  zoneClamp(g, 0, PAN_AREA);
+  for (const q of [SOLIDS[4], SOLIDS[6]]) {
+    if (g.x < q[0] - m || g.x > q[1] + m || g.z < q[4] - m || g.z > q[5] + m) continue;
+    const c = [[q[0] - m, g.z], [q[1] + m, g.z], [g.x, q[4] - m], [g.x, q[5] + m]].filter(inArea).sort((a, b) => Math.hypot(a[0] - g.x, a[1] - g.z) - Math.hypot(b[0] - g.x, b[1] - g.z));
+    if (c.length) { g.x = c[0][0]; g.z = c[0][1]; }   // out by the nearest side that stays in the chicken area
+  }
+}
+function resetView() {
+  if (cinema) return;
+  cam.follow = null; cam.goal.copy(CAM_TARGET); cam.idle = 0;
+  cam.ease = { th: cam.th + angDiff(cam.th, CAM_DEF.th), ph: CAM_DEF.ph, r: CAM_DEF.r };
+}
 const pointers = new Map(), gl = renderer.domElement;
+gl.addEventListener("contextmenu", (e) => e.preventDefault());
 gl.addEventListener("pointerdown", (e) => {
   if (cinema) { showCinemaExit(3); return; }
-  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); gl.setPointerCapture(e.pointerId); gl.classList.add("grabbing");
-  if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t: performance.now() };
-  else if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), r: cam.r }; drag = null; }
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); try { gl.setPointerCapture(e.pointerId); } catch (err) { /* pointer already gone */ } gl.classList.add("grabbing");
+  if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t: performance.now(), pan: e.button === 2 || e.shiftKey };
+  else if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), r: cam.r, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 }; drag = null; }
+  cam.ease = null;
 });
 gl.addEventListener("pointermove", (e) => {
   if (!pointers.has(e.pointerId)) { if (e.pointerType === "mouse" && !cinema) hover(e); return; }
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (pinch && pointers.size === 2) { const [a, b] = [...pointers.values()]; cam.r = clamp(pinch.r * pinch.d / Math.max(20, Math.hypot(a.x - b.x, a.y - b.y)), 3, 24); cam.idle = 0; return; }
+  if (pinch && pointers.size === 2) {   // two fingers: pinch to zoom, move together to pan
+    const [a, b] = [...pointers.values()], mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    cam.r = clamp(pinch.r * pinch.d / Math.max(20, Math.hypot(a.x - b.x, a.y - b.y)), R_MIN, R_MAX); cam.idle = 0;
+    panBy(mx - pinch.mx, my - pinch.my); pinch.mx = mx; pinch.my = my; return;
+  }
   if (!drag) return;
-  cam.th -= (e.clientX - drag.x) * 0.006; cam.ph = clamp(cam.ph - (e.clientY - drag.y) * 0.004, 0.22, 1.45);
+  if (drag.pan || e.shiftKey) panBy(e.clientX - drag.x, e.clientY - drag.y);
+  else { cam.th -= (e.clientX - drag.x) * 0.006; cam.ph = clamp(cam.ph - (e.clientY - drag.y) * 0.004, 0.22, 1.45); cam.ease = null; }
   drag.x = e.clientX; drag.y = e.clientY; cam.idle = 0;
 });
 const endPointer = (e) => {
   if (!pointers.has(e.pointerId)) return;
   pointers.delete(e.pointerId);
-  if (drag && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 7 && performance.now() - drag.t < 450) click(e);
+  if (drag && !drag.pan && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 7 && performance.now() - drag.t < 450) click(e);
   if (pointers.size < 2) pinch = null;
   if (!pointers.size) gl.classList.remove("grabbing");
   drag = null;
 };
 gl.addEventListener("pointerup", endPointer); gl.addEventListener("pointercancel", endPointer);
-gl.addEventListener("wheel", (e) => { e.preventDefault(); if (cinema) return; cam.r = clamp(cam.r * Math.exp(e.deltaY * 0.001), 3, 24); cam.idle = 0; }, { passive: false });
+gl.addEventListener("wheel", (e) => { e.preventDefault(); if (cinema) return; cam.r = clamp(cam.r * Math.exp(e.deltaY * 0.0012), R_MIN, R_MAX); cam.idle = 0; cam.ease = null; }, { passive: false });
 const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
 // which bird is under the pointer (by screen distance to its head, so small birds far away are still easy to hit)
 const _w = new THREE.Vector3();
@@ -1483,9 +1608,10 @@ addEventListener("keydown", (e) => {
   if (k === "escape" && cinema) { setCinema(false); return; }
   if (cinema) { showCinemaExit(2.5); return; }
   if (k === "h") setPanel(panel.classList.contains("hidden"));
+  if (k === "r") resetView();
 });
 document.querySelectorAll(".panel button, .fab").forEach((b) => b.addEventListener("click", () => b.blur()));
-if (isTouch) hintbar.textContent = "Drag to look around · tap the grass to throw feed";
+if (isTouch) hintbar.textContent = "Drag to look around · two fingers to move and zoom · tap the grass to throw feed";
 
 // names: a little label over a bird on hover or click, and the flock in the panel with what each is up to
 function activity(b) {
@@ -1504,7 +1630,7 @@ for (const b of birds) {
   const li = document.createElement("li"), sw = "#" + b.torso.children[0].material.color.getHexString();
   li.innerHTML = `<span class="sw" style="background:${sw}"></span><span class="nm"></span><span class="st"></span>`;
   li.querySelector(".nm").textContent = b.name;
-  li.onclick = () => { showLabel(b, 5); cam.follow = b; cam.followT = 7; cam.idle = 0; if (innerWidth < 760) setPanel(false); };
+  li.onclick = () => { showLabel(b, 5); cam.follow = b; cam.followT = 7; cam.idle = 0; cam.ease = { r: Math.min(cam.r, 1.5) }; if (innerWidth < 760) setPanel(false); };
   listEl.appendChild(li); b.li = li.querySelector(".st");
 }
 let listT = 0;
@@ -1556,7 +1682,7 @@ function camSafe(p, m = 0.12) {
     }
     if (!moved) break;
   }
-  p.y = Math.max(p.y, groundY(p.x, p.z) + 0.12);   // never below the island's top (and its sides are all below that)
+  p.y = Math.max(p.y, groundY(p.x, p.z) + 0.12, minCamY(p.x, p.z));   // never below the island's top (its sides are all below that), and clear of the neighbours
   return p;
 }
 function segHits(a, b, boxes) {   // does the segment a-b pass through any of the boxes? (slab test)
@@ -1727,6 +1853,7 @@ function setCinema(on) {
   viewOff = -1;
 }
 $("cinemaBtn").onclick = () => setCinema(true);
+$("resetBtn").onclick = resetView;
 cinemaExitBtn.onclick = () => setCinema(false);
 document.addEventListener("mousemove", () => { if (cinema) showCinemaExit(2); });
 
@@ -1737,7 +1864,8 @@ let viewOff = -1, portrait = false;
 function resize() {
   renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight;
   portrait = innerWidth < innerHeight; if (!cinema) camera.fov = portrait ? 52 : 40; camera.updateProjectionMatrix(); viewOff = -1;
-  if (portrait) cam.r = Math.max(cam.r, clamp(13 / (innerWidth / innerHeight) * 0.72, 17, 23));
+  CAM_DEF.r = portrait ? clamp(13 / (innerWidth / innerHeight) * 0.72, 17, 23) : 17;
+  if (portrait) cam.r = Math.max(cam.r, CAM_DEF.r);
 }
 addEventListener("resize", resize);
 
@@ -1761,13 +1889,30 @@ function render(dt) {
   if (cinema) cinemaCamera(dt);
   else {
     cam.idle += dt;
-    if (cam.idle > 6 && !drag && !pinch) { cam.th += dt * 0.025; cam.ph = damp(cam.ph, 0.98 + Math.sin(simT * 0.05) * 0.08, 0.3, dt); }
-    // picked from the list: glide over to that bird for a few seconds, then drift back
+    if (cam.ease) {   // reset view, or closing in on a bird picked from the list
+      const k = 1 - Math.exp(-dt * 2.2), E = cam.ease;
+      if (E.r !== undefined) cam.r += (E.r - cam.r) * k;
+      if (E.th !== undefined) cam.th += (E.th - cam.th) * k;
+      if (E.ph !== undefined) cam.ph += (E.ph - cam.ph) * k;
+      if (Math.abs((E.r ?? cam.r) - cam.r) < 0.01 && Math.abs((E.th ?? cam.th) - cam.th) < 0.002 && Math.abs((E.ph ?? cam.ph) - cam.ph) < 0.002) cam.ease = null;
+    } else if (cam.idle > 6 && !drag && !pinch) { cam.th += dt * 0.025; cam.ph = damp(cam.ph, 0.98 + Math.sin(simT * 0.05) * 0.08, 0.3, dt); }
+    // picked from the list: keep that bird in the middle for a few seconds
     cam.followT -= dt;
-    if (cam.follow && cam.followT > 0) cam.target.lerp(_w.set(clamp(cam.follow.x, -4, 4), 0.35, clamp(cam.follow.z, -8.5, 4)), 1 - Math.exp(-dt * 2));
-    else cam.target.lerp(CAM_TARGET, 1 - Math.exp(-dt * 0.8));
-    const r = cam.r;
-    camera.position.set(cam.target.x + r * Math.sin(cam.ph) * Math.sin(cam.th), cam.target.y + r * Math.cos(cam.ph), cam.target.z + r * Math.sin(cam.ph) * Math.cos(cam.th));
+    if (cam.follow && cam.followT > 0) { cam.goal.x = cam.follow.x; cam.goal.z = cam.follow.z; keepGoal(); }
+    // the look-at point eases after its goal, so panning glides and stops softly at the edge of the chicken area
+    cam.target.x = damp(cam.target.x, cam.goal.x, 6, dt); cam.target.z = damp(cam.target.z, cam.goal.z, 6, dt);
+    cam.target.y = lerp(0.28, 0.45, clamp((cam.r - 1) / 4, 0, 1));   // close up, look at a hen's head height
+    // don't let a wall, the coop or the mixer get between camera and look-at point: shorten the arm, and if that
+    // would leave the camera squashed against something, look down from a little higher instead
+    const dirAt = (ph) => _w.set(Math.sin(ph) * Math.sin(cam.th), Math.cos(ph), Math.sin(ph) * Math.cos(cam.th));
+    let ph = cam.ph, r = armLength(cam.target, dirAt(ph), cam.r);
+    for (let k = 0; k < 8 && r < Math.min(cam.r, 0.7); k++) { ph = Math.max(0.05, ph - 0.18); r = armLength(cam.target, dirAt(ph), cam.r); }
+    cam.phEff = cam.phEff === undefined || ph < cam.phEff ? ph : damp(cam.phEff, ph, 4, dt);
+    if (cam.phEff > ph + 1e-4) { const r2 = armLength(cam.target, dirAt(cam.phEff), cam.r); if (r2 < r) r = r2; }
+    const dir = dirAt(cam.phEff);
+    cam.rEff = r < cam.rEff ? r : damp(cam.rEff, r, 5, dt);
+    camera.position.copy(cam.target).addScaledVector(dir, cam.rEff);
+    camera.position.y = Math.max(camera.position.y, groundY(camera.position.x, camera.position.z) + 0.07, minCamY(camera.position.x, camera.position.z));
     camera.lookAt(cam.target);
     camera.updateMatrixWorld();
   }
@@ -1776,6 +1921,19 @@ function render(dt) {
   if (cinemaExitT > 0) { cinemaExitT -= dt; if (cinemaExitT <= 0) cinemaExitBtn.classList.remove("show"); }
   renderer.render(scene, camera);
   updateLabels(dt);
+}
+// how far the camera can sit from the look-at point along 'dir' before it would be inside something solid
+const _q = new THREE.Vector3();
+function armLength(t, dir, r) {
+  const inside = (p, q, m) => p.x > q[0] - m && p.x < q[1] + m && p.y > q[2] - m && p.y < q[3] + m && p.z > q[4] - m && p.z < q[5] + m;
+  // anything the look-at point itself is in (the coop, a shrub a hen is under) doesn't count; anything it's right next to gets no margin
+  const boxes = [];
+  for (const q of SOLIDS) if (!inside(t, q, 0)) boxes.push([q, inside(t, q, 0.1) ? 0 : 0.1]);
+  for (let s = 0.04; s < r; s += 0.04) {
+    _q.copy(t).addScaledVector(dir, s);
+    for (const [q, m] of boxes) if (inside(_q, q, m)) return Math.max(0.03, s - 0.05);
+  }
+  return r;
 }
 let last = performance.now();
 function frame(now) {

@@ -98,12 +98,25 @@
     box-shadow: var(--shadow); padding: 10px 10px 8px; width: 324px;
   }
   #brain .head { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--soft); cursor: pointer; user-select: none; }
-  #brain .head b { color: var(--ink); font-weight: 500; }
+  #brain .head b { color: var(--ink); font-weight: 500; margin-right: 6px; }
+  #keysBtn { font-size: 11.5px; padding: 2px 9px; border-radius: 999px; color: var(--soft); }
+  #keysBtn::after { content: " ▾"; }
+  #brain.keys-open #keysBtn::after { content: " ▴"; }
+  #brain .keys { display: none; margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--rule); }
+  #brain.keys-open .keys { display: block; }
+  #brain .keys .cap { font-size: 11px; color: var(--soft); margin: 0 0 3px; }
+  .klist { position: relative; }
+  .krow { display: grid; grid-template-columns: 7px 38px minmax(0, 1fr) 112px; column-gap: 6px; align-items: center; height: 20px; padding-left: 3px; border-radius: 4px; font-size: 11.5px; cursor: default; user-select: none; }
+  .krow i { width: 7px; height: 7px; border-radius: 50%; }
+  .krow b { color: var(--ink); font-weight: 600; white-space: nowrap; }
+  .krow span { color: var(--soft); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .krow.on { background: var(--btn-hover); }
+  #brain #keyCv { position: absolute; right: 0; top: 0; pointer-events: none; margin: 0; }
   #brain canvas { display: block; margin-top: 6px; }
   #brain .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--soft); margin-top: 5px; }
   #brain .legend i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; }
   #brain .legend .note { margin-left: auto; }
-  #brain.mini canvas, #brain.mini .legend { display: none; }
+  #brain.mini canvas, #brain.mini .legend, #brain.mini .keys { display: none; }
   @media (max-width: 759px) {
     #brain { left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); width: auto; padding: 8px 10px 6px; }
   }
@@ -143,9 +156,13 @@
 </div>
 
 <div id="brain">
-  <div class="head" id="brainHead"><b>Brain</b><span id="brainInfo"></span></div>
+  <div class="head" id="brainHead"><span><b>Brain</b><span id="brainInfo"></span></span><button id="keysBtn" aria-expanded="false" aria-controls="keys">Key neurons</button></div>
   <canvas id="brainCv" aria-label="Map of Hector's neurons, head on the left"></canvas>
   <div class="legend"><span><i style="background:var(--c-s)"></i>Sensory</span><span><i style="background:var(--c-i)"></i>Inter</span><span><i style="background:var(--c-m)"></i>Motor</span><span class="note">Lit when firing</span></div>
+  <div class="keys" id="keys">
+    <p class="cap">Voltage over the last 7 s, ticks are spikes. Point at a row to find it on the map.</p>
+    <div class="klist" id="klist"><canvas id="keyCv"></canvas></div>
+  </div>
 </div>
 
 <script>
@@ -604,7 +621,7 @@ function readTheme() {
     worm: v("--worm"), wormLine: v("--worm-line"), wormDark: v("--worm-dark"), eye: v("--eye"),
     food: v("--food"), foodDot: v("--food-dot"), hot: v("--hot-rgb"), cold: v("--cold-rgb"), touch: v("--touch"),
     hotFill: [v("--hot-1"), v("--hot-2")], coldFill: [v("--cold-1"), v("--cold-2")],
-    sil: v("--sil"), silLine: v("--sil-line"), grp: [v("--c-s"), v("--c-i"), v("--c-m")],
+    sil: v("--sil"), silLine: v("--sil-line"), grp: [v("--c-s"), v("--c-i"), v("--c-m")], ink: v("--ink"),
   };
 }
 
@@ -853,6 +870,7 @@ function layoutBrain() {
     grpList.forEach(([, list], k) => place(list, slots[k][0], slots[k][1]));
   }
   drawBrainBg();
+  layoutKeys();
 }
 function drawBrainBg() {
   silCv = document.createElement("canvas"); silCv.width = bcv.width; silCv.height = bcv.height;
@@ -887,6 +905,135 @@ function drawBrain() {
     g.globalAlpha = 0.3 + 0.7 * gl; g.fillStyle = PAL.grp[net.grp[i]];
     disc(g, x, y, bdot + gl * 1.3); g.fill();
   }
+  // a key neuron row is pointed at: dim the rest, ring its cells
+  const hl = keyHl();
+  if (hl) {
+    g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 0.7; g.drawImage(silCv, 0, 0); g.setTransform(DPR, 0, 0, DPR, 0, 0);
+    g.lineWidth = 1.2; g.strokeStyle = PAL.ink;
+    for (let k = 0; k < hl.length; k++) {
+      const i = hl[k], x = npos[i][0], y = npos[i][1];
+      g.globalAlpha = 1; g.fillStyle = PAL.grp[net.grp[i]];
+      disc(g, x, y, bdot + net.glow[i] * 1.3); g.fill();
+      g.globalAlpha = 0.75; disc(g, x, y, bdot + 2.4); g.stroke();
+    }
+  }
+  g.globalAlpha = 1;
+}
+
+// ===================================================================
+//  key neurons: the best-known cells, each with a rolling trace of its voltage and its spikes
+// ===================================================================
+// Left/right pairs (and ALM with AVM) are averaged into one row. The last row compares the B-type
+// motor neurons (VB, DB: forward) with the A-type (VA, DA: backward), as spike rates.
+const KEY = [
+  ["AWC", ["AWCL", "AWCR"], "smell of food", "Smells attractive odours. Like the real cell it fires when the smell fades, and it hushes AIY."],
+  ["ASH", ["ASHL", "ASHR"], "danger and pain", "Nociceptor: fires on painful heat and when his nose bumps the wall."],
+  ["AFD", ["AFDL", "AFDR"], "temperature", "Thermosensor: fires while the temperature at his head is changing."],
+  ["ALM", ["ALML", "ALMR", "AVM"], "touch, front", "ALM and AVM: touch receptors in the front half. A poke there makes him back up."],
+  ["PLM", ["PLML", "PLMR"], "touch, back", "Touch receptors in the tail. A poke there sends him forward."],
+  ["AIY", ["AIYL", "AIYR"], "steers toward good", "Interneuron that favours running forward. Food smell (via AWC and ASE) pushes its voltage down."],
+  ["AIB", ["AIBL", "AIBR"], "turns, reversals", "Interneuron that promotes turns and reversals."],
+  ["AVA", ["AVAL", "AVAR"], "command: back up", "Command interneuron for backward crawling."],
+  ["AVB", ["AVBL", "AVBR"], "command: forward", "Command interneuron for forward crawling."],
+  ["PVC", ["PVCL", "PVCR"], "forward drive", "Carries tail touch (PLM) to the forward command cells."],
+  ["RIM", ["RIML", "RIMR"], "reversals, turns", "Head interneuron active during reversals and turns."],
+  ["Motor", null, "↑ forward, ↓ back", "Motor neurons: B-type (VB, DB, forward) above the line, A-type (VA, DA, backward) below."],
+];
+const KN = 70, KROW = 20, KW = 112;          // 70 samples of 0.1 s = 7 s, row height, sparkline width
+const klist = document.getElementById("klist"), kcv = document.getElementById("keyCv"), kctx = kcv.getContext("2d");
+let keyIds = [], keyGrp = [], kV = null, kS = null, kAcc = null, kSpk = null, kHead = 0, kFill = 0, kTicks = 0;
+const kRows = [];
+let kHover = -1, kPin = -1;
+const keyHl = () => { const r = kPin >= 0 ? kPin : kHover; return r >= 0 && brainBox.classList.contains("keys-open") ? keyIds[r] : null; };
+function buildKeys() {
+  const motor = S.bMN.concat(S.aMN);
+  keyIds = KEY.map(([, names]) => (names ? ids(...names) : motor));
+  keyGrp = KEY.map(([, names], r) => (names ? net.grp[keyIds[r][0]] : 2));
+  const R = KEY.length;
+  kV = new Float32Array(R * KN); kS = new Float32Array(R * KN);   // voltage (or B rate), spike share (or A rate)
+  kAcc = new Float32Array(R); kSpk = new Float32Array(R);
+  KEY.forEach(([name, , role, tip], r) => {
+    const row = document.createElement("div");
+    row.className = "krow"; row.title = tip;
+    row.innerHTML = `<i style="background:var(${["--c-s", "--c-i", "--c-m"][keyGrp[r]]})"></i><b></b><span></span><em></em>`;
+    row.querySelector("b").textContent = name; row.querySelector("span").textContent = role;
+    row.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") { kHover = r; markRows(); } });
+    row.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") { kHover = -1; markRows(); } });
+    row.addEventListener("click", () => { kPin = kPin === r ? -1 : r; markRows(); });
+    klist.appendChild(row); kRows.push(row);
+  });
+}
+function markRows() { const r = kPin >= 0 ? kPin : kHover; kRows.forEach((el, k) => el.classList.toggle("on", k === r)); }
+function layoutKeys() {
+  if (!kV) return;
+  kcv.style.width = KW + "px"; kcv.style.height = KEY.length * KROW + "px";
+  kcv.width = Math.round(KW * DPR); kcv.height = Math.round(KEY.length * KROW * DPR);
+}
+function clearKeys() { if (kV) { kV.fill(0); kS.fill(0); kAcc.fill(0); kSpk.fill(0); kFill = 0; kTicks = 0; } }
+// called after every body step: one sample per 3 network ticks (0.1 s)
+function keyTick() {
+  if ((stepN - 1) % NET_EVERY !== 0 || !kV) return;
+  const R = KEY.length, last = R - 1;
+  for (let r = 0; r < last; r++) {
+    const l = keyIds[r]; let v = 0, sp = 0;
+    // a spiking cell counts as being at threshold for that tick (the model resets it straight away)
+    for (let k = 0; k < l.length; k++) { v += net.spk[l[k]] ? P.theta : net.V[l[k]]; sp += net.spk[l[k]]; }
+    kAcc[r] += v / l.length; kSpk[r] += sp / l.length;
+  }
+  let b = 0, a = 0;
+  for (let k = 0; k < S.bMN.length; k++) b += net.spk[S.bMN[k]];
+  for (let k = 0; k < S.aMN.length; k++) a += net.spk[S.aMN[k]];
+  kAcc[last] += b / S.bMN.length; kSpk[last] += a / S.aMN.length;
+  if (++kTicks < 3) return;
+  const prev = (kHead + KN - 1) % KN;
+  for (let r = 0; r < R; r++) {
+    const v = kAcc[r] / kTicks, sp = kSpk[r] / kTicks;
+    // voltage gets a light smoothing; the motor rates (spikes a second per cell) do not
+    kV[r * KN + kHead] = r === last ? v * 30 : kFill ? kV[r * KN + prev] * 0.35 + v * 0.65 : v;
+    kS[r * KN + kHead] = r === last ? sp * 30 : sp;
+    kAcc[r] = 0; kSpk[r] = 0;
+  }
+  kHead = (kHead + 1) % KN; kFill = Math.min(KN, kFill + 1); kTicks = 0;
+}
+function drawKeys() {
+  if (!kV || !brainBox.classList.contains("keys-open") || brainBox.classList.contains("mini")) return;
+  const g = kctx, R = KEY.length, last = R - 1, pw = KW - 12, dx = pw / (KN - 1);
+  g.setTransform(DPR, 0, 0, DPR, 0, 0); g.clearRect(0, 0, KW, R * KROW);
+  for (let r = 0; r < R; r++) {
+    const y0 = r * KROW, mid = y0 + 11, col = PAL.grp[keyGrp[r]], base = r * KN;
+    g.globalAlpha = 1; g.fillStyle = PAL.silLine; g.fillRect(0, mid - 0.5, pw, 1);   // rest line
+    g.fillStyle = col; g.strokeStyle = col;
+    if (r === last) {
+      // B-type rate as bars above the line, A-type below (full height at 5 spikes a second)
+      g.globalAlpha = 0.85;
+      for (let k = 0; k < kFill; k++) {
+        const j = base + ((kHead - kFill + k + KN) % KN), x = pw - (kFill - 1 - k) * dx - 0.8;
+        const up = Math.min(8.5, (kV[j] / 5) * 8.5), dn = Math.min(8.5, (kS[j] / 5) * 8.5);
+        if (up > 0.2) g.fillRect(x, mid - 0.5 - up, 1.6, up);
+        if (dn > 0.2) g.fillRect(x, mid + 0.5, 1.6, dn);
+      }
+    } else {
+      // voltage: rest on the line, threshold near the top, strong inhibition near the bottom
+      g.lineWidth = 1.25; g.lineJoin = "round";
+      g.beginPath();
+      for (let k = 0; k < kFill; k++) {
+        const j = base + ((kHead - kFill + k + KN) % KN), x = pw - (kFill - 1 - k) * dx;
+        const y = mid - clamp(kV[j], -1, 1) * 7;
+        k ? g.lineTo(x, y) : g.moveTo(x, y);
+      }
+      g.stroke();
+      // spikes: a tick along the top, stronger the more of the cells fired
+      for (let k = 0; k < kFill; k++) {
+        const j = base + ((kHead - kFill + k + KN) % KN); if (kS[j] <= 0) continue;
+        g.globalAlpha = 0.4 + 0.6 * Math.min(1, kS[j] * 3);
+        g.fillRect(pw - (kFill - 1 - k) * dx - 0.6, y0 + 0.5, 1.3, 2.5);
+      }
+    }
+    // pulse dot: lights the moment any of the cells spikes
+    const l = keyIds[r]; let gl = 0;
+    for (let k = 0; k < l.length; k++) if (net.glow[l[k]] > gl) gl = net.glow[l[k]];
+    g.globalAlpha = 0.22 + 0.78 * gl; disc(g, KW - 4.5, mid, 2.2 + gl * 1.2); g.fill();
+  }
   g.globalAlpha = 1;
 }
 
@@ -910,7 +1057,7 @@ function resetAll() {
   world.food = []; world.temp = []; world.ripples = []; world.pulses = [];
   tctx.clearRect(0, 0, 1024, 1024); trackPrev = null;
   net.V.fill(0); net.tr.fill(0); net.spk.fill(0); net.glow.fill(0); net.A.fill(0);
-  resetWorm();
+  resetWorm(); clearKeys();
 }
 document.getElementById("reset").onclick = (e) => { resetAll(); e.target.blur(); };
 
@@ -934,6 +1081,18 @@ addEventListener("keydown", (e) => {
   if (map[k]) document.querySelector(`#tools button[data-tool="${map[k]}"]`).click();
 });
 document.getElementById("brainHead").onclick = () => { brainBox.classList.toggle("mini"); if (net.nN) resize(); };
+const keysBtn = document.getElementById("keysBtn");
+function setKeys(open) {
+  brainBox.classList.toggle("keys-open", open); keysBtn.setAttribute("aria-expanded", open);
+  if (!open) { kPin = -1; kHover = -1; markRows(); }
+}
+keysBtn.onclick = (e) => {
+  e.stopPropagation(); keysBtn.blur();
+  brainBox.classList.remove("mini");
+  setKeys(!brainBox.classList.contains("keys-open"));
+  if (net.nN) resize();
+};
+setKeys(innerWidth >= 1000);   // open on laptops and desktops, behind the button on phones and tablets
 
 // follow the site's light/dark choice if it changes while the page is open
 function applyTheme() {
@@ -971,9 +1130,10 @@ let last = 0, acc = 0;
 function frame(t) {
   const dtReal = Math.min(0.25, (t - last) / 1000 || 0); last = t;   // keeps real-time pace down to ~4 fps
   acc += dtReal;
-  while (acc >= DT) { step(DT); acc -= DT; }
+  while (acc >= DT) { step(DT); keyTick(); acc -= DT; }
   render();
   drawBrain();
+  drawKeys();
   updateUi(dtReal);
   requestAnimationFrame(frame);
 }
@@ -982,6 +1142,7 @@ readTheme();
 fetch("../assets/worm/connectome.json").then((r) => r.json()).then((d) => {
   buildNet(d);
   makeGroups();
+  buildKeys();
   resetWorm();
   resize();
   addEventListener("resize", resize);
