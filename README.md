@@ -13,6 +13,8 @@ playground/julia.html          Julia of the day (WebGL): pick c on the Mandelbro
 playground/stereogram.html     Stereogram Studio: logo / text / shapes → SIRDS, PNG + HTML export
 playground/maze.html           first-person maze screensaver (raycaster, right-hand-rule autopilot)
 playground/flight.html         flight sim (three.js): PC-24/12/21/6 + heli, fuel, procedural airports, high scores
+playground/aquarium.html       3D aquarium (three.js): presets, fish counts, decor, lights, feeding
+assets/previews.js             live mini previews on the homepage playground tiles
 ```
 
 ## Publish on GitHub Pages

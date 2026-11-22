@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="assets/style.css">
   <script src="assets/site.js"></script>
   <script src="assets/julia-day.js"></script>
+  <script src="assets/previews.js" defer></script>
 </head>
 <body>
 <div class="layout">
@@ -30,7 +31,7 @@
       <a href="#projects">projects</a>
       <a href="#publications">publications</a>
       <a href="#path">path</a>
-      <a href="#playground">playground</a>
+      <a href="#play">playground</a>
     </nav>
 
     <a class="julia-chip" href="playground/julia.html" title="Today's Julia set">
@@ -130,22 +131,26 @@
       </ul>
     </section>
 
-    <section id="playground">
-      <h2>playground</h2>
-      <p class="soft">Small things I made for fun. They all run in your browser.</p>
-      <div class="toys">
-        <a class="toy" href="playground/julia.html"><span class="glyph">❋</span><b>julia of the day</b><span class="d">A new fractal every day, picked by the calendar.</span></a>
-        <a class="toy" href="playground/stereogram.html"><span class="glyph">◎</span><b>stereogram</b><span class="d">Hide words and shapes in random dots. Cross your eyes.</span></a>
-        <a class="toy" href="playground/maze.html"><span class="glyph">▦</span><b>the maze</b><span class="d">A first-person maze that solves itself, screensaver-style.</span></a>
-        <a class="toy" href="playground/flight.html"><span class="glyph">✈</span><b>little flight sim</b><span class="d">Fly Pilatus planes or a helicopter over endless mountains. Mind your fuel.</span></a>
-      </div>
-    </section>
-
     <footer>
       <span>© <span id="yr"></span> Alain Fauquex · <a data-email="text" href="#">email</a></span>
       <button class="theme-btn" type="button">☾ dark</button>
     </footer>
   </main>
+
+  <!-- ============ playground column (right on wide screens, top strip otherwise) ============ -->
+  <aside class="play" id="play" aria-label="Playground">
+    <div class="play-head">
+      <h2>playground</h2>
+      <p>Little things I built for fun. Pick one and stay a while.</p>
+    </div>
+    <div class="tiles">
+      <a class="tile" href="playground/flight.html"><canvas data-preview="flight" aria-hidden="true"></canvas><span class="t"><b>little flight sim</b><span>Pilatus planes and a helicopter. Mind your fuel, chase the high score.</span></span></a>
+      <a class="tile" href="playground/aquarium.html"><canvas data-preview="aquarium" aria-hidden="true"></canvas><span class="t"><b>aquarium</b><span>Build a tank, feed the fish, then just watch.</span></span></a>
+      <a class="tile" href="playground/maze.html"><canvas data-preview="maze" aria-hidden="true"></canvas><span class="t"><b>the maze</b><span>A 3D maze that solves itself, screensaver-style.</span></span></a>
+      <a class="tile" href="playground/julia.html"><canvas data-preview="julia" aria-hidden="true"></canvas><span class="t"><b>julia of the day</b><span>A new fractal every day, picked by the calendar.</span></span></a>
+      <a class="tile" href="playground/stereogram.html"><canvas data-preview="stereogram" aria-hidden="true"></canvas><span class="t"><b>stereogram studio</b><span>Hide a word or logo in random dots. Can you see the star?</span></span></a>
+    </div>
+  </aside>
 </div>
 
 <script>
