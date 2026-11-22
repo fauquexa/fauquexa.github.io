@@ -12,7 +12,7 @@ assets/headshot.jpg
 playground/julia.html          Julia of the day (WebGL): pick c on the Mandelbrot set, zoom, save
 playground/stereogram.html     Stereogram Studio: logo / text / shapes → SIRDS, PNG + HTML export
 playground/maze.html           first-person maze screensaver (raycaster, right-hand-rule autopilot)
-playground/flight.html         flight sim (three.js): PC-24/12/21/6 + heli, fuel, airports, real Bay Area terrain, high scores
+playground/flight.html         flight sim (three.js): PC-24/12/21/6 + heli, fuel, procedural airports, high scores
 ```
 
 ## Publish on GitHub Pages

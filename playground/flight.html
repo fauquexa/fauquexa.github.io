@@ -17,8 +17,7 @@
     font-size: 14px; line-height: 1; border-radius: 50%;
   }
   .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-  .grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
-  .grid3 button, .grid2 button { padding: 6px 4px; }
+  .grid3 button { padding: 6px 4px; }
   #banner {
     position: fixed; left: 50%; top: 34%; transform: translate(-50%, -50%); width: min(90vw, 640px);
     font-size: clamp(16px, 2.6vw, 26px); letter-spacing: .3em; text-transform: uppercase; color: #fff;
@@ -57,7 +56,6 @@
   .modal td.n { text-align: right; color: var(--accent); }
   .modal tr.me td { background: rgba(224,179,90,.12); }
   .modal .row { margin-top: 12px; }
-  .modal .tabs { display: flex; gap: 6px; margin-top: 12px; }
 </style>
 </head>
 <body>
@@ -72,17 +70,11 @@
   <button class="close" id="closePanel" aria-label="Close settings" title="Close (H)">✕</button>
   <a class="back" href="../index.html">← home</a>
   <h1>little flight sim</h1>
-  <p class="sub">Pilatus aircraft over endless mountains or the real Bay Area. Watch your fuel and land on a runway to refuel. I helped design the PC-24's rear fuselage and wings.</p>
+  <p class="sub">Pilatus aircraft and a helicopter over endless mountains. Watch your fuel and land on a runway to refuel. I helped design the PC-24's rear fuselage and wings.</p>
 
   <label>aircraft</label>
   <div class="grid3" id="acBtns"></div>
   <p class="hint" id="acInfo" style="margin:6px 0 0"></p>
-
-  <label>map</label>
-  <div class="grid2" id="worldBtns">
-    <button data-world="alps" class="on">alps · procedural</button>
-    <button data-world="bay">SF Bay Area · real</button>
-  </div>
 
   <label>throttle <span id="thrLbl"></span></label>
   <input type="range" id="thr" min="0" max="1" step="0.01" value="0">
@@ -107,7 +99,6 @@
     <span>touch</span><span>drag to steer, slider = throttle</span>
   </div>
   <p class="hint" style="margin-top:10px">Land gently: wings level, sink under ~1,300 ft/min, on the runway. Idle throttle brakes. Score: rings 100, landings 250 (+ bonus for smooth ones), 10 per km flown.</p>
-  <p class="hint" style="margin-top:6px;opacity:.7">Bay Area elevation: AWS Terrain Tiles (USGS 3DEP, SRTM and others). Airport and landmark positions are approximate.</p>
 </div>
 
 <div class="modal-bg" id="modalBg" hidden>
@@ -152,9 +143,8 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 function mulberry(a) { return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
 // ===================================================================
-//  worlds: procedural alps, or the real SF Bay Area
+//  terrain: procedural alps
 // ===================================================================
-let WORLD = "alps";
 
 function alpsHeight(x, z) {
   const nx = x / 9000, nz = z / 9000;
@@ -171,53 +161,10 @@ function alpsHeight(x, z) {
   return mask * r * 1700 + hills + mask * 60 + 25 - lake * 140;
 }
 
-// --- Bay Area: real elevation from Terrarium tiles (meters, bathymetry below 0)
-const LAT0 = 37.70, LON0 = -122.25, MLAT = 110540, MLON = 111320 * Math.cos(LAT0 * Math.PI / 180);
-const toLocal = (lat, lon) => ({ x: (lon - LON0) * MLON, z: -(lat - LAT0) * MLAT });
-const BAY = { ready: false, z: 11, tiles: new Map(), lat: [37.22, 38.18], lon: [-122.78, -121.66] };
-const lon2px = (lon) => (lon + 180) / 360 * 256 * 2 ** BAY.z;
-const lat2py = (lat) => { const r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * 256 * 2 ** BAY.z; };
-function bayPix(px, py) { const t = BAY.tiles.get((px >> 8) * 4096 + (py >> 8)); return t ? t[(py & 255) * 256 + (px & 255)] : -40; }
-function bayHeight(x, z) {
-  const lat = LAT0 - z / MLAT, lon = LON0 + x / MLON;
-  const fx = lon2px(lon) - 0.5, fy = lat2py(lat) - 0.5, ix = Math.floor(fx), iy = Math.floor(fy), tx = fx - ix, ty = fy - iy;
-  return (bayPix(ix, iy) * (1 - tx) + bayPix(ix + 1, iy) * tx) * (1 - ty) + (bayPix(ix, iy + 1) * (1 - tx) + bayPix(ix + 1, iy + 1) * tx) * ty;
-}
-function fetchTile(z, x, y) {
-  return new Promise((res, rej) => {
-    const im = new Image(); im.crossOrigin = "anonymous";
-    im.onload = () => {
-      const c = document.createElement("canvas"); c.width = c.height = 256;
-      const g = c.getContext("2d", { willReadFrequently: true }); g.drawImage(im, 0, 0);
-      const d = g.getImageData(0, 0, 256, 256).data, h = new Float32Array(65536);
-      for (let i = 0; i < 65536; i++) h[i] = d[i * 4] * 256 + d[i * 4 + 1] + d[i * 4 + 2] / 256 - 32768;
-      res(h);
-    };
-    im.onerror = rej;
-    im.src = `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`;
-  });
-}
-async function loadBay(progress) {
-  const x0 = Math.floor(lon2px(BAY.lon[0]) / 256), x1 = Math.floor(lon2px(BAY.lon[1]) / 256);
-  const y0 = Math.floor(lat2py(BAY.lat[1]) / 256), y1 = Math.floor(lat2py(BAY.lat[0]) / 256);
-  const jobs = []; for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) jobs.push([x, y]);
-  const total = jobs.length; let done = 0, failed = 0;
-  const worker = async () => {
-    while (jobs.length) {
-      const [x, y] = jobs.pop();
-      try { BAY.tiles.set(x * 4096 + y, await fetchTile(BAY.z, x, y)); } catch (e) { failed++; }
-      progress(++done, total);
-    }
-  };
-  await Promise.all(Array.from({ length: 6 }, worker));
-  BAY.ready = failed < total * 0.15;
-  return BAY.ready;
-}
-
-const rawHeight = (x, z) => WORLD === "bay" ? bayHeight(x, z) : alpsHeight(x, z);
+const rawHeight = alpsHeight;
 
 // ===================================================================
-//  airports: procedural in the alps, real (approximate) in the Bay
+//  airports: procedurally placed, one per 9 km cell
 // ===================================================================
 const AP_CELL = 9000, AP_MARGIN = 1700, FALL = 450;
 function makeAirport(x, z, hdg, len, code, name, elev) {
@@ -248,35 +195,10 @@ function alpsAirport(ci, cj) {
   apCache.set(key, a);
   return a;
 }
-const BAY_AP_DEF = [
-  // lat, lon, true heading of the runway (deg), length (m), code, name
-  [37.6213, -122.3753, 298, 3600, "KSFO", "San Francisco Intl"],
-  [37.7020, -122.2215, 310, 3000, "KOAK", "Oakland"],
-  [37.3626, -121.9290, 314, 3350, "KSJC", "San José"],
-  [37.4611, -122.1150, 326, 750, "KPAO", "Palo Alto"],
-  [37.6590, -122.1220, 293, 1560, "KHWD", "Hayward"],
-  [37.5134, -122.5011, 315, 1520, "KHAF", "Half Moon Bay"],
-  [37.6934, -121.8204, 263, 1610, "KLVK", "Livermore"],
-  [37.4161, -122.0490, 333, 2860, "KNUQ", "Moffett Field"],
-  [37.5119, -122.2495, 315, 790, "KSQL", "San Carlos"],
-  [37.9897, -122.0569, 193, 1670, "KCCR", "Concord"],
-  [38.1436, -122.5560, 326, 1000, "KDVO", "Gnoss Field"],
-  [37.3329, -121.8198, 330, 945, "KRHV", "Reid-Hillview"],
-];
-let bayAirports = [];
-function buildBayAirports() {
-  bayAirports = BAY_AP_DEF.map(([lat, lon, hd, len, code, name]) => {
-    const p = toLocal(lat, lon);
-    return makeAirport(p.x, p.z, hd * Math.PI / 180, len, code, name, Math.max(bayHeight(p.x, p.z), 3));
-  });
-}
 function airportFor(x, z) {
-  if (WORLD === "alps") return alpsAirport(Math.floor(x / AP_CELL), Math.floor(z / AP_CELL));
-  for (const a of bayAirports) if (Math.abs(x - a.x) < a.rad && Math.abs(z - a.z) < a.rad) return a;
-  return null;
+  return alpsAirport(Math.floor(x / AP_CELL), Math.floor(z / AP_CELL));
 }
 function airportsNear(x, z) {
-  if (WORLD === "bay") return bayAirports;
   const ci = Math.floor(x / AP_CELL), cj = Math.floor(z / AP_CELL), out = [];
   for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) out.push(alpsAirport(ci + i, cj + j));
   return out;
@@ -304,14 +226,6 @@ function height(x, z) {
 function terrainColor(h, slope, x, z, aw) {
   const j = Noise(x / 90, z / 90) * 0.06;
   let c;
-  if (WORLD === "bay") {
-    const n = Noise(x / 900, z / 900);
-    if (h < 1.5) c = [0.78, 0.74, 0.60];
-    else if (h < 90 && slope < 0.07) c = [0.60, 0.59, 0.55];                  // cities on the flats
-    else if (n > 0.18 || (slope > 0.32 && h > 120)) c = [0.27, 0.38, 0.22];    // oak & redwood
-    else if (h > 650) c = [0.45, 0.47, 0.33];                                  // chaparral
-    else c = [0.74, 0.64, 0.40];                                               // golden grass
-  } else {
     if (h < 4) c = [0.80, 0.76, 0.58];
     else if (slope > 0.85 && h > 60) c = [0.42, 0.40, 0.38];
     else if (h < 220) c = [0.36, 0.56, 0.25];
@@ -319,7 +233,6 @@ function terrainColor(h, slope, x, z, aw) {
     else if (h < 880) c = [0.47, 0.45, 0.42];
     else c = [0.93, 0.95, 0.98];
     if (h > 840 && h < 940 && slope < 0.6) c = [0.80, 0.82, 0.86];
-  }
   if (aw > 0.3) { const g = [0.44, 0.60, 0.29]; const k = smooth(0.3, 0.9, aw); c = c.map((v, i) => v * (1 - k) + g[i] * k); }
   return c.map((v) => clamp(v + j, 0, 1));
 }
@@ -459,68 +372,6 @@ function updateAirportMeshes() {
   for (const [a, g] of apMeshes) if (!want.has(a)) { scene.remove(g); apMeshes.delete(a); }
 }
 function clearAirportMeshes() { for (const [, g] of apMeshes) scene.remove(g); apMeshes.clear(); }
-
-// ---- Bay Area landmarks (+ simple obstacles you can crash into)
-const landmarks = new THREE.Group(); scene.add(landmarks);
-let obstacles = [];
-function bridge(latA, lonA, latB, lonB, deckY, deckW, mat, towers, cable) {
-  const A = toLocal(latA, lonA), B = toLocal(latB, lonB), L = Math.hypot(B.x - A.x, B.z - A.z);
-  const h = Math.atan2(B.x - A.x, -(B.z - A.z));
-  const g = new THREE.Group(); g.position.set(A.x, 0, A.z); g.rotation.y = -h;
-  mk(g, box(deckW, 4, L), mat, 0, deckY, -L / 2);
-  for (const [f, th] of towers) {
-    const z = -L * f;
-    for (const s of [-1, 1]) mk(g, box(8, th, 8), mat, s * (deckW / 2 - 2), th / 2, z);
-    for (const y of [deckY + 15, th * 0.62, th - 6]) mk(g, box(deckW + 4, 5, 5), mat, 0, y, z);
-    const wx = A.x + Math.sin(h) * L * f, wz = A.z - Math.cos(h) * L * f;
-    obstacles.push({ x: wx, z: wz, r: deckW / 2 + 6, top: th });
-  }
-  if (cable) {
-    const [f1, f2] = [towers[0][0], towers[1][0]], top = towers[0][1];
-    for (const s of [-1, 1]) {
-      const pts = [];
-      pts.push(new THREE.Vector3(s * (deckW / 2 - 2), deckY + 2, 0));
-      for (let i = 0; i <= 24; i++) { const t = i / 24, z = -L * (f1 + (f2 - f1) * t); pts.push(new THREE.Vector3(s * (deckW / 2 - 2), deckY + 8 + (top - deckY - 8) * ((t - .5) * 2) ** 2, z)); }
-      pts.push(new THREE.Vector3(s * (deckW / 2 - 2), deckY + 2, -L));
-      g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: mat.color })));
-    }
-  }
-  landmarks.add(g);
-}
-function buildLandmarks() {
-  landmarks.clear(); obstacles = [];
-  // Golden Gate Bridge
-  bridge(37.8080, -122.4772, 37.8324, -122.4797, 67, 27, MAT.ggb, [[0.11, 227], [0.78, 227]], true);
-  // Bay Bridge (west suspension spans, then the east span to Oakland)
-  bridge(37.7885, -122.3880, 37.8090, -122.3657, 58, 22, MAT.grey, [[0.2, 150], [0.45, 150], [0.62, 150], [0.85, 150]], false);
-  bridge(37.8150, -122.3560, 37.8255, -122.3130, 28, 40, MAT.white, [[0.08, 160]], false);
-  // downtown San Francisco
-  const r = mulberry(42), c = toLocal(37.7915, -122.4005);
-  for (let i = 0; i < 90; i++) {
-    const ang = r() * 6.283, d = Math.sqrt(r()) * 900, x = c.x + Math.cos(ang) * d, z = c.z + Math.sin(ang) * d;
-    const ground = Math.max(bayHeight(x, z), 0), h = 20 + Math.pow(r(), 2.2) * 190 * (1 - d / 1300), w = 18 + r() * 22;
-    const tone = 0.55 + r() * 0.35;
-    mk(landmarks, box(w, h, w * (0.7 + r() * 0.6)), M(new THREE.Color(tone, tone * 0.98, tone * 0.95)), x, ground + h / 2, z, 0, r() * 0.3);
-    obstacles.push({ x, z, r: w * 0.7, top: ground + h });
-  }
-  const sf = toLocal(37.7897, -122.3972), sfg = Math.max(bayHeight(sf.x, sf.z), 0);
-  mk(landmarks, cyl(20, 24, 326, 8), M(0xc9ccd0), sf.x, sfg + 163, sf.z);                      // Salesforce Tower
-  obstacles.push({ x: sf.x, z: sf.z, r: 26, top: sfg + 326 });
-  const ta = toLocal(37.7952, -122.4028), tag = Math.max(bayHeight(ta.x, ta.z), 0);
-  mk(landmarks, new THREE.ConeGeometry(30, 260, 4), MAT.stone, ta.x, tag + 130, ta.z, 0, Math.PI / 4); // Transamerica
-  obstacles.push({ x: ta.x, z: ta.z, r: 24, top: tag + 260 });
-  // Sutro Tower
-  const st = toLocal(37.7552, -122.4528), stg = Math.max(bayHeight(st.x, st.z), 0);
-  for (let i = 0; i < 3; i++) { const a = i * 2.094; mk(landmarks, box(3, 298, 3), i % 2 ? MAT.white : MAT.red, st.x + Math.cos(a) * 12, stg + 149, st.z + Math.sin(a) * 12); }
-  for (const y of [120, 200, 260]) mk(landmarks, cyl(26, 26, 3, 3), MAT.red, st.x, stg + y, st.z);
-  obstacles.push({ x: st.x, z: st.z, r: 22, top: stg + 298 });
-  // the Campanile at UC Berkeley
-  const cp = toLocal(37.8721, -122.2578), cpg = Math.max(bayHeight(cp.x, cp.z), 0);
-  mk(landmarks, box(11, 70, 11), MAT.stone, cp.x, cpg + 35, cp.z);
-  mk(landmarks, box(12.5, 12, 12.5), MAT.stone, cp.x, cpg + 76, cp.z);
-  mk(landmarks, new THREE.ConeGeometry(9, 16, 4), M(0x5f8a6e), cp.x, cpg + 90, cp.z, 0, Math.PI / 4);
-  obstacles.push({ x: cp.x, z: cp.z, r: 10, top: cpg + 98 });
-}
 
 // ---- rings
 const ring = new THREE.Mesh(new THREE.TorusGeometry(32, 3, 8, 32), MB(0xe0b35a));
@@ -676,7 +527,7 @@ function selectAircraft(id) {
   scene.remove(craft); craft = buildModel(id); scene.add(craft);
   document.querySelectorAll("#acBtns button").forEach((b) => b.classList.toggle("on", b.dataset.ac === id));
   document.getElementById("acInfo").textContent = A.name + ": " + A.blurb;
-  newFlight();
+  newFlight(true);
 }
 function spawnAt(a) {
   P.crashed = 0; P.ground = true; P.v = 0; P.vel.set(0, 0, 0); P.fuel = 1; fuelWarned = false;
@@ -694,10 +545,34 @@ function spawnAt(a) {
   const how = A.kind === "heli" ? "raise the collective (W) to lift off" : `full throttle (W), pull up at ${Math.round(A.stall * 1.1 * 1.944)} kt`;
   flash("ready · " + a.code, `${a.name} · ${how}`, 4);
 }
-function newFlight() {
+// start in the air, lined up ~4 km out on the extended runway centreline of the nearest airport
+function spawnAir(a) {
+  P.crashed = 0; P.ground = false; P.fuel = 1; fuelWarned = false;
+  const out = A.kind === "heli" ? 2500 : 4000;
+  const sx = a.x - a.dx * (a.len / 2 + out), sz = a.z - a.dz * (a.len / 2 + out);
+  let top = Math.max(a.elev, 0);                       // clear the terrain between here and the field
+  for (let i = 0; i <= 20; i++) { const t = i / 20, x = sx + (a.x - sx) * t, z = sz + (a.z - sz) * t; top = Math.max(top, height(x, z)); }
+  for (let r = 300; r <= 900; r += 300) for (let k = 0; k < 8; k++) top = Math.max(top, height(sx + Math.cos(k * 0.785) * r, sz + Math.sin(k * 0.785) * r));
+  P.pos.set(sx, top + (A.kind === "heli" ? 220 : 380), sz);
+  if (A.kind === "heli") {
+    P.h = { hdg: a.hdg, pitch: 0, roll: 0 }; setOrientation(a.hdg, 0, 0);
+    P.vel.set(a.dx * 25, 0, a.dz * 25); P.thr = 0.5; P.v = 0;
+  } else {
+    setOrientation(a.hdg, 0, 0);
+    P.v = A.cruise; P.vRef = A.cruise; P.thr = 0.65; P.vel.set(0, 0, 0);
+  }
+  ctl.pitch = ctl.roll = ctl.yaw = 0;
+  camPos.set(0, 0, 0); camLook.set(0, 0, 0); camHdg = a.hdg;
+  updateAirportMeshes();
+  placeRing(true);
+  flash("airborne near " + a.code, `${a.name} is ${((a.len / 2 + out) / 1000).toFixed(1)} km ahead · the arrow up top points to the nearest airport`, 4.5);
+}
+let homeAp = null;
+function newFlight(sameAirport) {
   Object.assign(F, { rings: 0, landings: 0, bonus: 0, dist: 0, over: false });
-  const near = nearestAirport(P.pos.x, P.pos.z);
-  spawnAt(near.a);
+  const a = sameAirport && homeAp ? homeAp : nearestAirport(P.pos.x, P.pos.z).a;
+  homeAp = a;
+  spawnAir(a);
 }
 
 function placeRing(first) {
@@ -761,8 +636,6 @@ function step(dt) {
   if (F.over) return;
   const inp = readInputs(dt);
   if (A.kind === "heli") heliStep(dt, inp); else if (P.ground) planeGround(dt, inp); else planeAir(dt, inp);
-  // obstacles (bay landmarks)
-  for (const o of obstacles) if (P.pos.y < o.top && Math.abs(P.pos.x - o.x) < o.r && Math.abs(P.pos.z - o.z) < o.r) { crash("hit a landmark"); break; }
   // rings
   if (ring.visible && !P.ground && !P.crashed) {
     const local = ring.worldToLocal(P.pos.clone());
@@ -1033,26 +906,38 @@ function drawHUD() {
   bar(bx - 26, P.fuel, P.fuel < 0.2 ? warn : "rgba(120,200,255,.9)", "FUEL");
   if (A.kind === "heli" && assist) { hc.strokeStyle = soft; hc.beginPath(); hc.moveTo(bx - 3, by - bh * P.thr); hc.lineTo(bx + 13, by - bh * P.thr); hc.stroke(); }
   hc.textAlign = "left"; hc.fillStyle = soft; hc.font = "11px JetBrains Mono, monospace";
-  hc.fillText(A.name + (WORLD === "bay" ? " · SF Bay Area" : " · Alps"), 16, H - 16);
+  hc.fillText(A.name, 16, H - 16);
 
   // locators: next ring (gold) and nearest airport (cyan)
   const near = nearestAirport(P.pos.x, P.pos.z);
   if (near.a) {
     const a = near.a, rwy = Math.round((((a.hdg * 180 / Math.PI) + 360) % 360) / 10) || 36;
-    if (near.d > 1800 || !P.ground) locator(new THREE.Vector3(a.x, a.elev + 20, a.z), "rgba(120,220,255,.95)", `${a.code} ${(near.d / 1000).toFixed(1)} km · RWY ${String(rwy).padStart(2, "0")}`, W, H, P.fuel < 0.25);
+    if (near.d > 1800 || !P.ground) locator(new THREE.Vector3(a.x, a.elev + 20, a.z), "rgba(120,220,255,.95)", `${a.code} RWY ${String(rwy).padStart(2, "0")}`, W, H, false, true);
+    // compass arrow at the top: points to the nearest airport relative to where you're heading
+    const myHdg = A.kind === "heli" ? P.h.hdg : headingOf(f), brg = Math.atan2(a.x - P.pos.x, -(a.z - P.pos.z));
+    const ay = 74, low = P.fuel < 0.25, ac = low ? "#ff8a6b" : "rgba(120,220,255,.95)";
+    hc.save(); hc.translate(cx, ay);
+    hc.fillStyle = "rgba(10,14,20,.45)"; hc.beginPath(); hc.arc(0, 0, 17, 0, 7); hc.fill();
+    hc.strokeStyle = ac; hc.lineWidth = 1.2; hc.beginPath(); hc.arc(0, 0, 17, 0, 7); hc.stroke();
+    hc.rotate(brg - myHdg);
+    hc.fillStyle = ac; hc.beginPath(); hc.moveTo(0, -12); hc.lineTo(7, 6); hc.lineTo(0, 2); hc.lineTo(-7, 6); hc.closePath(); hc.fill();
+    hc.restore();
+    hc.textAlign = "center"; hc.fillStyle = ac; hc.font = "500 11px JetBrains Mono, monospace";
+    hc.fillText(`${a.code} · ${(near.d / 1000).toFixed(1)} km`, cx, ay + 32);
+    hc.lineWidth = 1.5;
   }
   if (ring.visible) locator(ring.position, col, Math.round(ring.position.distanceTo(P.pos)) + " m", W, H, false);
   hc.shadowBlur = 0;
 }
 function lastAWAt(p) { height(p.x, p.z); return lastAW; }
-function locator(pos, color, label, W, H, emph) {
+function locator(pos, color, label, W, H, emph, onScreenOnly) {
   const v = pos.clone().project(camera), behind = v.z > 1;
   let sx = (v.x * 0.5 + 0.5) * W, sy = (-v.y * 0.5 + 0.5) * H;
   if (behind) { sx = W - sx; sy = H - sy; }
   const m = 44, on = !behind && sx > m && sx < W - m && sy > m && sy < H - m, cx = W / 2, cy = H / 2;
   hc.fillStyle = color; hc.strokeStyle = color; hc.font = (emph ? "500 12px" : "11px") + " JetBrains Mono, monospace"; hc.textAlign = "center";
   if (on) { hc.beginPath(); hc.arc(sx, sy, 6, 0, 7); hc.stroke(); hc.fillText(label, sx, sy - 12); }
-  else {
+  else if (!onScreenOnly) {
     const ang = Math.atan2(sy - cy, sx - cx), ex = cx + Math.cos(ang) * (W / 2 - m), ey = cy + Math.sin(ang) * (H / 2 - m);
     const px = clamp(ex, m, W - m), py = clamp(ey, m, H - m);
     hc.save(); hc.translate(px, py); hc.rotate(ang);
@@ -1070,8 +955,8 @@ function sbHeaders(extra) {
   if (!SUPABASE_KEY.startsWith("sb_")) h.Authorization = "Bearer " + SUPABASE_KEY;
   return Object.assign(h, extra || {});
 }
-async function fetchScores(map) {
-  const q = `${SUPABASE_URL}/rest/v1/scores?select=id,name,score,aircraft,map,created_at&order=score.desc,created_at.asc&limit=10` + (map ? `&map=eq.${map}` : "");
+async function fetchScores() {
+  const q = `${SUPABASE_URL}/rest/v1/scores?select=id,name,score,aircraft,map,created_at&order=score.desc,created_at.asc&limit=10`;
   const r = await fetch(q, { headers: sbHeaders() });
   if (!r.ok) throw new Error("HTTP " + r.status);
   return r.json();
@@ -1079,24 +964,21 @@ async function fetchScores(map) {
 async function submitScore(name, score) {
   const r = await fetch(`${SUPABASE_URL}/rest/v1/scores`, {
     method: "POST", headers: sbHeaders({ Prefer: "return=representation" }),
-    body: JSON.stringify({ name, score, aircraft: A.name, map: WORLD }),
+    body: JSON.stringify({ name, score, aircraft: A.name, map: "alps" }),
   });
   if (!r.ok) throw new Error("HTTP " + r.status);
   return (await r.json())[0];
 }
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const modalBg = document.getElementById("modalBg"), modal = document.getElementById("modal");
-let boardMap = "";
 async function renderBoard(el, highlightId) {
   if (!sbOn()) { el.innerHTML = '<p class="hint">The online high-score board isn\'t connected yet.</p>'; return; }
   el.innerHTML = '<p class="hint">loading scores…</p>';
   try {
-    const rows = await fetchScores(boardMap);
-    el.innerHTML = '<div class="tabs">' + [["", "all"], ["alps", "alps"], ["bay", "bay area"]].map(([k, l]) => `<button data-m="${k}" class="${k === boardMap ? "on" : ""}">${l}</button>`).join("") + "</div>"
-      + (rows.length ? "<table><tr><th>#</th><th>pilot</th><th>aircraft</th><th>map</th><th style='text-align:right'>score</th></tr>"
-      + rows.map((r, i) => `<tr class="${r.id === highlightId ? "me" : ""}"><td>${i + 1}</td><td>${esc(r.name)}</td><td>${esc(r.aircraft)}</td><td>${r.map === "bay" ? "bay" : "alps"}</td><td class="n">${r.score}</td></tr>`).join("") + "</table>"
+    const rows = await fetchScores();
+    el.innerHTML = (rows.length ? "<table><tr><th>#</th><th>pilot</th><th>aircraft</th><th style='text-align:right'>score</th></tr>"
+      + rows.map((r, i) => `<tr class="${r.id === highlightId ? "me" : ""}"><td>${i + 1}</td><td>${esc(r.name)}</td><td>${esc(r.aircraft)}</td><td class="n">${r.score}</td></tr>`).join("") + "</table>"
       : '<p class="hint">No scores yet. Be the first!</p>');
-    el.querySelectorAll(".tabs button").forEach((b) => b.onclick = () => { boardMap = b.dataset.m; renderBoard(el, highlightId); });
   } catch (e) { el.innerHTML = '<p class="hint">Couldn\'t load the scores right now.</p>'; }
 }
 function endFlight(reason) {
@@ -1109,7 +991,7 @@ function endFlight(reason) {
     <div class="big">${sc}</div>
     <div class="stats"><span>rings</span><span>${F.rings} × 100</span><span>landings</span><span>${F.landings} × 250</span>
       <span>landing bonus</span><span>${F.bonus}</span><span>distance</span><span>${(F.dist / 1000).toFixed(1)} km</span>
-      <span>aircraft · map</span><span>${A.name} · ${WORLD === "bay" ? "Bay Area" : "Alps"}</span></div>
+      <span>aircraft</span><span>${A.name}</span></div>
     ${sc > 0 && sbOn() ? `<label>your name for the high-score board</label>
       <div class="row"><input type="text" id="pname" maxlength="20" placeholder="pilot name" value="${esc(savedName)}" style="flex:1"><button id="psub" class="on">submit</button></div>
       <p class="hint" id="pmsg"></p>` : ""}
@@ -1137,26 +1019,6 @@ function showScores() {
   modalBg.hidden = false;
   renderBoard(modal.querySelector("#board"));
   modal.querySelector("#closeM").onclick = () => modalBg.hidden = true;
-}
-
-// ===================================================================
-//  world switching
-// ===================================================================
-async function setWorld(w) {
-  if (w === WORLD) return;
-  document.querySelectorAll("#worldBtns button").forEach((b) => b.classList.toggle("on", b.dataset.world === w));
-  if (w === "bay" && !BAY.ready) {
-    flash("loading the bay area", "fetching real elevation data…", 999);
-    const ok = await loadBay((d, t) => flash("loading the bay area", `elevation tiles ${d} / ${t}`, 999));
-    if (!ok) { flash("couldn't load the map", "check your connection and try again", 3); document.querySelectorAll("#worldBtns button").forEach((b) => b.classList.toggle("on", b.dataset.world === WORLD)); return; }
-  }
-  WORLD = w;
-  clearChunks(); clearAirportMeshes(); apCache.clear();
-  if (w === "bay") { buildBayAirports(); buildLandmarks(); landmarks.visible = true; } else { landmarks.clear(); obstacles = []; }
-  P.pos.set(w === "bay" ? toLocal(37.70, -122.22).x : 0, 0, w === "bay" ? toLocal(37.70, -122.22).z : 0);
-  modalBg.hidden = true;
-  newFlight();
-  updateChunks(P.pos.x, P.pos.z, true);
 }
 
 // ===================================================================
@@ -1219,7 +1081,6 @@ thrTouch.oninput = () => P.thr = +thrTouch.value;
 document.getElementById("acBtns").innerHTML = Object.entries(AC).map(([k, a]) => `<button data-ac="${k}">${a.name}</button>`).join("");
 const autoClose = () => { if (isTouch || innerWidth < 760) setPanel(false); };
 document.querySelectorAll("#acBtns button").forEach((b) => b.onclick = () => { selectAircraft(b.dataset.ac); b.blur(); autoClose(); });
-document.querySelectorAll("#worldBtns button").forEach((b) => b.onclick = () => { setWorld(b.dataset.world); b.blur(); autoClose(); });
 document.getElementById("view").onclick = toggleView;
 document.getElementById("tod").onclick = cycleTime;
 document.getElementById("inv").onclick = (e) => { invertPitch = !invertPitch; e.target.textContent = invertPitch ? "↑ = nose down" : "↑ = nose up"; };
