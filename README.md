@@ -3,19 +3,23 @@
 A static site for GitHub Pages. It has no build step and no dependencies. Plain HTML, CSS and JS.
 
 ```
-index.html               main page (about, research, projects, publications, path, playground)
-assets/style.css         main page styles (light/dark)
-assets/site.js           theme toggle + nav highlighting
-assets/julia-day.js      date-seeded Julia-set parameters (shared)
-assets/toy.css           shared chrome for the playground pages
-assets/headshot.jpg
-playground/julia.html          Julia of the day (WebGL): pick c on the Mandelbrot set, zoom, save
-playground/stereogram.html     Stereogram Studio: logo / text / shapes → SIRDS, PNG + HTML export
-playground/maze.html           maze lab: BFS/DFS/Dijkstra/greedy/A*, exploring unknown mazes, multi-agent exploration
-playground/maze3d.html         first-person maze screensaver (raycaster, right-hand-rule autopilot)
-playground/flight.html         flight sim (three.js): PC-24/12/21/6 + heli, fuel, procedural airports, high scores
-playground/aquarium.html       3D aquarium (three.js): presets, fish counts, decor, lights, feeding
-assets/previews.js             live mini previews on the homepage playground tiles
+index.html                     homepage (about, research, projects, publications, experience, playground)
+assets/style.css               homepage styles (light/dark)
+assets/toy.css                 shared look of the playground pages
+assets/site.js                 theme toggle, nav highlighting, email link
+assets/julia-day.js            date-seeded Julia-set parameters (shared)
+assets/previews.js             generated previews for the Julia and stereogram tiles
+assets/thumbs/                 screenshots used as playground thumbnails
+assets/salemi-mouse.svg        Salemi group logo (stereogram default)
+playground/flight.html         flight sim: Pilatus aircraft + helicopter, fuel, airports, high scores (Supabase)
+playground/worm.html           Hector: the C. elegans connectome driving a virtual worm
+playground/aquarium.html       perch in a mangrove creek
+playground/chickens.html       back-garden chickens
+playground/cats.html           six cats at home
+playground/julia.html          Julia set of the day, with an endless dive
+playground/stereogram.html     stereogram generator
+playground/toolbox.html        lab calculators: CPW, resonator fit, transmon, JJ, photon number, superconductors, lumped elements, RF power, dew point, units, inch threads
+playground/maze3d.html         first-person maze screensaver (not linked from the homepage)
 ```
 
 ## Publish on GitHub Pages

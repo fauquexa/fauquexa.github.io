@@ -1,0 +1,1663 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cats</title>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/toy.css?v=20261122k">
+<style>
+  #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+  #gl:active { cursor: grabbing; }
+  #gl.oncat { cursor: pointer; }
+  .toggle-panel { display: none; }
+  .panel { padding-top: 14px; }
+  .panel .close { position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; padding: 0; font-size: 14px; line-height: 1; border-radius: 50%; }
+  .fab { position: fixed; top: max(12px, env(safe-area-inset-top)); left: 12px; z-index: 12; background: var(--panel);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); font-size: 12px; padding: 8px 12px; border-radius: 999px; }
+  .fab[hidden] { display: none; }
+  .catlist { list-style: none; margin: 6px 0 0; padding: 0; }
+  .catlist li { display: grid; grid-template-columns: 16px auto 1fr; gap: 10px; align-items: center; padding: 6px 6px; margin: 0 -6px; border-radius: 6px; cursor: pointer; }
+  .catlist li:hover { background: rgba(255, 255, 255, .06); }
+  .catlist .sw { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .22); }
+  .catlist .nm { font-weight: 500; white-space: nowrap; }
+  .catlist .st { color: var(--soft); font-size: 12px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .catlabel { position: fixed; left: 0; top: 0; z-index: 14; pointer-events: none; background: var(--panel); border: 1px solid var(--rule);
+    border-radius: 999px; padding: 3px 10px; font-size: 12px; white-space: nowrap; opacity: 0; transition: opacity .25s; will-change: transform; }
+  .catlabel.on { opacity: 1; }
+  #hintbar { position: fixed; bottom: max(12px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); font-size: 11px; color: var(--soft);
+    background: rgba(0, 0, 0, .4); padding: 5px 10px; border-radius: 999px; transition: opacity 1s; pointer-events: none; white-space: nowrap; }
+  @media (max-width: 520px) { #hintbar { white-space: normal; width: max-content; max-width: calc(100vw - 32px); text-align: center; } }
+  .catlist li[hidden] { display: none; }
+  .modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0 0 10px; }
+  .modes button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 8px 4px 7px; font-size: 12px; line-height: 1.2; text-align: center; }
+  .modes button { position: relative; }
+  .modes button[data-tip]::after { content: attr(data-tip); position: absolute; top: calc(100% + 6px); left: 50%; transform: translate(-50%, -3px); padding: 4px 8px; border-radius: 5px; background: rgba(8, 9, 11, .92); border: 1px solid var(--rule); color: var(--ink); font-size: 11.5px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .15s, transform .15s; z-index: 2; }
+  .modes button[data-tip]:hover::after, .modes button[data-tip]:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
+  .modes svg { display: block; height: 14px; width: auto; border-radius: 2px; flex: none; }
+  .modes button:not(.on) svg.paw { opacity: .8; }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="hintbar">Drag to look around · click the floor to put down food · click a cat to see its name</div>
+<button class="fab" id="openPanel" hidden>☰ Menu</button>
+
+<div class="panel" id="panel">
+  <button class="close" id="closePanel" aria-label="Close panel" title="Close (H)">✕</button>
+  <a class="back" href="../index.html">← Home</a>
+  <h1>Cats</h1>
+  <p class="sub">Lenny 1, Lenny 2, Edna, Dolly and Frank. Click the floor to put down food.</p>
+  <div class="modes" id="modes" role="group" aria-label="Which cats"></div>
+  <ul class="catlist" id="catList"></ul>
+  <p class="hint" style="margin-top:12px">Drag to look around, scroll or pinch to zoom. Click a cat, or a name above, to find it. <kbd>H</kbd> hides this panel.</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ===================================================================
+//  helpers
+// ===================================================================
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const angWrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+function wpick(items) { let s = 0; for (const it of items) s += Math.max(0, it[0]); let r = Math.random() * s; for (const it of items) { r -= Math.max(0, it[0]); if (r <= 0 && it[0] > 0) return it[1]; } return items[0][1]; }
+function mulberry(a) { return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const hash3 = (x, y, z) => { const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return s - Math.floor(s); };
+function vnoise3(x, y, z) {
+  const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z), fx = x - ix, fy = y - iy, fz = z - iz;
+  const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy), w = fz * fz * (3 - 2 * fz);
+  let r = 0;
+  for (let dz = 0; dz < 2; dz++) for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++)
+    r += hash3(ix + dx, iy + dy, iz + dz) * (dx ? u : 1 - u) * (dy ? v : 1 - v) * (dz ? w : 1 - w);
+  return r;
+}
+
+// ===================================================================
+//  renderer, scene, lights (warm, soft, low-poly)
+// ===================================================================
+const renderer = new THREE.WebGLRenderer({ canvas: $("gl"), antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1613);
+const camera = new THREE.PerspectiveCamera(40, 1, 0.05, 80);
+
+const hemi = new THREE.HemisphereLight(0xfff0dc, 0x8a6a50, 0.62); scene.add(hemi);
+const sunL = new THREE.DirectionalLight(0xffe3bd, 0.7);
+sunL.position.set(-2.4, 6.5, -4.0); sunL.target.position.set(0, 0, 0.2);
+sunL.castShadow = true; sunL.shadow.mapSize.set(2048, 2048);
+Object.assign(sunL.shadow.camera, { left: -4.6, right: 4.6, top: 4.6, bottom: -4.6, near: 1, far: 16 });
+sunL.shadow.bias = -0.0006; sunL.shadow.normalBias = 0.015;
+scene.add(sunL, sunL.target);
+const fillL = new THREE.DirectionalLight(0xc9d8ff, 0.18); fillL.position.set(5, 3, 6); scene.add(fillL);
+
+const matCache = new Map();
+function M(color, opts) {   // flat-shaded matte material
+  const key = color + JSON.stringify(opts || {});
+  if (!opts && matCache.has(key)) return matCache.get(key);
+  const m = new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.92, metalness: 0, flatShading: true }, opts || {}));
+  if (!opts) matCache.set(key, m);
+  return m;
+}
+function mk(geo, mat, parent, x, y, z, cast = true, recv = true) {
+  const m = new THREE.Mesh(geo, mat); m.position.set(x || 0, y || 0, z || 0); m.castShadow = cast; m.receiveShadow = recv; parent.add(m); return m;
+}
+// chamfered box: a box with its edges pushed in (reads as soft low-poly upholstery)
+function rbox(w, h, d, r, seg = 2) {
+  const g = new THREE.BoxGeometry(w, h, d, seg, seg, seg), p = g.attributes.position;
+  const hw = w / 2 - r, hh = h / 2 - r, hd = d / 2 - r, v = new THREE.Vector3(), c = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i); c.set(clamp(v.x, -hw, hw), clamp(v.y, -hh, hh), clamp(v.z, -hd, hd));
+    v.sub(c); if (v.lengthSq() > 0) v.setLength(r); v.add(c); p.setXYZ(i, v.x, v.y, v.z);
+  }
+  const ng = g.toNonIndexed(); ng.computeVertexNormals(); return ng;
+}
+function canvasTex(w, h, draw) { const c = document.createElement("canvas"); c.width = w; c.height = h; draw(c.getContext("2d"), w, h); const t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t; }
+
+// ===================================================================
+//  the room
+// ===================================================================
+const RX = 3, RZ = 2.5, RH = 2.6, WT = 0.08;
+const WIN = { x0: -1.65, x1: -0.35, y0: 0.85, y1: 2.05 };
+const SUN = { kx: 0.4, kz: 0.775 };       // sunlight: window point (wx, wy) lands on the floor at (wx + kx*wy, -RZ + kz*wy)
+const sunFloor = (u, v) => { const wx = lerp(WIN.x0, WIN.x1, u), wy = lerp(WIN.y0, WIN.y1, v); return [wx + SUN.kx * wy, -RZ + SUN.kz * wy]; };
+function sunAt(x, z) {
+  const wy = (z + RZ) / SUN.kz, wx = x - SUN.kx * wy, u = (wx - WIN.x0) / (WIN.x1 - WIN.x0), v = (wy - WIN.y0) / (WIN.y1 - WIN.y0);
+  if (u < 0 || u > 1 || v < 0 || v > 1) return 0;
+  return smooth(0, 0.15, u) * smooth(1, 0.85, u) * smooth(0, 0.15, v) * smooth(1, 0.85, v);
+}
+
+const room = new THREE.Group(); scene.add(room);
+const furniture = new THREE.Group(); scene.add(furniture);   // blocks floor clicks
+
+// dollhouse base slab and plank floor
+mk(new THREE.BoxGeometry(2 * RX + 2 * WT + 0.06, 0.14, 2 * RZ + 2 * WT + 0.06), M(0x8c6446), room, 0, -0.075, 0, false, true);
+const floorTex = canvasTex(1024, 1024, (g) => {
+  const r = mulberry(7), rows = 8, rh = 128, cols = ["#d4a46f", "#cf9d68", "#d9ad78", "#c9955f", "#d1a26c"];
+  for (let i = 0; i < rows; i++) {
+    let x = -r() * 700;
+    while (x < 1024) {
+      const len = 420 + r() * 520;
+      g.fillStyle = cols[Math.floor(r() * cols.length)]; g.fillRect(x, i * rh, len, rh);
+      g.fillStyle = "rgba(255,240,215,.10)"; g.fillRect(x, i * rh + 6, len, rh * 0.35);
+      g.fillStyle = "rgba(110,66,30,.35)"; g.fillRect(x, i * rh, 3, rh);
+      x += len;
+    }
+    g.fillStyle = "rgba(110,66,30,.4)"; g.fillRect(0, i * rh, 1024, 3);
+  }
+});
+floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping; floorTex.repeat.set(2 * RX / 1.6, 2 * RZ / 1.6);
+const floor = mk(new THREE.PlaneGeometry(2 * RX, 2 * RZ).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.85 }), room, 0, 0, 0, false, true);
+
+// rug: stacked low-poly ellipses
+const rug = new THREE.Group(); rug.position.set(0.15, 0, 0.45); room.add(rug);
+{
+  const layers = [[1.45, 1.0, 0xd9785a], [1.33, 0.9, 0xf3e3c6], [1.22, 0.81, 0x5f9c9a], [0.95, 0.6, 0xf0d9a8], [0.82, 0.5, 0xd9785a], [0.45, 0.27, 0xf3e3c6]];
+  layers.forEach(([a, b, col], i) => {
+    const m = mk(new THREE.CircleGeometry(1, 22).rotateX(-Math.PI / 2), M(col), rug, 0, 0.004 + i * 0.0012, 0, false, true);
+    m.scale.set(a, 1, b); m.userData.floor = true;
+  });
+  for (let k = 0; k < 14; k++) {   // mustard dots in the teal band
+    const a = k / 14 * Math.PI * 2, d = mk(new THREE.CircleGeometry(0.045, 6).rotateX(-Math.PI / 2), M(0xe7b85c), rug, Math.cos(a) * 1.085, 0.0115, Math.sin(a) * 0.71, false, true);
+    d.userData.floor = true;
+  }
+}
+
+// walls: each hides when the camera is on its outside, like a dollhouse
+const walls = [];
+function wallGroup(axis, at, sign) { const g = new THREE.Group(); room.add(g); walls.push({ g, axis, at, sign }); return g; }
+const wB = wallGroup("z", -RZ, 1), wL = wallGroup("x", -RX, 1), wR = wallGroup("x", RX, -1), wF = wallGroup("z", RZ, -1);
+const wallMat = M(0xf0dcc0), wallMat2 = M(0xe9d3b4), skirtMat = M(0xfbf4e8);
+{
+  const bw = (x0, x1, y0, y1) => mk(new THREE.BoxGeometry(x1 - x0, y1 - y0, WT), wallMat, wB, (x0 + x1) / 2, (y0 + y1) / 2, -RZ - WT / 2, false, true);
+  bw(-RX - WT, WIN.x0, 0, RH); bw(WIN.x1, RX + WT, 0, RH); bw(WIN.x0, WIN.x1, 0, WIN.y0); bw(WIN.x0, WIN.x1, WIN.y1, RH);
+  mk(new THREE.BoxGeometry(WT, RH, 2 * RZ), wallMat2, wL, -RX - WT / 2, RH / 2, 0, false, true);
+  mk(new THREE.BoxGeometry(WT, RH, 2 * RZ), wallMat2, wR, RX + WT / 2, RH / 2, 0, false, true);
+  mk(new THREE.BoxGeometry(2 * RX + 2 * WT, RH, WT), wallMat, wF, 0, RH / 2, RZ + WT / 2, false, true);
+  // skirting boards and a picture rail
+  mk(new THREE.BoxGeometry(2 * RX, 0.09, 0.02), skirtMat, wB, 0, 0.045, -RZ + 0.01, false, true);
+  mk(new THREE.BoxGeometry(0.02, 0.09, 2 * RZ), skirtMat, wL, -RX + 0.01, 0.045, 0, false, true);
+  mk(new THREE.BoxGeometry(0.02, 0.09, 2 * RZ), skirtMat, wR, RX - 0.01, 0.045, 0, false, true);
+  mk(new THREE.BoxGeometry(2 * RX, 0.09, 0.02), skirtMat, wF, 0, 0.045, RZ - 0.01, false, true);
+  for (const [g, w, d, x, z] of [[wB, 2 * RX, 0.02, 0, -RZ + 0.01], [wF, 2 * RX, 0.02, 0, RZ - 0.01], [wL, 0.02, 2 * RZ, -RX + 0.01, 0], [wR, 0.02, 2 * RZ, RX - 0.01, 0]])
+    mk(new THREE.BoxGeometry(w, 0.035, d), skirtMat, g, x, 2.2, z, false, true);
+}
+
+// window: frame, sky, curtains (the view outside changes with the mode)
+let skyTex;
+function drawSky(g, w, h, kind) {
+  const gr = g.createLinearGradient(0, 0, 0, h);
+  const top = kind === "us" ? "#86bfe6" : kind === "ch" ? "#7cb9e6" : "#8ec5e8", bot = kind === "us" ? "#f6d39c" : kind === "ch" ? "#e4f1f6" : "#f7e6c4";
+  gr.addColorStop(0, top); gr.addColorStop(0.6, kind === "us" ? "#d9e9ee" : "#cde6f0"); gr.addColorStop(1, bot);
+  g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  g.fillStyle = "#ffffff"; g.globalAlpha = 0.85;
+  for (const [x, y, sz] of [[60, 50, 16], [80, 44, 20], [102, 52, 14], [196, 34, 12], [210, 30, 16]]) { g.beginPath(); g.arc(x, y, sz, 0, 7); g.fill(); }
+  g.globalAlpha = 1;
+  const poly = (pts, col) => { g.fillStyle = col; g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.fill(); };
+  if (kind === "ch") {   // the Alps: snowy peaks over a green meadow, a few firs
+    for (const [px, py, hw, col] of [[40, 95, 85, "#93a5bb"], [150, 62, 105, "#8197b0"], [236, 100, 80, "#9cadc1"]]) {
+      poly([[px - hw, 215], [px, py], [px + hw, 215]], col);
+      const sh = 0.32, sx = hw * sh, sy = (215 - py) * sh;
+      poly([[px - sx, py + sy], [px, py], [px + sx, py + sy], [px + sx * 0.4, py + sy * 0.8], [px, py + sy * 1.05], [px - sx * 0.45, py + sy * 0.78]], "#f7f8fa");
+    }
+    poly([[0, 256], [0, 205], [70, 196], [150, 210], [256, 198], [256, 256]], "#86b874");
+    for (const [x, y, sz] of [[30, 232, 22], [52, 238, 18], [200, 228, 24], [226, 236, 18]]) poly([[x - sz * 0.45, y + sz * 0.4], [x, y - sz], [x + sz * 0.45, y + sz * 0.4]], "#4f7f4f");
+  } else if (kind === "us") {   // desert buttes, a big American landscape
+    poly([[0, 256], [0, 210], [256, 206], [256, 256]], "#e8b77a");
+    for (const [x0, x1, top, col] of [[10, 90, 150, "#c8643c"], [120, 160, 120, "#b4532f"], [180, 250, 165, "#cf7446"]]) poly([[x0, 212], [x0 + 10, top + 8], [x0 + 16, top], [x1 - 16, top], [x1 - 10, top + 8], [x1, 212]], col);
+    g.fillStyle = "#5f9e5a"; g.fillRect(100, 205, 7, 34); g.fillRect(92, 214, 7, 12); g.fillRect(107, 210, 7, 12);
+  } else {
+    const trees = [[20, 230, 60, "#7fae6a"], [80, 245, 50, "#6b9d5c"], [170, 235, 64, "#86b874"], [240, 250, 48, "#6b9d5c"]];
+    for (const [x, y, sz, c] of trees) { g.fillStyle = c; g.beginPath(); for (let k = 0; k < 7; k++) { const a = Math.PI + k / 6 * Math.PI; g.lineTo(x + Math.cos(a) * sz, y + Math.sin(a) * sz * 1.1); } g.fill(); }
+  }
+}
+function setSky(kind) { const c = skyTex.image; drawSky(c.getContext("2d"), c.width, c.height, kind); skyTex.needsUpdate = true; }
+{
+  const cx = (WIN.x0 + WIN.x1) / 2, cy = (WIN.y0 + WIN.y1) / 2, W = WIN.x1 - WIN.x0, H = WIN.y1 - WIN.y0, fr = M(0xfbf7ef), fw = 0.06;
+  mk(new THREE.BoxGeometry(W + 2 * fw, fw, 0.14), fr, wB, cx, WIN.y1 + fw / 2, -RZ - 0.02);
+  mk(new THREE.BoxGeometry(fw, H + 2 * fw, 0.14), fr, wB, WIN.x0 - fw / 2, cy, -RZ - 0.02);
+  mk(new THREE.BoxGeometry(fw, H + 2 * fw, 0.14), fr, wB, WIN.x1 + fw / 2, cy, -RZ - 0.02);
+  mk(new THREE.BoxGeometry(W + 0.24, 0.045, 0.2), fr, wB, cx, WIN.y0 - 0.022, -RZ + 0.03);
+  mk(new THREE.BoxGeometry(0.035, H, 0.04), fr, wB, cx, cy, -RZ - 0.04);
+  mk(new THREE.BoxGeometry(W, 0.035, 0.04), fr, wB, cx, cy + 0.08, -RZ - 0.04);
+  const sky = skyTex = canvasTex(256, 256, (g, w, h) => drawSky(g, w, h, "all"));
+  mk(new THREE.PlaneGeometry(W + 0.5, H + 0.5), new THREE.MeshBasicMaterial({ map: sky }), wB, cx, cy, -RZ - 0.3, false, false);
+  mk(new THREE.CylinderGeometry(0.014, 0.014, W + 1.0, 6).rotateZ(Math.PI / 2), M(0x6b5544), wB, cx, WIN.y1 + 0.2, -RZ + 0.07);
+  const curtMat = M(0xe2ac5c, { side: THREE.DoubleSide });
+  for (const side of [-1, 1]) {
+    const cw = 0.42, ch = WIN.y1 + 0.2 - 0.62, g = new THREE.PlaneGeometry(cw, ch, 8, 1), p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i); const k = (y + ch / 2) / ch; p.setZ(i, Math.sin((x / cw + 0.5) * Math.PI * 4) * 0.03); p.setX(i, x * (0.75 + 0.25 * k)); }
+    g.computeVertexNormals();
+    mk(g, curtMat, wB, side < 0 ? WIN.x0 - 0.17 : WIN.x1 + 0.17, WIN.y1 + 0.2 - ch / 2, -RZ + 0.08, true, true);
+  }
+}
+
+// pictures
+function picture(parent, w, h, x, y, z, ry, paint) {
+  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; parent.add(g);
+  mk(new THREE.BoxGeometry(w + 0.06, h + 0.06, 0.03), M(0x7d5a3f), g, 0, 0, 0.015, false, true);
+  mk(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: canvasTex(256, Math.round(256 * h / w), paint), roughness: 0.9 }), g, 0, 0, 0.032, false, true);
+  return g;
+}
+const hillsPaint = (g, w, h) => {
+  g.fillStyle = "#f6d9a8"; g.fillRect(0, 0, w, h);
+  g.fillStyle = "#f2a76b"; g.beginPath(); g.arc(w * 0.68, h * 0.38, w * 0.12, 0, 7); g.fill();
+  const band = (y0, c, amp, ph) => { g.fillStyle = c; g.beginPath(); g.moveTo(0, h); for (let x = 0; x <= w; x += 16) g.lineTo(x, h * y0 + Math.sin(x / w * 6 + ph) * amp); g.lineTo(w, h); g.fill(); };
+  band(0.55, "#9cbf8a", 14, 1); band(0.68, "#6f9f74", 12, 3); band(0.82, "#4f7f66", 10, 5);
+};
+const sofaPicture = picture(wL, 0.8, 0.55, -RX + 0.005, 1.5, 0.5, Math.PI / 2, hillsPaint);
+function drawSwiss(g, w, h) {   // square red flag, white cross: arms 6/32 wide, 20/32 across
+  g.fillStyle = "#da291c"; g.fillRect(0, 0, w, h);
+  const u = w / 32; g.fillStyle = "#ffffff"; g.fillRect(13 * u, 6 * u, 6 * u, 20 * u); g.fillRect(6 * u, 13 * u, 20 * u, 6 * u);
+}
+function drawUS(g, w, h) {   // 13 stripes, blue canton over 7 of them, 50 stars as dots
+  const sh = h / 13;
+  for (let i = 0; i < 13; i++) { g.fillStyle = i % 2 ? "#ffffff" : "#b22234"; g.fillRect(0, i * sh, w, sh + 0.6); }
+  const cw = w * 0.4, chh = sh * 7; g.fillStyle = "#3c3b6e"; g.fillRect(0, 0, cw, chh);
+  g.fillStyle = "#ffffff";
+  for (let r = 0; r < 9; r++) for (let k = 0; k < (r % 2 ? 5 : 6); k++) { g.beginPath(); g.arc(cw * ((r % 2 ? 2 : 1) + k * 2) / 12, chh * (r + 1) / 10, chh * 0.03, 0, 7); g.fill(); }
+}
+const flagFrame = (() => {
+  const g = new THREE.Group(); g.position.set(-RX + 0.005, 1.5, 0.5); g.rotation.y = Math.PI / 2; wL.add(g); g.visible = false;   // hangs in place of the sofa picture
+  const frame = mk(new THREE.BoxGeometry(1, 1, 0.03), M(0x7d5a3f), g, 0, 0, 0.015, false, true);
+  const tex = { ch: canvasTex(256, 256, drawSwiss), us: canvasTex(380, 200, drawUS) };
+  const mat = new THREE.MeshStandardMaterial({ map: tex.ch, roughness: 0.85 });
+  const plane = mk(new THREE.PlaneGeometry(1, 1), mat, g, 0, 0, 0.032, false, true);
+  return { g, frame, plane, mat, tex };
+})();
+function setFlag(kind) {
+  const F = flagFrame; F.g.visible = kind === "ch" || kind === "us"; sofaPicture.visible = !F.g.visible;
+  if (!F.g.visible) return;
+  const w = kind === "ch" ? 0.42 : 0.62, h = kind === "ch" ? 0.42 : 0.33;
+  F.mat.map = F.tex[kind]; F.mat.needsUpdate = true;
+  F.plane.scale.set(w, h, 1); F.frame.scale.set(w + 0.06, h + 0.06, 1);
+}
+picture(wR, 0.42, 0.55, RX - 0.005, 1.55, -0.95, -Math.PI / 2, (g, w, h) => {   // a little cat portrait, of course
+  g.fillStyle = "#cfe0e8"; g.fillRect(0, 0, w, h);
+  g.fillStyle = "#3a3a40"; g.beginPath(); g.ellipse(w / 2, h * 0.72, w * 0.3, h * 0.26, 0, 0, 7); g.fill();
+  g.beginPath(); g.arc(w / 2, h * 0.42, w * 0.2, 0, 7); g.fill();
+  g.beginPath(); g.moveTo(w * 0.33, h * 0.36); g.lineTo(w * 0.36, h * 0.2); g.lineTo(w * 0.46, h * 0.3); g.fill();
+  g.beginPath(); g.moveTo(w * 0.67, h * 0.36); g.lineTo(w * 0.64, h * 0.2); g.lineTo(w * 0.54, h * 0.3); g.fill();
+  g.fillStyle = "#e3c04a"; g.beginPath(); g.arc(w * 0.43, h * 0.42, 6, 0, 7); g.arc(w * 0.57, h * 0.42, 6, 0, 7); g.fill();
+});
+picture(wR, 0.5, 0.36, RX - 0.005, 1.45, 0.35, -Math.PI / 2, (g, w, h) => {
+  g.fillStyle = "#e9eef0"; g.fillRect(0, 0, w, h);
+  g.fillStyle = "#7fb0c9"; g.fillRect(0, h * 0.55, w, h * 0.45);
+  g.fillStyle = "#f4f1ea"; g.beginPath(); g.moveTo(w * 0.45, h * 0.15); g.lineTo(w * 0.45, h * 0.52); g.lineTo(w * 0.7, h * 0.52); g.fill();
+  g.fillStyle = "#c46a4e"; g.fillRect(w * 0.32, h * 0.52, w * 0.45, h * 0.07);
+});
+picture(wF, 0.6, 0.42, 1.0, 1.5, RZ - 0.005, Math.PI, hillsPaint);
+
+// ---- sofa (against the left wall, facing +x)
+const sofaMat = M(0x6f9a8d), sofaMat2 = M(0x7fab9d);
+{
+  const g = new THREE.Group(); furniture.add(g);
+  for (const [x, z] of [[-2.9, -0.44], [-2.14, -0.44], [-2.9, 1.44], [-2.14, 1.44]]) mk(new THREE.CylinderGeometry(0.025, 0.018, 0.07, 6), M(0x5a4232), g, x, 0.035, z);
+  mk(rbox(0.86, 0.28, 2.0, 0.04), sofaMat, g, -2.52, 0.2, 0.5);
+  for (const z of [0.1, 0.9]) mk(rbox(0.64, 0.13, 0.79, 0.045), sofaMat2, g, -2.4, 0.4, z);
+  const back = mk(rbox(0.22, 0.56, 1.66, 0.06), sofaMat, g, -2.84, 0.62, 0.5); back.rotation.z = 0.08;
+  for (const z of [0.1, 0.9]) { const b = mk(rbox(0.16, 0.42, 0.78, 0.06), sofaMat2, g, -2.67, 0.66, z); b.rotation.z = 0.14; }
+  for (const z of [-0.41, 1.41]) mk(rbox(0.88, 0.32, 0.18, 0.05), sofaMat, g, -2.51, 0.5, z);
+  const p1 = mk(rbox(0.1, 0.3, 0.3, 0.05), M(0xe8b65a), g, -2.6, 0.62, -0.17); p1.rotation.set(0.2, 0, 0.35);
+  const p2 = mk(rbox(0.1, 0.28, 0.28, 0.05), M(0xe58c6e), g, -2.6, 0.62, 1.19); p2.rotation.set(-0.25, 0, 0.3);
+  // knitted throw over the right arm
+  mk(rbox(0.6, 0.03, 0.27, 0.012), M(0xf2e6d0), g, -2.45, 0.67, 1.41);
+  mk(rbox(0.6, 0.3, 0.03, 0.012), M(0xf2e6d0), g, -2.45, 0.53, 1.53);
+}
+
+// ---- cat tree by the window
+const carpet = M(0xa9b9cf), sisal = M(0xdcc79c);
+let toy;
+{
+  const g = new THREE.Group(); furniture.add(g);
+  mk(rbox(0.62, 0.06, 0.62, 0.02), carpet, g, 0.75, 0.03, -2.05);
+  mk(new THREE.CylinderGeometry(0.05, 0.05, 0.44, 8), sisal, g, 0.52, 0.28, -1.9);
+  mk(new THREE.CylinderGeometry(0.05, 0.05, 0.9, 8), sisal, g, 0.98, 0.5, -2.12);
+  mk(new THREE.CylinderGeometry(0.05, 0.05, 1.33, 8), sisal, g, 0.66, 0.72, -2.22);
+  mk(rbox(0.44, 0.05, 0.44, 0.015), carpet, g, 0.52, 0.5, -1.9);
+  mk(rbox(0.42, 0.05, 0.4, 0.015), carpet, g, 0.98, 0.95, -2.1);
+  mk(new THREE.CylinderGeometry(0.25, 0.23, 0.05, 10), carpet, g, 0.66, 1.41, -2.16);
+  const rim = mk(new THREE.TorusGeometry(0.21, 0.045, 5, 12), M(0x95a8c2), g, 0.66, 1.45, -2.16); rim.rotation.x = Math.PI / 2;
+  toy = new THREE.Group(); toy.position.set(0.32, 0.47, -1.72); g.add(toy);
+  const str = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.003, 0.2, 3), M(0xf3ece0)); str.position.y = -0.1; toy.add(str);
+  const ball = mk(new THREE.IcosahedronGeometry(0.035, 0), M(0xe0685a), toy, 0, -0.22, 0);
+  toy.userData = { a: 0, v: 0, b: 0, vb: 0 };
+}
+
+// ---- cardboard box
+{
+  const g = new THREE.Group(); g.position.set(2.25, 0, 1.55); furniture.add(g);
+  const cb = M(0xcfa06a), cbi = M(0xab7f4d), w = 0.52, d = 0.4, h = 0.3, t = 0.014;
+  mk(new THREE.BoxGeometry(w, t, d), cbi, g, 0, t / 2, 0);
+  mk(new THREE.BoxGeometry(w, h, t), cb, g, 0, h / 2, d / 2 - t / 2); mk(new THREE.BoxGeometry(w, h, t), cb, g, 0, h / 2, -d / 2 + t / 2);
+  mk(new THREE.BoxGeometry(t, h, d), cb, g, w / 2 - t / 2, h / 2, 0); mk(new THREE.BoxGeometry(t, h, d), cb, g, -w / 2 + t / 2, h / 2, 0);
+  for (const [fw, fd, x, z, rx, rz] of [[w, 0.18, 0, d / 2 + 0.08, 0.5, 0], [w, 0.18, 0, -d / 2 - 0.08, -0.5, 0], [0.18, d, w / 2 + 0.08, 0, 0, -0.5], [0.18, d, -w / 2 - 0.08, 0, 0, 0.5]]) {
+    const f = mk(new THREE.BoxGeometry(fw, t, fd), cb, g, x, h + 0.035, z); f.rotation.set(rx, 0, rz);
+  }
+}
+
+// ---- round cat bed
+{
+  const g = new THREE.Group(); g.position.set(2.45, 0, -0.7); furniture.add(g);
+  mk(new THREE.CylinderGeometry(0.3, 0.3, 0.05, 12), M(0xf4e6d4), g, 0, 0.025, 0);
+  const rim = mk(new THREE.TorusGeometry(0.28, 0.075, 5, 12), M(0xe3a8a0), g, 0, 0.07, 0); rim.rotation.x = Math.PI / 2;
+}
+
+// ---- bookshelf
+{
+  const g = new THREE.Group(); g.position.set(2.15, 0, -2.36); furniture.add(g);
+  const wood = M(0x9b6b45), W = 1.1, H = 1.75, D = 0.28;
+  mk(new THREE.BoxGeometry(0.04, H, D), wood, g, -W / 2, H / 2, 0); mk(new THREE.BoxGeometry(0.04, H, D), wood, g, W / 2, H / 2, 0);
+  mk(new THREE.BoxGeometry(W, H, 0.02), M(0x86593a), g, 0, H / 2, -D / 2 + 0.01);
+  const r = mulberry(3), bookCols = [0xe58c6e, 0x6f9a8d, 0xe8b65a, 0xa9b9cf, 0xf3e3c6, 0xc87f9a, 0x5f8fb3, 0xd9785a];
+  for (let s = 0; s < 5; s++) {
+    const y = 0.04 + s * 0.42;
+    mk(new THREE.BoxGeometry(W, 0.035, D), wood, g, 0, y, 0);
+    if (s === 4) break;
+    let x = -W / 2 + 0.05;
+    while (x < W / 2 - 0.12) {
+      if (r() < 0.12) { x += 0.12; continue; }
+      const bw = 0.03 + r() * 0.035, bh = 0.22 + r() * 0.12, lean = r() < 0.08;
+      const b = mk(new THREE.BoxGeometry(bw, bh, 0.2), M(bookCols[Math.floor(r() * bookCols.length)]), g, x + bw / 2, y + 0.018 + bh / 2, 0.02);
+      if (lean) { b.rotation.z = -0.25; x += 0.06; }
+      x += bw + 0.004;
+    }
+  }
+  // a pot of pothos on top with trailing vines
+  mk(new THREE.CylinderGeometry(0.09, 0.07, 0.14, 8), M(0xece6dc), g, 0.3, H + 0.07, 0);
+  const leafM = M(0x6fae62, { side: THREE.DoubleSide });
+  for (let v = 0; v < 3; v++) {
+    let px = 0.25 + v * 0.05, py = H + 0.12, pz = 0.05;
+    for (let k = 0; k < 9; k++) {
+      px += (r() - 0.5) * 0.06; pz = 0.15 + k * 0.004; py -= k < 2 ? 0.0 : 0.09;
+      const l = mk(new THREE.CircleGeometry(0.04, 4), leafM, g, px + (k < 2 ? k * 0.08 : 0.16), py, pz, true, false);
+      l.rotation.set(-0.4 + r() * 0.3, r() * 1.2 - 0.6, Math.PI / 4);
+    }
+  }
+}
+
+// ---- plants
+const swayers = [];
+function leafGeo(w, l) {
+  const s = new THREE.Shape(); s.moveTo(0, 0); s.bezierCurveTo(w * 0.7, l * 0.2, w * 0.6, l * 0.8, 0, l); s.bezierCurveTo(-w * 0.6, l * 0.8, -w * 0.7, l * 0.2, 0, 0);
+  const g = new THREE.ShapeGeometry(s, 3); const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i); p.setZ(i, -Math.abs(x) * 0.5 + (y / l) * (y / l) * 0.06 * l); }
+  g.rotateX(-Math.PI / 2); g.computeVertexNormals(); return g;
+}
+function pot(parent, x, z, r, h, col, y0 = 0) {
+  mk(new THREE.CylinderGeometry(r, r * 0.78, h, 8), M(col), parent, x, y0 + h / 2, z);
+  mk(new THREE.CylinderGeometry(r * 1.07, r * 1.07, 0.04, 8), M(col), parent, x, y0 + h - 0.02, z);
+  mk(new THREE.CylinderGeometry(r * 0.95, r * 0.95, 0.01, 8), M(0x5a4232), parent, x, y0 + h - 0.005, z, false, true);
+}
+{
+  // big leafy plant in the back-left corner
+  const r = mulberry(19), x = -2.55, z = -2.1;
+  pot(furniture, x, z, 0.2, 0.38, 0xd0805a);
+  const greens = [0x5f9e5a, 0x4a8a4f, 0x6fae62];
+  for (let i = 0; i < 11; i++) {
+    const g = new THREE.Group(); g.position.set(x, 0.36, z); g.rotation.y = i / 11 * Math.PI * 2 + r() * 0.4; furniture.add(g);
+    const tilt = 0.25 + r() * 0.55, len = 0.45 + r() * 0.55;
+    const st = new THREE.Group(); st.rotation.x = tilt; g.add(st);
+    mk(new THREE.CylinderGeometry(0.008, 0.011, len, 4), M(0x5c8a46), st, 0, len / 2, 0, true, false);
+    const lf = mk(leafGeo(0.32, 0.36), M(pick(greens), { side: THREE.DoubleSide }), st, 0, len, 0, true, false);
+    lf.rotation.set(-0.6 + r() * 0.3, 0, 0);
+    swayers.push({ o: st, base: tilt, ph: r() * 6, amp: 0.025 });
+  }
+  // snake plant beside the shelf
+  const sx = 1.32, sz = -2.25;
+  pot(furniture, sx, sz, 0.14, 0.28, 0xece6dc);
+  for (let i = 0; i < 8; i++) {
+    const h = 0.45 + r() * 0.35, w = 0.06 + r() * 0.03, s = new THREE.Shape();
+    s.moveTo(-w / 2, 0); s.lineTo(-w * 0.55, h * 0.6); s.lineTo(0, h); s.lineTo(w * 0.55, h * 0.6); s.lineTo(w / 2, 0);
+    const b = mk(new THREE.ShapeGeometry(s), M(i % 3 ? 0x4d7f4a : 0x77a457, { side: THREE.DoubleSide }), furniture, sx + (r() - 0.5) * 0.1, 0.27, sz + (r() - 0.5) * 0.1, true, false);
+    b.rotation.set((r() - 0.5) * 0.35, r() * Math.PI, (r() - 0.5) * 0.35);
+  }
+}
+
+// ---- floor lamp and side table
+let lampLight;
+{
+  const x = -2.62, z = -1.0;
+  mk(new THREE.CylinderGeometry(0.15, 0.17, 0.03, 10), M(0x4a4038), furniture, x, 0.015, z);
+  mk(new THREE.CylinderGeometry(0.012, 0.012, 1.45, 5), M(0x4a4038), furniture, x, 0.75, z);
+  const shade = mk(new THREE.CylinderGeometry(0.13, 0.2, 0.26, 10, 1, true), M(0xfff1d6, { emissive: 0xffd9a0, emissiveIntensity: 0.55, side: THREE.DoubleSide }), furniture, x, 1.52, z, false, false);
+  lampLight = new THREE.PointLight(0xffc183, 0.5, 4.5, 1.6); lampLight.position.set(x, 1.45, z); scene.add(lampLight);
+  const tx = -2.62, tz = 1.95;
+  mk(new THREE.CylinderGeometry(0.25, 0.25, 0.035, 10), M(0xa57650), furniture, tx, 0.55, tz);
+  for (let k = 0; k < 3; k++) { const a = k / 3 * Math.PI * 2; const l = mk(new THREE.CylinderGeometry(0.014, 0.012, 0.54, 5), M(0x8a5f3f), furniture, tx + Math.cos(a) * 0.16, 0.27, tz + Math.sin(a) * 0.16); l.rotation.set(Math.sin(a) * 0.12, 0, -Math.cos(a) * 0.12); }
+  mk(new THREE.CylinderGeometry(0.04, 0.035, 0.09, 8), M(0xe58c6e), furniture, tx + 0.08, 0.61, tz - 0.05);
+  pot(furniture, tx - 0.07, tz + 0.06, 0.06, 0.1, 0xece6dc, 0.567);
+  for (let k = 0; k < 6; k++) { const l = mk(leafGeo(0.07, 0.1), M(0x6fae62, { side: THREE.DoubleSide }), furniture, tx - 0.07, 0.67, tz + 0.06, true, false); l.rotation.set(-0.5, k, 0); }
+}
+
+// ---- sunlight from the window: floor patch, faint shaft, dust
+const sunPatch = (() => {
+  const tex = canvasTex(256, 256, (g, w, h) => {
+    g.fillStyle = "#000"; g.fillRect(0, 0, w, h);
+    const panes = [[0.03, 0.03, 0.47, 0.49], [0.53, 0.03, 0.97, 0.49], [0.03, 0.56, 0.47, 0.97], [0.53, 0.56, 0.97, 0.97]];
+    for (const [a, b, c, d] of panes) for (let k = 0; k < 6; k++) {
+      const s = k * 0.012; g.fillStyle = `rgba(255,255,255,${0.16})`; g.fillRect((a + s) * w, (b + s) * h, (c - a - 2 * s) * w, (d - b - 2 * s) * h);
+    }
+  });
+  const pos = [], uv = [];
+  const q = [[0, 0], [1, 0], [1, 1], [0, 0], [1, 1], [0, 1]];
+  for (const [u, v] of q) { const [x, z] = sunFloor(u, v); pos.push(x, 0.016, z); uv.push(u, 1 - v); }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, color: 0xffd08c, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  m.renderOrder = 2; room.add(m); return m;
+})();
+{
+  // shaft: the window rectangle swept down to the patch, faint additive
+  const corners = [[0, 0], [1, 0], [1, 1], [0, 1]], pos = [], col = [];
+  const top = (u, v) => [lerp(WIN.x0, WIN.x1, u), lerp(WIN.y0, WIN.y1, v), -RZ];
+  const bot = (u, v) => { const [x, z] = sunFloor(u, v); return [x, 0.02, z]; };
+  for (let i = 0; i < 4; i++) {
+    const [u0, v0] = corners[i], [u1, v1] = corners[(i + 1) % 4];
+    const A = top(u0, v0), B = top(u1, v1), C = bot(u1, v1), D = bot(u0, v0);
+    for (const [P, c] of [[A, 0.12], [B, 0.12], [C, 0.02], [A, 0.12], [C, 0.02], [D, 0.02]]) { pos.push(...P); col.push(c, c * 0.82, c * 0.55); }
+  }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  const shaft = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  shaft.renderOrder = 3; room.add(shaft);
+}
+const dust = (() => {
+  const N = 70, pos = new Float32Array(N * 3), seeds = [];
+  for (let i = 0; i < N; i++) seeds.push({ u: Math.random(), v: Math.random(), w: Math.random(), s: rand(0.01, 0.03), ph: rand(0, 6) });
+  const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  const sprite = canvasTex(32, 32, (g) => { const gr = g.createRadialGradient(16, 16, 0, 16, 16, 16); gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 32, 32); });
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.022, map: sprite, color: 0xffe2b0, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false }));
+  room.add(pts); return { pts, seeds, pos };
+})();
+
+// ===================================================================
+//  floor obstacles, perches, sun spots
+// ===================================================================
+const OBST = [
+  { r: [-3.4, -2.05, -0.52, 1.52] },      // sofa
+  { r: [0.44, 1.06, -2.36, -1.74] },      // cat tree
+  { r: [1.58, 2.72, -2.8, -2.2] },        // bookshelf
+  { r: [1.99, 2.51, 1.35, 1.75] },        // box
+  { c: [2.45, -0.7, 0.36] },              // cat bed
+  { c: [-2.55, -2.1, 0.27] },             // big plant
+  { c: [1.32, -2.25, 0.17] },             // snake plant
+  { c: [-2.62, -1.0, 0.18] },             // lamp
+  { c: [-2.62, 1.95, 0.27] },             // side table
+];
+function blocked(x, z, inf) {
+  if (x < -RX + inf || x > RX - inf || z < -RZ + inf || z > RZ - inf) return true;
+  for (const o of OBST) {
+    if (o.r) { if (x > o.r[0] - inf && x < o.r[1] + inf && z > o.r[2] - inf && z < o.r[3] + inf) return true; }
+    else if (Math.hypot(x - o.c[0], z - o.c[1]) < o.c[2] + inf) return true;
+  }
+  return false;
+}
+function pushOut(p, inf) {
+  for (let it = 0; it < 2; it++) for (const o of OBST) {
+    if (o.r) {
+      const x0 = o.r[0] - inf, x1 = o.r[1] + inf, z0 = o.r[2] - inf, z1 = o.r[3] + inf;
+      if (p.x > x0 && p.x < x1 && p.z > z0 && p.z < z1) {
+        const dl = p.x - x0, dr = x1 - p.x, dn = p.z - z0, df = z1 - p.z, m = Math.min(dl, dr, dn, df);
+        if (m === dl) p.x = x0; else if (m === dr) p.x = x1; else if (m === dn) p.z = z0; else p.z = z1;
+      }
+    } else {
+      const dx = p.x - o.c[0], dz = p.z - o.c[1], d = Math.hypot(dx, dz), R = o.c[2] + inf;
+      if (d < R) { if (d < 1e-4) p.x += R; else { p.x = o.c[0] + dx / d * R; p.z = o.c[1] + dz / d * R; } }
+    }
+  }
+  p.x = clamp(p.x, -RX + inf, RX - inf); p.z = clamp(p.z, -RZ + inf, RZ - inf);
+  return p;
+}
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const PERCHES = [
+  { id: "sofaA", kind: "sofa", where: "on the sofa", pos: V(-2.36, 0.46, 0.08), approach: V(-1.72, 0, 0.2), face: Math.PI / 2, nap: true },
+  { id: "sofaB", kind: "sofa", where: "on the sofa", pos: V(-2.36, 0.46, 0.9), approach: V(-1.72, 0, 0.85), face: Math.PI / 2, nap: true },
+  { id: "tLow", kind: "tree", where: "on the cat tree", pos: V(0.5, 0.525, -1.9), approach: V(0.42, 0, -1.3), face: 0.3 },
+  { id: "tMid", kind: "tree", where: "on the cat tree", pos: V(0.98, 0.975, -2.1), parentId: "tLow", face: 0.2 },
+  { id: "tTop", kind: "tree", where: "up the cat tree", pos: V(0.66, 1.44, -2.16), parentId: "tMid", face: 0.5, nap: true },
+  { id: "box", kind: "box", where: "in the box", pos: V(2.25, 0.015, 1.55), approach: V(1.64, 0, 1.55), face: -Math.PI / 2, nap: true, hop: 0.36 },
+  { id: "bed", kind: "bed", where: "in the cat bed", pos: V(2.45, 0.045, -0.7), approach: V(1.86, 0, -0.7), face: -Math.PI / 2, nap: true, hop: 0.16 },
+];
+for (const p of PERCHES) { p.parent = PERCHES.find((q) => q.id === p.parentId) || null; p.occ = null; }
+
+// ===================================================================
+//  cats: rig, markings, poses
+// ===================================================================
+const CAT_DEFS = [
+  { name: "Lenny 1", desc: "Grey with a white belly", scale: 1.0, girth: 1.0, head: 1.0, cheeks: 1.0, eye: 0xe0bb45, nose: 0x8a7276, inner: 0xd4a6a6, pat: "grey",
+    sw: "linear-gradient(180deg,#8d939b 0 55%,#f1efe9 55% 100%)", likes: { sun: 1.8, sofa: 1, tree: 0.5, box: 0.6, bed: 1.2, lazy: 1, play: 0.8 } },
+  { name: "Lenny 2", desc: "Grey-brown tabby with a peachy muzzle", scale: 1.05, girth: 1.02, head: 1.0, cheeks: 1.04, eye: 0xb4c45a, nose: 0xd98c78, inner: 0xe0aea4, pat: "tabby",
+    sw: "repeating-linear-gradient(110deg,#9a948a 0 3px,#2f2a26 3px 4.5px)", likes: { sun: 1, sofa: 0.8, tree: 0.8, box: 2.2, bed: 0.8, lazy: 0.9, play: 1.1 } },
+  { name: "Edna", desc: "Brown tabby with a white bib, blaze and front paws", scale: 0.94, girth: 0.95, head: 0.97, cheeks: 0.96, eye: 0xc9b45a, nose: 0xec9fa6, inner: 0xe8b4ac, pat: "edna",
+    sw: "linear-gradient(180deg,transparent 0 50%,#f3f1ec 50% 100%),repeating-linear-gradient(110deg,#93704a 0 3px,#2a221b 3px 5px)", likes: { sun: 1, sofa: 2.4, tree: 0.5, box: 0.5, bed: 1, lazy: 1, play: 0.7 } },
+  { name: "Fläckli", desc: "Calico: white with orange and black patches", scale: 0.96, girth: 0.98, head: 1.02, cheeks: 1.0, eye: 0x9cc455, nose: 0xeaa0a2, inner: 0xe8b0aa, pat: "calico",
+    sw: "radial-gradient(circle at 30% 35%,#e3924a 0 4px,transparent 4.5px),radial-gradient(circle at 70% 60%,#2a2420 0 3.5px,transparent 4px),#f5f2ec", likes: { sun: 1.2, sofa: 0.9, tree: 1.3, box: 1.7, bed: 1, lazy: 0.85, play: 1.5 } },
+  { name: "Dolly", desc: "Small, fluffy and black, with grey ear tufts and her party hat", scale: 0.8, girth: 0.97, head: 1.1, cheeks: 1.0, eye: 0xe6ad3c, nose: 0x2f2a2d, inner: 0x5a4648, pat: "black", tufts: 1, fluffy: true,
+    sw: "radial-gradient(circle at 28% 22%,#c9c9c9 0 2px,transparent 2.5px),radial-gradient(circle at 72% 22%,#c9c9c9 0 2px,transparent 2.5px),#1d1c20", likes: { sun: 0.8, sofa: 0.7, tree: 2.6, box: 1, bed: 0.6, lazy: 0.8, play: 1.7 } },
+  { name: "Frank", desc: "Fluffy and black, and a big boy", scale: 1.22, girth: 1.12, head: 1.0, cheeks: 1.16, eye: 0xdcb83e, nose: 0x2f2a2d, inner: 0x5a4648, pat: "black", tufts: 0.7, fluffy: true,
+    sw: "#1d1c20", likes: { sun: 2, sofa: 1.3, tree: 0.3, box: 0.6, bed: 1.4, lazy: 1.7, play: 0.6 } },
+];
+
+// fur markings, evaluated once per triangle (flat colours, low-poly look)
+const tmpC = new THREE.Color(), cA = new THREE.Color(), cB = new THREE.Color();
+const PAT = {
+  grey(o, q) {
+    const n = vnoise3(q.pc.x * 22, q.pc.y * 22, q.pc.z * 22);
+    o.set(0x8d939b).multiplyScalar(0.94 + n * 0.12);
+    let w = 0;
+    if (q.part === "body") {
+      w = smooth(0.05, -0.25, q.nc.y + (n - 0.5) * 0.3);
+      if (q.pc.z > 0.08) w = Math.max(w, smooth(0.0, 0.35, q.nc.z) * smooth(0.3, 0.23, q.pc.y));
+    }
+    if (q.part === "neck") w = smooth(0.0, 0.4, q.nc.z) * smooth(0.35, -0.1, q.nc.y);
+    if (q.part === "head") w = smooth(0.022, 0.008, q.pl.y) * smooth(0.0, 0.4, q.nl.z);
+    if (q.part === "muzzle" || q.part === "paw") w = 1;
+    if (q.part === "leg") w = smooth(-0.13, -0.16, q.pl.y);
+    if (q.part === "tail" && Math.sin(q.ex * 30) > 0.4) o.multiplyScalar(0.86);
+    if (q.part === "ear") o.multiplyScalar(0.9);
+    o.lerp(cA.set(0xf1efe9), w);
+  },
+  tabby(o, q) {   // grey-brown mackerel: narrow dark stripes on a silvery coat, peachy muzzle and cheeks
+    const n = vnoise3(q.pc.x * 18, q.pc.y * 18, q.pc.z * 18);
+    o.set(0x968f84).lerp(cA.set(0xa89c8a), n);
+    const dark = cB.set(0x2f2a26);
+    if (q.part === "body" || q.part === "neck") {
+      const under = smooth(-0.25, -0.65, q.nc.y);
+      const s = Math.sin(q.pc.z * 72 + n * 1.2);
+      let d = (s > 0.45 ? 1 : 0) * (1 - under) * smooth(-0.5, -0.15, q.nc.y);
+      if (q.nc.y > 0.86) d = Math.max(d, 0.9);
+      o.lerp(dark, d * 0.88); o.lerp(cA.set(0xc4bcae), under * 0.8);
+    } else if (q.part === "head") {
+      const fore = (q.pl.y > 0.066 && q.nl.z < 0.85) ? (Math.sin(q.pl.x * 170) > 0.35 ? 1 : 0) : 0;
+      const cheek = (Math.abs(q.nl.x) > 0.55 && Math.abs(q.pl.y - 0.035 + (q.pl.z - 0.07) * 0.35) < 0.008) ? 1 : 0;
+      o.lerp(dark, Math.max(fore, cheek) * 0.85);
+      o.lerp(cA.set(0xd9a77f), smooth(0.034, 0.012, q.pl.y) * smooth(0.25, 0.6, q.nl.z));   // peach around the nose
+      o.lerp(cA.set(0xe8e2d8), smooth(0.0, -0.02, q.pl.y) * smooth(0.1, 0.5, q.nl.z) * 0.6);
+    } else if (q.part === "muzzle") o.copy(cA.set(0xdcae88)).lerp(tmpC.set(0xeee6da), q.pl.y < -0.004 ? 0.7 : 0.2);
+    else if (q.part === "leg") { if (Math.sin(q.pl.y * 80) > 0.55) o.lerp(dark, 0.8); }
+    else if (q.part === "paw") o.lerp(cA.set(0xc9bfae), 0.5);
+    else if (q.part === "tail") { if (Math.sin(q.ex * Math.PI * 10) > 0.3 || q.ex > 0.84) o.lerp(dark, 0.92); }
+    else if (q.part === "ear") o.lerp(dark, 0.35);
+  },
+  edna(o, q) {   // brown tabby with bold stripes; white bib, tummy, muzzle, blaze and front paws
+    const n = vnoise3(q.pc.x * 18, q.pc.y * 18, q.pc.z * 18);
+    const white = cA.set(0xf4f2ed), brown = tmpC.set(0x8c6a48).lerp(cB.set(0xa57a4e), n).clone(), black = cB.set(0x241d17);
+    let wh = 0, stripe = 0;
+    if (q.part === "body") {
+      wh = smooth(-0.2, -0.5, q.nc.y + (n - 0.5) * 0.3);
+      if (q.pc.z > 0.1) wh = Math.max(wh, smooth(0.0, 0.4, q.nc.z) * smooth(0.3, 0.2, q.pc.y));   // bib
+      stripe = Math.sin(q.pc.z * 50 + n * 1.5) > 0.15 ? 1 : 0; if (q.nc.y > 0.86) stripe = 1;
+    } else if (q.part === "neck") { wh = smooth(-0.1, 0.35, q.nc.z) * smooth(0.45, 0.0, q.nc.y); stripe = Math.sin(q.pc.z * 50 + n * 1.5) > 0.3 ? 1 : 0; }
+    else if (q.part === "head") {
+      wh = (q.pl.y < 0.028 && q.nl.z > 0.15) ? 1 : 0;
+      if (q.nl.z > 0.3 && Math.abs(q.pl.x) < 0.008 + Math.max(0, 0.08 - q.pl.y) * 0.4 && q.pl.y < 0.085) wh = 1;   // blaze up between the eyes
+      stripe = (q.pl.y > 0.064 && Math.sin(q.pl.x * 150) > 0.3) ? 1 : 0;
+      if (Math.abs(q.nl.x) > 0.55 && Math.abs(q.pl.y - 0.038 + (q.pl.z - 0.07) * 0.35) < 0.007) stripe = 1;
+    } else if (q.part === "muzzle") wh = 1;
+    else if (q.part === "tail") stripe = (Math.sin(q.ex * Math.PI * 9) > 0.1 || q.ex > 0.86) ? 1 : 0;
+    else if (q.part === "leg") { stripe = Math.sin(q.pl.y * 60) > 0.4 ? 1 : 0; if (q.ex) wh = smooth(-0.15, -0.18, q.pl.y); else wh = smooth(0.2, 0.6, -q.nc.x * Math.sign(q.pc.x)) * 0.0; }
+    else if (q.part === "paw") wh = q.ex ? 1 : 0;
+    o.copy(brown).lerp(black, stripe * 0.88).lerp(white, wh);
+  },
+  calico(o, q) {   // white legs and belly, orange and black patches, little white spots on the back
+    const n1 = vnoise3(q.pc.x * 9 + 3.1, q.pc.y * 9, q.pc.z * 9), n2 = vnoise3(q.pc.x * 11 - 7.3, q.pc.y * 11 + 2.2, q.pc.z * 11 + 5.4);
+    let patchy = 0;
+    if (q.part === "body" || q.part === "neck") patchy = q.nc.y > -0.3 ? 1 : 0;
+    else if (q.part === "head") patchy = (q.pl.y < 0.03 && q.nl.z > 0.15) || (q.nl.z > 0.35 && Math.abs(q.pl.x) < 0.012 && q.pl.y < 0.07) ? 0 : 1;
+    else if (q.part === "ear" || q.part === "tail") patchy = 1;
+    o.set(0xf5f2ec);
+    if (patchy) {
+      if (q.part === "ear") o.set(q.pl.x < 0 ? 0x2a2420 : 0xe3924a);
+      else if (n1 > 0.52) o.set(0xe3924a);
+      else if (n2 > 0.55) o.set(0x2a2420);
+      else if (q.part === "head") o.set(q.pl.x < 0 ? 0xe3924a : 0x2a2420);
+    }
+    if (q.part === "body" && q.nc.y > 0.35 && hash3(Math.round(q.pc.x * 55), Math.round(q.pc.y * 55), Math.round(q.pc.z * 55)) > 0.8) o.set(0xf5f2ec);
+    o.multiplyScalar(0.95 + n2 * 0.1);
+  },
+  black(o, q) {
+    const n = vnoise3(q.pc.x * 20, q.pc.y * 20, q.pc.z * 20);
+    o.set(0x1d1c20).multiplyScalar(0.9 + n * 0.25);
+    if (q.part === "muzzle") o.multiplyScalar(1.15);
+  },
+};
+
+const PK = ["hipY", "pitch", "roll", "bend", "fOff", "hOff", "up", "yaw", "tailBase", "tailX", "tailTip", "tailY", "sway", "swaySpd", "eye", "ear"];
+const BASE = { hipY: 0.225, pitch: 0, roll: 0, bend: 0, fOff: 0.015, hOff: -0.015, up: 0.05, yaw: 0, tailBase: 0.45, tailX: -0.07, tailTip: 0, tailY: 0, sway: 0.16, swaySpd: 1.6, eye: 1, ear: 0, k: 5 };
+const POSES = {
+  stand:   {},
+  walk:    { up: -0.05, tailBase: 1.15, tailX: -0.02, tailTip: 0.3, sway: 0.1, swaySpd: 2.2 },
+  run:     { hipY: 0.21, up: 0.05, tailBase: 0.3, tailX: 0.0, sway: 0.12, swaySpd: 5, ear: 0.3, k: 7 },
+  sit:     { hipY: 0.075, pitch: 0.8, fOff: 0.0, hOff: 0.1, up: 0.05, tailBase: -0.9, tailX: 0.13, tailY: 0.22, sway: 0.05, swaySpd: 1.0 },
+  loaf:    { hipY: 0.08, pitch: 0.06, fOff: -0.04, hOff: 0.05, up: 0.06, tailBase: -0.35, tailX: 0.05, tailY: 0.28, sway: 0.03, swaySpd: 0.8, eye: 0.55, k: 3 },
+  sphinx:  { hipY: 0.08, pitch: 0.1, fOff: 0.15, hOff: 0.06, up: 0.12, tailBase: -0.35, tailX: 0.05, tailY: 0.2, sway: 0.04, swaySpd: 0.8, k: 3 },
+  curl:    { hipY: 0.065, pitch: 0, roll: 0.4, bend: 0.8, fOff: 0, hOff: 0.03, up: -0.6, yaw: 1.9, tailBase: -1.0, tailX: 0.12, tailY: -0.32, sway: 0.015, swaySpd: 0.6, eye: 0, k: 2 },
+  stretch: { hipY: 0.24, pitch: -0.42, fOff: 0.24, hOff: -0.04, up: 0.55, tailBase: 1.35, tailX: -0.05, eye: 0.15, sway: 0.05, k: 4 },
+  eat:     { hipY: 0.195, pitch: -0.16, fOff: 0.04, hOff: 0.0, up: -1.05, tailBase: 0.05, tailX: -0.05, sway: 0.14, swaySpd: 1.4, eye: 0.7 },
+  crouch:  { hipY: 0.135, pitch: -0.05, fOff: 0.05, hOff: 0.03, up: 0.15, tailBase: 0.05, tailX: 0.02, sway: 0.35, swaySpd: 6, ear: 0.5, k: 8 },
+  groom:   { hipY: 0.075, pitch: 0.8, fOff: 0.0, hOff: 0.1, up: -0.4, tailBase: -0.9, tailX: 0.13, tailY: 0.22, sway: 0.05, swaySpd: 1.0, eye: 0.5 },
+  air:     { hipY: 0.22, tailBase: 0.4, tailX: 0, sway: 0.05, k: 10 },
+};
+for (const k in POSES) POSES[k] = Object.assign({}, BASE, POSES[k]);
+const POSE_STATUS = { stand: "looking around", walk: "exploring", sit: "sitting", loaf: "loafing", sphinx: "lying down", curl: "napping", stretch: "stretching", eat: "eating", crouch: "stalking", groom: "grooming", run: "playing" };
+
+const cats = [], catMeshes = [], allCats = [];   // cats = the ones present in the current mode
+const _w = new THREE.Vector3(), _t = new THREE.Vector3(), _q1 = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _q3 = new THREE.Quaternion(), _ay = new THREE.Vector3(0, 1, 0), _az = new THREE.Vector3(0, 0, 1);
+
+function buildCat(def, idx) {
+  const c = { def, name: def.name, s: def.scale, idx, r: 0.14 * def.scale, ph: Math.random() * 6 };
+  const root = new THREE.Group(); c.root = root;
+  const fur = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: def.pat === "black" ? 0.62 : 0.9, metalness: 0, flatShading: true });
+  c.fur = fur;
+  const regs = [];
+  const part = (geo, parent, owner, name, ex, x, y, z, sx, sy, sz) => {
+    const m = new THREE.Mesh(geo, fur); m.position.set(x, y, z); if (sx) m.scale.set(sx, sy, sz);
+    m.castShadow = true; m.userData.cat = c; parent.add(m); regs.push({ m, owner, part: name, ex }); catMeshes.push(m); return m;
+  };
+  const ell = (ws, hs, alongZ) => { const g = new THREE.SphereGeometry(1, ws, hs); if (alongZ) g.rotateX(Math.PI / 2); return g; };
+  // long-haired cats: push vertices out by a per-position hash, so the facets turn into tufts (shared vertices move together, no cracks)
+  const fl = !!def.fluffy;
+  const shag = (geo, amt) => {
+    if (!fl) return geo;
+    const p = geo.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i), h = hash3(Math.round(x * 997), Math.round(y * 991), Math.round(z * 983) + idx * 13);
+      const k = 1 + amt * (h - 0.25); p.setXYZ(i, x * k, y * k, z * k);
+    }
+    return geo;
+  };
+
+  const spine = new THREE.Group(); spine.position.set(0, 0.225, -0.09); root.add(spine); c.spine = spine;
+  const front = new THREE.Group(); front.position.set(0, 0, 0.1); spine.add(front); c.front = front;
+  const rear = new THREE.Group(); rear.position.set(0, 0, 0.1); spine.add(rear); c.rear = rear;
+  const g = def.girth;
+  c.body = [];
+  const bodyPart = (parent, x, y, z, sx, sy, sz, belly, name = "body", ws = 12, hs = 12) => {
+    const m = part(shag(ell(ws, hs, true), 0.08), parent, root, name, 0, x, y, z, sx * g, sy * g, sz);
+    c.body.push({ m, sx: sx * g, sy: sy * g, sz, y, belly }); return m;
+  };
+  bodyPart(front, 0, 0.01, 0.07, 0.1, 0.095, 0.135, false);
+  bodyPart(front, 0, -0.012, -0.04, 0.09, 0.085, 0.13, true);
+  bodyPart(rear, 0, 0, -0.1, 0.102, 0.098, 0.125, false);
+  const neck = part(shag(ell(9, 7, true), 0.15), front, root, "neck", 0, 0, 0.065, 0.14, 0.064, 0.072, 0.08); neck.rotation.x = -0.6;
+  if (fl) {   // a fluffy ruff on the chest
+    const ruff = part(shag(ell(10, 8, true), 0.3), front, root, "neck", 0, 0, 0.035, 0.15, 0.088, 0.092, 0.075); ruff.rotation.x = -0.35;
+  }
+
+  // head
+  const headPivot = new THREE.Group(); headPivot.position.set(0, 0.09, 0.17); headPivot.rotation.order = "YXZ"; front.add(headPivot); c.headPivot = headPivot;
+  const head = new THREE.Group(); head.scale.setScalar(def.head); headPivot.add(head); c.head = head;
+  const ch = def.cheeks;
+  part(shag(ell(10, 8), 0.06), head, head, "head", 0, 0, 0.04, 0.045, 0.066, 0.062, 0.066);
+  part(shag(ell(10, 6), 0.16), head, head, "head", 0, 0, 0.014, 0.058, 0.074 * ch * (fl ? 1.06 : 1), 0.046, 0.058);
+  for (const sx of [-1, 1]) part(ell(7, 5), head, head, "muzzle", 0, sx * 0.016, 0.006, 0.105, 0.022, 0.018, 0.02);
+  part(ell(7, 5), head, head, "muzzle", 0, 0, -0.011, 0.097, 0.019, 0.014, 0.018);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.0105, 6, 4), M(def.nose)); nose.position.set(0, 0.022, 0.121); nose.scale.set(1.3, 0.7, 0.9); head.add(nose);
+  const tongue = new THREE.Mesh(new THREE.SphereGeometry(1, 6, 4), M(0xe07a84)); tongue.position.set(0, -0.004, 0.115); tongue.scale.set(0.011, 0.004, 0.016); tongue.visible = false; head.add(tongue); c.tongue = tongue;
+  // eyes: iris, slit pupil, a catchlight; they squash shut for blinks
+  c.irisMat = new THREE.MeshStandardMaterial({ color: def.eye, emissive: def.eye, emissiveIntensity: 0.25, roughness: 0.35, flatShading: true });
+  c.eyeCol = new THREE.Color(def.eye);
+  const pupilMat = new THREE.MeshStandardMaterial({ color: 0x0b0a0c, roughness: 0.25, flatShading: true });
+  c.eyes = []; c.pupils = [];
+  for (const sx of [-1, 1]) {
+    const e = new THREE.Group(); e.position.set(sx * 0.031, 0.046, 0.098); e.rotation.set(-0.05, sx * 0.32, 0); head.add(e);
+    const iris = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 7), c.irisMat); iris.scale.set(1, 0.88, 0.6); e.add(iris);
+    const pup = new THREE.Mesh(new THREE.SphereGeometry(0.0203, 8, 6), pupilMat); pup.position.z = 0.0025; pup.scale.set(0.3, 0.84, 0.6); e.add(pup);
+    const hl = new THREE.Mesh(new THREE.SphereGeometry(0.0042, 5, 4), new THREE.MeshBasicMaterial({ color: 0xffffff })); hl.position.set(sx * 0.006, 0.007, 0.012); e.add(hl);
+    c.eyes.push(e); c.pupils.push(pup); (c.hls = c.hls || []).push(hl);
+    iris.userData.cat = c; catMeshes.push(iris);
+  }
+  // ears
+  c.ears = [];
+  const innerMat = M(def.inner);
+  for (const sx of [-1, 1]) {
+    const eg = new THREE.Group(); eg.position.set(sx * 0.039, 0.088, 0.03); eg.rotation.set(-0.12, sx * 0.3, -sx * 0.32); head.add(eg);
+    const og = new THREE.ConeGeometry(0.033, 0.068, 4, 1); og.rotateY(Math.PI / 4); og.translate(0, 0.034, 0);
+    part(og, eg, head, "ear", 0, 0, 0, 0, 1, 1, 0.45);
+    const ig = new THREE.ConeGeometry(0.022, 0.048, 4, 1); ig.rotateY(Math.PI / 4); ig.translate(0, 0.024, 0);
+    const inner = new THREE.Mesh(ig, innerMat); inner.position.set(0, 0.004, 0.008); inner.scale.z = 0.3; eg.add(inner);
+    if (def.tufts) {   // light grey tufts of hair poking out of the ears (Dolly's are the big ones)
+      const tm = M(def.tufts >= 1 ? 0xcfcfcf : 0xa9a6a2), ts = def.tufts;
+      for (let k = 0; k < 4; k++) {
+        const tg = new THREE.ConeGeometry(0.0045 * ts, 0.038 * ts, 3); tg.translate(0, 0.019 * ts, 0);
+        const tf = new THREE.Mesh(tg, tm); tf.position.set((k - 1.5) * 0.005, 0.008 + (k % 2) * 0.006, 0.014);
+        tf.rotation.set(0.55 + (k % 2) * 0.15, 0, sx * (0.25 + k * 0.12) - 0.1 * sx); eg.add(tf);
+      }
+    }
+    c.ears.push({ g: eg, rx: -0.12, ry: sx * 0.3, rz: -sx * 0.32, sx, tw: 0 });
+  }
+  // whiskers
+  {
+    const pts = [];
+    for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) pts.push(sx * 0.024, 0.008, 0.112, sx * 0.105, 0.016 - k * 0.013, 0.095 - k * 0.01);
+    const wg = new THREE.BufferGeometry(); wg.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+    head.add(new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0xf6f2ea, transparent: true, opacity: 0.75 })));
+  }
+  // legs: two-bone, solved per frame so paws stay on the ground
+  c.legs = [];
+  const makeLeg = (parent, x, y, z, L1, L2, r1a, r1b, r2, s, isFront, ph, runPh) => {
+    const hip = new THREE.Group(); hip.position.set(x, y, z); parent.add(hip);
+    const tg = new THREE.CylinderGeometry(r1a, r1b, L1, 7, 4); tg.translate(0, -L1 / 2, 0);
+    part(tg, hip, hip, "leg", isFront ? 1 : 0, 0, 0, 0);
+    part(ell(7, 5), hip, hip, "leg", isFront ? 1 : 0, 0, 0, 0, r1a, r1a, r1a);
+    const knee = new THREE.Group(); knee.position.y = -L1; hip.add(knee);
+    part(ell(6, 5), knee, hip, "leg", isFront ? 1 : 0, 0, 0, 0, r1b, r1b, r1b);
+    const sg = new THREE.CylinderGeometry(r1b * 0.95, r2, L2, 7, 4); sg.translate(0, -L2 / 2, 0);
+    part(sg, knee, hip, "leg", isFront ? 1 : 0, 0, 0, 0);
+    const paw = new THREE.Group(); paw.position.y = -L2; knee.add(paw);
+    part(ell(7, 5), paw, hip, "paw", isFront ? 1 : 0, 0, 0.002, 0.008, r2 * 1.3, r2 * 0.85, r2 * 1.6);
+    const leg = { hip, knee, paw, L1, L2, s, front: isFront, x, y, z, parent, ph, runPh };
+    c.legs.push(leg); return leg;
+  };
+  makeLeg(front, -0.05, -0.035, 0.12, 0.1, 0.1, 0.03, 0.022, 0.018, -1, true, 0.25, 0.0);
+  makeLeg(front, 0.05, -0.035, 0.12, 0.1, 0.1, 0.03, 0.022, 0.018, -1, true, 0.75, 0.12);
+  makeLeg(rear, -0.055, -0.015, -0.115, 0.12, 0.112, 0.042, 0.025, 0.019, 1, false, 0.0, 0.5);
+  makeLeg(rear, 0.055, -0.015, -0.115, 0.12, 0.112, 0.042, 0.025, 0.019, 1, false, 0.5, 0.62);
+  // tail: a chain of segments
+  c.tail = [];
+  const tailRoot = new THREE.Group(); tailRoot.position.set(0, 0.04, -0.205); rear.add(tailRoot); c.tailRoot = tailRoot;
+  let par = tailRoot; const N = 10, segL = 0.031;
+  for (let i = 0; i < N; i++) {
+    const sg = new THREE.Group(); if (i > 0) sg.position.z = -segL; par.add(sg);
+    const tr = fl ? 0.03 : 0.021, tt = fl ? 0.006 : 0.008;   // long-haired cats get a bushy tail
+    const r0 = tr - tt * i / N, r1 = tr - tt * (i + 1) / N;
+    const cg = new THREE.CylinderGeometry(r1, r0, segL, 6, 1); cg.rotateX(-Math.PI / 2); cg.translate(0, 0, -segL / 2);
+    part(cg, sg, root, "tail", (i + 0.5) / N, 0, 0, 0);
+    part(shag(ell(7, 5), 0.16), sg, root, "tail", i / N, 0, 0, 0, r0 * (fl ? 1.22 : 1), r0 * (fl ? 1.22 : 1), r0 * (fl ? 1.5 : 1));
+    if (i === N - 1) part(ell(6, 4), sg, root, "tail", 1, 0, 0, -segL, r1, r1, r1);
+    c.tail.push(sg); par = sg;
+  }
+
+  // paint the markings in the rest pose, one colour per triangle
+  root.updateMatrixWorld(true);
+  const Mc = new THREE.Matrix4(), Mo = new THREE.Matrix4(), Nc = new THREE.Matrix3(), No = new THREE.Matrix3(), inv = new THREE.Matrix4();
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), d = new THREE.Vector3(), cen = new THREE.Vector3(), nrm = new THREE.Vector3(), e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+  const q = { pc: new THREE.Vector3(), nc: new THREE.Vector3(), pl: new THREE.Vector3(), nl: new THREE.Vector3(), part: "", ex: 0 };
+  const col = new THREE.Color();
+  for (const r of regs) {
+    let geo = r.m.geometry; if (geo.index) { geo = geo.toNonIndexed(); r.m.geometry = geo; }
+    Mc.copy(r.m.matrixWorld); Mo.multiplyMatrices(inv.copy(r.owner.matrixWorld).invert(), r.m.matrixWorld);
+    Nc.getNormalMatrix(Mc); No.getNormalMatrix(Mo);
+    const p = geo.attributes.position, colors = new Float32Array(p.count * 3);
+    for (let i = 0; i < p.count; i += 3) {
+      a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); d.fromBufferAttribute(p, i + 2);
+      cen.copy(a).add(b).add(d).multiplyScalar(1 / 3);
+      e1.subVectors(b, a); e2.subVectors(d, a); nrm.crossVectors(e1, e2).normalize();
+      q.pc.copy(cen).applyMatrix4(Mc); q.nc.copy(nrm).applyMatrix3(Nc).normalize();
+      q.pl.copy(cen).applyMatrix4(Mo); q.nl.copy(nrm).applyMatrix3(No).normalize();
+      q.part = r.part; q.ex = r.ex;
+      PAT[def.pat](col, q);
+      for (let k = 0; k < 3; k++) { colors[(i + k) * 3] = col.r; colors[(i + k) * 3 + 1] = col.g; colors[(i + k) * 3 + 2] = col.b; }
+    }
+    geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    geo.computeVertexNormals();
+  }
+  root.scale.setScalar(def.scale);
+  scene.add(root);
+
+  // state
+  c.pos = new THREE.Vector3(); c.heading = 0; c.prevH = 0; c.speed = 0; c.turnSpd = 0; c.gait = 0;
+  c.perch = null; c.queue = []; c.step = null; c.stepT = 0; c.res = [];
+  c.P = Object.assign({}, POSES.stand); c.T = Object.assign({}, POSES.stand); c.poseName = "stand"; c.side = 1;
+  c.full = 0.6; c.decay = 0.75 / 90; c.girth = 1; c.sun = 0;
+  c.lookYaw = 0; c.lookUp = 0; c.lookTY = 0; c.lookTU = 0; c.lookT = rand(1, 3); c.lookCam = false; c.tilt = 0; c.tiltT = 0;
+  c.blinkT = rand(2, 6); c.blink = 0; c.sb = { ph: 0, t: 0 }; c.sbT = rand(6, 14); c.earT = rand(2, 6);
+  c.foodCheck = rand(0, 0.5); c.smell = -1; c.labelT = 0; c.air = false; c.airPitch = 0; c.extraUp = 0; c.groomLeg = null; c.pupilW = 0.3;
+  c.label = document.createElement("div"); c.label.className = "catlabel"; c.label.textContent = def.name; document.body.appendChild(c.label);
+  cats.push(c);
+  return c;
+}
+CAT_DEFS.forEach((d, i) => buildCat(d, i));
+allCats.push(...cats);
+for (const c of allCats) { c.present = true; c.pop = 1; c.fade = 0; }
+
+function setPose(c, name) {
+  const b = POSES[name], T = c.T;
+  for (const k of PK) T[k] = b[k];
+  T.k = b.k; const sd = c.side;
+  T.bend *= sd; T.roll *= sd; T.yaw *= sd; T.tailY *= sd;
+  c.poseName = name;
+}
+function snapPose(c) { for (const k of PK) c.P[k] = c.T[k]; }
+
+// two-bone IK in the leg's sagittal plane
+function solveLeg(c, leg, target, pitch) {
+  _t.copy(target); c.root.localToWorld(_t); leg.parent.worldToLocal(_t);
+  let dy = _t.y - leg.y, dz = _t.z - leg.z;
+  const L1 = leg.L1, L2 = leg.L2, Lmax = L1 + L2 - 0.002, Lmin = 0.035;
+  let dd = Math.hypot(dy, dz);
+  if (dd < 1e-5) { dy = -Lmin; dz = 0; dd = Lmin; }
+  if (dd > Lmax) { dy *= Lmax / dd; dz *= Lmax / dd; dd = Lmax; }
+  if (dd < Lmin) { dy *= Lmin / dd; dz *= Lmin / dd; dd = Lmin; }
+  const aT = Math.atan2(dz, -dy);
+  const alpha = Math.acos(clamp((L1 * L1 + dd * dd - L2 * L2) / (2 * L1 * dd), -1, 1));
+  const beta = Math.acos(clamp((L1 * L1 + L2 * L2 - dd * dd) / (2 * L1 * L2), -1, 1));
+  leg.hip.rotation.x = -(aT + leg.s * alpha);
+  leg.knee.rotation.x = leg.s * (Math.PI - beta);
+  leg.paw.rotation.x = -(leg.hip.rotation.x + leg.knee.rotation.x) + pitch;
+}
+
+// ===================================================================
+//  food bowls
+// ===================================================================
+const bowls = [];
+const bowlGeo = new THREE.LatheGeometry([[0, 0], [0.06, 0], [0.072, 0.008], [0.088, 0.044], [0.093, 0.05], [0.086, 0.05], [0.074, 0.017], [0, 0.017]].map((p) => new THREE.Vector2(p[0], p[1])), 12);
+const bowlCols = [0x6f9fcb, 0xf1e8d8, 0xe58c6e];
+const kibbleGeo = new THREE.IcosahedronGeometry(0.012, 0), kibbleMats = [M(0x8a5530), M(0xa66a3a), M(0x74462a)];
+let bowlCount = 0;
+function dropFood(x, z) {
+  const p = pushOut({ x, z }, 0.34);
+  for (const b of bowls) if (Math.hypot(b.x - p.x, b.z - p.z) < 0.35) { b.food = 1.6; b.fadeT = 0; return b; }
+  if (bowls.length >= 3) removeBowl(bowls.reduce((m, b) => (b.food < m.food ? b : m), bowls[0]));
+  const g = new THREE.Group(); g.position.set(p.x, 0, p.z); room.add(g);
+  mk(bowlGeo, M(bowlCols[bowlCount++ % 3], { side: THREE.DoubleSide }), g, 0, 0, 0, true, true);
+  const kib = [];
+  for (let i = 0; i < 16; i++) {
+    const a = i * 2.4, r = Math.sqrt(i / 16) * 0.058;
+    const k = mk(kibbleGeo, kibbleMats[i % 3], g, Math.cos(a) * r, 0.026 + (1 - r / 0.06) * 0.018, Math.sin(a) * r, false, false);
+    k.rotation.set(i, i * 2, 0); kib.push(k);
+  }
+  const b = { x: p.x, z: p.z, g, kib, food: 1.6, spots: [], pop: 0, fadeT: 0, gone: false };
+  bowls.push(b);
+  for (const c of cats) if (c.full < 0.25 && c.smell < 0) c.smell = rand(0.2, 2.2);
+  return b;
+}
+function removeBowl(b) { b.gone = true; room.remove(b.g); bowls.splice(bowls.indexOf(b), 1); }
+function bowlFree(b) { let need = 0; for (const s of b.spots) need += Math.max(0.2, 1 - s.c.full); return b.food - need > 0.15 && b.spots.length < 2; }
+function reserveSpot(b, c) {
+  const R = 0.265 * c.s, base = Math.atan2(c.pos.x - b.x, c.pos.z - b.z);
+  for (let k = 0; k < 16; k++) {
+    const a = base + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.4;
+    if (b.spots.some((s) => Math.abs(angWrap(s.a - a)) < 1.8)) continue;
+    const x = b.x + Math.sin(a) * R, z = b.z + Math.cos(a) * R;
+    if (blocked(x, z, c.r * 0.8)) continue;
+    const spot = { c, a, x, z }; b.spots.push(spot); return spot;
+  }
+  return null;
+}
+function releaseSpot(b, c) { b.spots = b.spots.filter((s) => s.c !== c); }
+
+// ===================================================================
+//  behaviour
+// ===================================================================
+const hungry = (c) => c.full < 0.25;
+function clearPlan(c) { for (const f of c.res) f(); c.res = []; c.queue = []; c.step = null; c.groomLeg = null; c.tongue.visible = false; c.playing = false; }
+function push(c, s) { c.queue.push(s); }
+function onFloor(c) { return !c.perch && !c.air; }
+function camHeading(c) { return Math.atan2(camera.position.x - c.pos.x, camera.position.z - c.pos.z); }
+
+function randomFloorPoint(c, near, minD = 0.5, maxD = 2.4) {
+  for (let k = 0; k < 40; k++) {
+    let x, z;
+    if (near) { const a = rand(0, Math.PI * 2), d = rand(minD, maxD); x = near.x + Math.sin(a) * d; z = near.z + Math.cos(a) * d; }
+    else { x = rand(-RX + 0.3, RX - 0.3); z = rand(-RZ + 0.3, RZ - 0.3); }
+    if (blocked(x, z, c.r + 0.08)) continue;
+    if (cats.some((o) => o !== c && !o.perch && Math.hypot(o.pos.x - x, o.pos.z - z) < 0.45)) continue;
+    return { x, z };
+  }
+  return null;
+}
+function sunSpot(c) {
+  for (let k = 0; k < 30; k++) {
+    const [x, z] = sunFloor(rand(0.2, 0.8), rand(0.22, 0.8));
+    if (blocked(x, z, c.r)) continue;
+    const gap = (o) => 0.33 * (c.s + o.s) + 0.12;
+    if (cats.some((o) => o !== c && ((!o.perch && Math.hypot(o.pos.x - x, o.pos.z - z) < gap(o)) || (o.goal && Math.hypot(o.goal.x - x, o.goal.z - z) < gap(o))))) continue;
+    return { x, z };
+  }
+  return null;
+}
+function planLeave(c) {   // jump down from wherever we are
+  let q = c.perch;
+  while (q) {
+    const to = q.parent ? q.parent.pos.clone() : q.approach.clone();
+    push(c, { type: "jump", to, perch: q.parent || null, hop: q.hop, status: "jumping down" });
+    q = q.parent;
+  }
+}
+function planGoToPerch(c, P) {
+  P.occ = c; c.res.push(() => { if (P.occ === c) P.occ = null; });
+  const chain = []; for (let q = P; q; q = q.parent) chain.unshift(q);
+  if (c.perch && chain.includes(c.perch)) chain.splice(0, chain.indexOf(c.perch) + 1);
+  else {
+    planLeave(c);
+    const bottom = chain[0];
+    push(c, { type: "walk", x: bottom.approach.x, z: bottom.approach.z, faceTo: bottom.pos, status: "exploring" });
+  }
+  for (const q of chain) push(c, { type: "jump", to: q.pos.clone(), perch: q, hop: q.hop, status: "jumping up" });
+}
+function poseStep(pose, dur, opts) { return Object.assign({ type: "pose", pose, dur }, opts || {}); }
+function planNap(c, preferSun) {
+  const L = c.def.likes, opts = [];
+  const sun = sunSpot(c);
+  if (sun) opts.push([(preferSun ? 3 : 1) * L.sun * 1.6, "sun"]);
+  for (const P of PERCHES) if (P.nap && !P.occ) opts.push([L[P.kind] * (P.kind === "sofa" ? 0.5 : 0.9), P]);
+  opts.push([0.4, "floor"]);
+  const ch = wpick(opts), dur = rand(28, 55) * L.lazy;
+  c.side = Math.random() < 0.5 ? -1 : 1;
+  if (ch === "sun") {
+    planLeave(c);
+    c.goal = sun; c.res.push(() => { c.goal = null; });
+    push(c, { type: "walk", x: sun.x, z: sun.z, status: "heading for the sun" });
+    push(c, poseStep("loaf", rand(3, 6)));
+    push(c, poseStep("curl", dur, { nap: true }));
+    push(c, { type: "fn", f: () => { c.goal = null; c.wake = true; } });
+  } else if (ch === "floor") {
+    if (!c.perch) { const p = randomFloorPoint(c, c.pos, 0.3, 1.5); if (p) push(c, { type: "walk", x: p.x, z: p.z, status: "exploring" }); }
+    push(c, poseStep("curl", dur, { nap: true }));
+    push(c, { type: "fn", f: () => { c.wake = true; } });
+  } else {
+    planGoToPerch(c, ch);
+    push(c, poseStep("loaf", rand(2, 5), { face: ch.face + rand(-0.6, 0.6) }));
+    push(c, poseStep("curl", dur, { nap: true }));
+    push(c, { type: "fn", f: () => { c.wake = true; c.perchActs = 1; } });
+  }
+}
+function groomStep(dur) { return poseStep("groom", dur, { groom: true }); }
+function playPartner(c) {
+  const ok = cats.filter((o) => o !== c && onFloor(o) && !o.playing && !(hungry(o) && bowls.length) &&
+    o.step && ((o.step.type === "pose" && ["sit", "stand", "loaf", "groom"].includes(o.step.pose)) || (o.step.type === "walk" && o.step.status === "exploring")) &&
+    Math.hypot(o.pos.x - c.pos.x, o.pos.z - c.pos.z) < 3);
+  return ok.length ? pick(ok) : null;
+}
+function startChase(a, b) {
+  clearPlan(a); clearPlan(b);
+  a.playing = b.playing = true;
+  const dur = rand(4, 7);
+  push(a, { type: "turn", h: Math.atan2(b.pos.x - a.pos.x, b.pos.z - a.pos.z), status: "playing" });
+  push(a, poseStep("crouch", rand(0.9, 1.5), { status: "stalking" }));
+  push(a, { type: "chase", target: b, dur, status: "playing" });
+  push(b, poseStep("stand", 0.9, { status: "playing", lookAt: a }));
+  push(b, { type: "flee", from: a, dur: dur + 1, status: "playing" });
+  const after = (c, other, chaser) => {
+    push(c, { type: "fn", f: () => { c.playing = false; } });
+    if (chaser && Math.random() < 0.35) { push(c, { type: "fn", f: () => { if (onFloor(other) && !other.playing && !(hungry(other) && bowls.length)) startChase(other, c); } }); }
+    push(c, poseStep("sit", rand(2, 4), { face: "cam" }));
+    push(c, groomStep(rand(3, 6)));
+  };
+  after(a, b, true); after(b, a, false);
+}
+function planEat(c, b, spot) {
+  clearPlan(c);
+  c.res.push(() => releaseSpot(b, c));
+  planLeave(c);
+  push(c, { type: "walk", x: spot.x, z: spot.z, faceTo: { x: b.x, z: b.z }, near: 0.04, status: "heading for food", food: true });
+  push(c, { type: "eat", bowl: b, status: "eating" });
+}
+function maybeGoEat(c) {
+  if (!hungry(c) || c.air) return;
+  if (c.step && (c.step.type === "eat" || c.step.food || c.step.type === "jump")) return;
+  const cand = bowls.filter((b) => !b.gone && bowlFree(b)).sort((p, q) => Math.hypot(p.x - c.pos.x, p.z - c.pos.z) - Math.hypot(q.x - c.pos.x, q.z - c.pos.z));
+  if (!cand.length) return;
+  if (c.smell < 0) { c.smell = rand(0.3, 2); return; }
+  if (c.smell > 0) return;
+  for (const b of cand) { const s = reserveSpot(b, c); if (s) { planEat(c, b, s); return; } }
+}
+
+function decide(c) {
+  const L = c.def.likes;
+  if (c.afterMeal) {
+    c.afterMeal = false;
+    if (!c.perch) push(c, poseStep("sit", rand(1.5, 3), { status: "licking lips" }));
+    push(c, groomStep(rand(4, 7)));
+    if (Math.random() < 0.7) planNap(c, true); else push(c, poseStep("loaf", rand(12, 20)));
+    return;
+  }
+  if (c.wake) {
+    c.wake = false; c.side = Math.random() < 0.5 ? -1 : 1;
+    if (!c.perch) push(c, poseStep("stretch", 2.4, { status: "stretching" }));
+    push(c, poseStep("sit", rand(2, 4)));
+    if (Math.random() < 0.5) push(c, groomStep(rand(4, 7)));
+    return;
+  }
+  if (c.perch) {
+    const P = c.perch;
+    if ((c.perchActs || 0) > 0) {
+      c.perchActs--;
+      c.side = Math.random() < 0.5 ? -1 : 1;
+      const a = wpick([[2, "sit"], [1.4, "groom"], [P.kind === "tree" && !P.nap ? 0.5 : 2, "loaf"], [P.nap ? 1.5 * L.lazy : 0, "nap"]]);
+      const face = (P.face || 0) + rand(-0.7, 0.7);
+      if (a === "nap") { push(c, poseStep("curl", rand(25, 50) * L.lazy, { nap: true })); push(c, { type: "fn", f: () => { c.wake = true; } }); }
+      else if (a === "groom") push(c, groomStep(rand(5, 9)));
+      else push(c, poseStep(a, rand(6, 14), { face: Math.random() < 0.35 ? "cam" : face }));
+      return;
+    }
+    planLeave(c);
+    const p = randomFloorPoint(c, null);
+    if (p) push(c, { type: "walk", x: p.x, z: p.z, status: "exploring" });
+    return;
+  }
+  const partner = !hungry(c) ? playPartner(c) : null;
+  const sunOK = !!sunSpot(c);
+  const perchOK = PERCHES.some((P) => !P.occ && P.id !== "tLow" && P.id !== "tMid");
+  const ch = wpick([
+    [3, "wander"], [1.6, "sit"], [1.3, "groom"], [1.0 * L.lazy, "loaf"], [0.8 * L.lazy, "nap"], [sunOK ? 1.6 * L.sun : 0, "sun"],
+    [perchOK ? 2.2 : 0, "perch"], [partner ? 0.9 * L.play : 0, "play"], [0.3, "stretch"], [hungry(c) ? 3 : 0, "beg"],
+  ]);
+  c.side = Math.random() < 0.5 ? -1 : 1;
+  if (ch === "wander") {
+    const p = randomFloorPoint(c, c.pos, 0.6, 2.3) || randomFloorPoint(c, null);
+    if (p) push(c, { type: "walk", x: p.x, z: p.z, status: "exploring" });
+    push(c, poseStep("stand", rand(1.5, 3.5)));
+  } else if (ch === "sit") push(c, poseStep("sit", rand(6, 14), { face: Math.random() < 0.4 ? "cam" : undefined }));
+  else if (ch === "groom") push(c, groomStep(rand(6, 11)));
+  else if (ch === "loaf") push(c, poseStep(Math.random() < 0.5 ? "loaf" : "sphinx", rand(10, 22), { face: Math.random() < 0.3 ? "cam" : undefined }));
+  else if (ch === "nap") planNap(c, false);
+  else if (ch === "sun") planNap(c, true);
+  else if (ch === "stretch") push(c, poseStep("stretch", 2.4));
+  else if (ch === "play") startChase(c, partner);
+  else if (ch === "beg") {
+    // wander over to the front of the room and look up at you
+    const cp = camera.position, d = Math.hypot(cp.x, cp.z) || 1;
+    const p = pushOut({ x: cp.x / d * 1.6 + rand(-0.6, 0.6), z: cp.z / d * 1.6 + rand(-0.4, 0.4) }, c.r + 0.05);
+    push(c, { type: "walk", x: p.x, z: p.z, status: "hungry" });
+    push(c, poseStep("sit", rand(5, 9), { face: "cam", status: "hungry", beg: true }));
+  } else if (ch === "perch") {
+    const opts = PERCHES.filter((P) => !P.occ && P.id !== "tLow" && P.id !== "tMid").map((P) => [L[P.kind] * (P.kind === "sofa" ? 0.6 : 1), P]);
+    const P = wpick(opts);
+    planGoToPerch(c, P);
+    c.perchActs = 1 + Math.floor(Math.random() * 3);
+  }
+}
+
+// steering on the floor: feel ahead and veer around furniture and other cats
+const FEEL = [0, 0.3, -0.3, 0.6, -0.6, 0.9, -0.9, 1.25, -1.25, 1.6, -1.6, 2.1, -2.1, 2.6, -2.6];
+function freeFor(c, x, z, ignore) {
+  if (blocked(x, z, c.r)) return false;
+  for (const o of cats) {
+    if (o === c || o === ignore || o.perch || o.air) continue;
+    if (Math.hypot(o.pos.x - x, o.pos.z - z) < (c.r + o.r) * 0.95) return false;
+  }
+  return true;
+}
+function steer(c, desired, look, ignore) {
+  const sd = c.steerSide || 1;
+  for (const off of FEEL) {
+    const a = desired + off * sd;
+    if (freeFor(c, c.pos.x + Math.sin(a) * look, c.pos.z + Math.cos(a) * look, ignore) && freeFor(c, c.pos.x + Math.sin(a) * look * 0.5, c.pos.z + Math.cos(a) * look * 0.5, ignore)) {
+      if (off !== 0) c.steerSide = Math.sign(off * sd);
+      return a;
+    }
+  }
+  return desired;
+}
+function turnTo(c, h, dt, rate = 4) { const d = angWrap(h - c.heading); c.heading += clamp(d, -rate * dt, rate * dt); return Math.abs(d) < 0.06; }
+function moveToward(c, x, z, run, dt, ignore, near, noSteer) {
+  const dx = x - c.pos.x, dz = z - c.pos.z, dist = Math.hypot(dx, dz);
+  const vmax = (run ? 1.15 : 0.36) * c.s;
+  let desired = Math.atan2(dx, dz);
+  if (!noSteer) desired = steer(c, desired, Math.min(dist, 0.3 * c.s + 0.12), ignore);
+  const diff = angWrap(desired - c.heading);
+  c.heading += clamp(diff, -(run ? 7 : 4.5) * dt, (run ? 7 : 4.5) * dt);
+  const tgt = vmax * (Math.abs(diff) > 1.1 ? 0.2 : 1) * clamp(dist / (run ? 0.5 : 0.3) + 0.2, 0, 1) * (dist < (near || 0.05) ? 0 : 1);
+  c.speed += (tgt - c.speed) * Math.min(1, dt * (run ? 5 : 3.5));
+  c.pos.x += Math.sin(c.heading) * c.speed * dt; c.pos.z += Math.cos(c.heading) * c.speed * dt;
+  if (!noSteer) pushOut(c.pos, c.r * 0.7);
+  return dist;
+}
+
+function startStep(c, s) {
+  c.stepT = 0; s.init = false;
+  if (s.type === "walk") { setPose(c, s.run ? "run" : "walk"); s.best = Infinity; s.stuck = 0; }
+  if (s.type === "pose") {
+    if (s.face !== undefined || s.lookAt) { s.turning = true; if (["curl", "loaf", "sphinx"].includes(c.poseName) && !c.perch) setPose(c, "stand"); }
+    else setPose(c, s.pose);
+  }
+  if (s.type === "chase" || s.type === "flee") setPose(c, "run");
+  if (s.type === "eat") setPose(c, "eat");
+  if (s.type === "turn") setPose(c, c.perch ? c.poseName : "stand");
+}
+function runStep(c, s, dt) {
+  switch (s.type) {
+    case "fn": s.f(); return true;
+    case "walk": {
+      const arrive = (s.near || 0.06) + 0.02;
+      if (s.arrived || Math.hypot(s.x - c.pos.x, s.z - c.pos.z) < arrive) {
+        s.arrived = true;
+        c.speed = Math.max(0, c.speed - dt * 2);
+        if (s.faceTo) return turnTo(c, Math.atan2(s.faceTo.x - c.pos.x, s.faceTo.z - c.pos.z), dt);
+        return true;
+      }
+      const dist = moveToward(c, s.x, s.z, s.run, dt, null, s.near, s.noSteer);
+      if (dist < s.best - 0.02) { s.best = dist; s.stuck = 0; } else if ((s.stuck += dt) > 2.5) { if (s.food || s.faceTo) { c.pos.x = lerp(c.pos.x, s.x, 0.5); c.pos.z = lerp(c.pos.z, s.z, 0.5); s.stuck = 0; return false; } return true; }
+      return false;
+    }
+    case "turn": c.speed *= 0.8; return turnTo(c, s.h, dt, 5);
+    case "pose": {
+      c.speed = Math.max(0, c.speed - dt * 2);
+      if (s.turning) {
+        let h = s.face === "cam" ? camHeading(c) : s.face;
+        if (s.lookAt) h = Math.atan2(s.lookAt.pos.x - c.pos.x, s.lookAt.pos.z - c.pos.z);
+        if (h === undefined || turnTo(c, h, dt, 3.5) || c.stepT > 2.5) { s.turning = false; setPose(c, s.pose); c.stepT = 0; }
+        return false;
+      }
+      if (s.groom) groomAnim(c, s);
+      if (s.beg && c.stepT > 1.5 && c.sb.ph === 0 && Math.random() < dt * 0.4) c.sb = { ph: 1, t: 0 };
+      if (c.stepT >= s.dur) { c.groomLeg = null; c.tongue.visible = false; c.extraUp = 0; return true; }
+      return false;
+    }
+    case "eat": {
+      const b = s.bowl;
+      c.speed = 0;
+      turnTo(c, Math.atan2(b.x - c.pos.x, b.z - c.pos.z), dt, 2);
+      if (b.gone) return true;
+      const amt = Math.min(dt * 0.13, b.food);
+      b.food -= amt; c.full = Math.min(1, c.full + amt);
+      c.extraUp = Math.sin(c.stepT * 9) * 0.07;
+      if (c.full >= 1 || b.food <= 0.001) {
+        releaseSpot(b, c); c.extraUp = 0;
+        if (c.full >= 0.25) { c.decay = 0.75 / rand(60, 120); c.afterMeal = true; }
+        return true;
+      }
+      return false;
+    }
+    case "jump": return jumpStep(c, s, dt);
+    case "chase": {
+      const b = s.target;
+      if (c.stepT > s.dur || !b.playing) return true;
+      const lead = 0.25;
+      const tx = b.pos.x + Math.sin(b.heading) * b.speed * lead, tz = b.pos.z + Math.cos(b.heading) * b.speed * lead;
+      const d = moveToward(c, tx, tz, true, dt, b);
+      if (d < 0.28 * c.s && c.stepT > 1) { c.speed *= 0.5; return true; }
+      return false;
+    }
+    case "flee": {
+      const a = s.from;
+      if (c.stepT > s.dur || (a.step && a.step.type !== "chase" && a.step.type !== "pose" && a.step.type !== "turn")) return true;
+      if (!s.goal || Math.hypot(s.goal.x - c.pos.x, s.goal.z - c.pos.z) < 0.25 || (s.re = (s.re || 0) + dt) > 2.5) {
+        let best = null, bd = -1;
+        for (let k = 0; k < 10; k++) { const p = randomFloorPoint(c, c.pos, 0.8, 2.2); if (!p) continue; const d = Math.hypot(p.x - a.pos.x, p.z - a.pos.z); if (d > bd) { bd = d; best = p; } }
+        s.goal = best || { x: 0, z: 0 }; s.re = 0;
+      }
+      moveToward(c, s.goal.x, s.goal.z, a.step && a.step.type === "chase", dt, a);
+      return false;
+    }
+  }
+  return true;
+}
+function jumpStep(c, s, dt) {
+  if (!s.init) {
+    s.init = true; s.phase = 0; s.t = 0;
+    s.from = c.pos.clone();
+    s.dist = Math.hypot(s.to.x - c.pos.x, s.to.z - c.pos.z);
+    s.h = s.dist > 0.03 ? Math.atan2(s.to.x - c.pos.x, s.to.z - c.pos.z) : c.heading;
+    const dy = s.to.y - s.from.y;
+    s.dur = 0.34 + 0.22 * s.dist + 0.12 * Math.abs(dy);
+    s.peak = s.hop !== undefined ? s.hop : (dy > 0 ? 0.1 + dy * 0.45 : 0.08 + s.dist * 0.05);
+    setPose(c, "crouch");
+  }
+  s.t += dt; c.speed = 0;
+  if (s.phase === 0) {
+    const ok = turnTo(c, s.h, dt, 5);
+    if (ok && s.t > 0.35) {
+      s.phase = 1; s.t = 0; c.air = true; setPose(c, "air");
+      if (c.perch && c.perch !== s.perch && c.perch.occ === c) c.perch.occ = null;
+      c.perch = null;
+    }
+    return false;
+  }
+  if (s.phase === 1) {
+    const u = Math.min(1, s.t / s.dur);
+    c.pos.x = lerp(s.from.x, s.to.x, u); c.pos.z = lerp(s.from.z, s.to.z, u);
+    c.pos.y = lerp(s.from.y, s.to.y, u) + s.peak * 4 * u * (1 - u);
+    const vy = (s.to.y - s.from.y) + s.peak * 4 * (1 - 2 * u);
+    c.airPitch = clamp(Math.atan2(vy, Math.max(0.15, s.dist)) * 0.6, -0.7, 0.8);
+    if (u >= 1) { s.phase = 2; s.t = 0; c.air = false; c.perch = s.perch; c.pos.copy(s.to); setPose(c, "crouch"); }
+    return false;
+  }
+  if (s.t > 0.2) { setPose(c, "stand"); return true; }
+  return false;
+}
+
+function groomAnim(c, s) {
+  if (!s.mode || c.stepT > s.next) {
+    s.mode = pick(["paw", "flank", "chest", "paw"]); s.next = c.stepT + rand(2.2, 3.5); s.gs = Math.random() < 0.5 ? -1 : 1;
+  }
+  const lick = Math.sin(c.stepT * 10);
+  c.tongue.visible = lick > 0.35;
+  const T = c.T;
+  if (s.mode === "paw") { T.up = -0.3; T.yaw = 0.15 * s.gs; c.groomLeg = c.legs[s.gs < 0 ? 0 : 1]; c.extraUp = lick * 0.05; }
+  else if (s.mode === "flank") { T.up = -0.55; T.yaw = 1.55 * s.gs; c.groomLeg = null; c.extraUp = lick * 0.06; }
+  else { T.up = -1.0; T.yaw = 0; c.groomLeg = null; c.extraUp = lick * 0.05; }
+}
+
+// ===================================================================
+//  per-frame cat update: behaviour, then animation
+// ===================================================================
+function updateCat(c, dt, t) {
+  if (c.full > 0) c.full = Math.max(0, c.full - c.decay * dt);
+  const gT = 1 + 0.26 * smooth(0.25, 1, c.full);
+  c.girth += (gT - c.girth) * Math.min(1, dt * 0.6);
+  if (c.smell > 0) c.smell = Math.max(0, c.smell - dt);
+  if ((c.foodCheck -= dt) < 0) { c.foodCheck = rand(0.3, 0.7); maybeGoEat(c); }
+  for (let guard = 0; guard < 6; guard++) {   // run instant steps (fn) right away so there is always a current step
+    if (!c.step) {
+      if (!c.queue.length) decide(c);
+      c.step = c.queue.shift() || poseStep("stand", 1);
+      startStep(c, c.step);
+    }
+    c.stepT += guard ? 0 : dt;
+    if (!runStep(c, c.step, guard ? 0 : dt)) break;
+    c.step = null;
+  }
+  if (!c.perch && !c.air) c.pos.y = 0;
+  animate(c, dt, t);
+}
+
+const RELAXED = ["sit", "loaf", "sphinx", "stand"];
+function animate(c, dt, t) {
+  const P = c.P, T = c.T, k = 1 - Math.exp(-dt * T.k);
+  for (const key of PK) P[key] += (T[key] - P[key]) * k;
+  const dh = Math.abs(angWrap(c.heading - c.prevH)); c.prevH = c.heading;
+  c.turnSpd += ((dh / Math.max(dt, 1e-3)) - c.turnSpd) * Math.min(1, dt * 10);
+  const gs = c.air ? 0 : c.speed + Math.min(c.turnSpd, 4) * 0.06 * c.s;
+  const run = c.speed > 0.6 * c.s, A = run ? 0.12 : 0.07;
+  c.gait += (gs / c.s) * Math.PI / (2 * A) * dt;
+  const gAmt = smooth(0.005, 0.09 * c.s, gs);
+
+  c.root.position.copy(c.pos); c.root.rotation.y = c.heading;
+  let hip = P.hipY, pitch = P.pitch;
+  hip -= Math.abs(Math.sin(c.gait * 2)) * 0.007 * gAmt * (run ? 2.5 : 1);
+  if (run) pitch += Math.sin(c.gait * 2) * 0.08 * gAmt;
+  if (c.air) pitch = lerp(pitch, c.airPitch, 0.8);
+  c.spine.position.y = hip; c.spine.rotation.set(-pitch, 0, P.roll);
+  c.front.rotation.y = P.bend; c.rear.rotation.y = -P.bend * 0.85;
+  const asleep = P.eye < 0.2 && c.poseName === "curl";
+  const br = 1 + Math.sin(t * (asleep ? 1.6 : 2.7) + c.ph) * (asleep ? 0.035 : 0.015);
+  for (const b of c.body) {
+    const gx = b.belly ? Math.pow(c.girth, 1.8) : c.girth;
+    b.m.scale.set(b.sx * gx, b.sy * gx * br, b.sz * (b.belly ? 1 + (c.girth - 1) * 0.6 : 1 + (c.girth - 1) * 0.2));
+    if (b.belly) b.m.position.y = b.y - (c.girth - 1) * 0.07;
+  }
+
+  // head: idle looks, camera glances, cute tilts
+  if ((c.lookT -= dt) < 0) {
+    c.lookT = rand(1.5, 4.5);
+    const r = Math.random();
+    c.lookCam = false;
+    if (r < 0.3) c.lookCam = true;
+    else if (r < 0.75) { c.lookTY = rand(-0.9, 0.9); c.lookTU = rand(-0.15, 0.25); }
+    else { c.lookTY = 0; c.lookTU = 0; }
+    c.tiltT = c.lookCam && Math.random() < 0.35 ? rand(-0.3, 0.3) : 0;
+  }
+  const canLook = RELAXED.includes(c.poseName) && !(c.step && c.step.groom) && c.sb.ph === 0;
+  let ly = 0, lu = 0;
+  if (canLook) {
+    if (c.lookCam) {
+      ly = clamp(angWrap(camHeading(c) - c.heading), -1.3, 1.3);
+      const hp = c.headPivot.getWorldPosition(_w);
+      lu = clamp(Math.atan2(camera.position.y - hp.y, Math.hypot(camera.position.x - hp.x, camera.position.z - hp.z)) * 0.7 - P.up, -0.3, 0.6);
+    } else { ly = c.lookTY; lu = c.lookTU; }
+  }
+  if (c.step && c.step.lookAt) { ly = clamp(angWrap(Math.atan2(c.step.lookAt.pos.x - c.pos.x, c.step.lookAt.pos.z - c.pos.z) - c.heading), -1.3, 1.3); }
+  c.lookYaw += (ly - c.lookYaw) * Math.min(1, dt * 5); c.lookUp += (lu - c.lookUp) * Math.min(1, dt * 5);
+  c.tilt += ((canLook ? c.tiltT : 0) - c.tilt) * Math.min(1, dt * 3);
+  // slow blink ("cat kiss"): close over ~0.7 s, hold ~0.4 s, open over ~0.7 s
+  let sbF = 1, sbDip = 0;
+  const near = camera.position.distanceTo(c.root.position) < 3.4;
+  if (c.sb.ph === 0) {
+    const relaxed = RELAXED.includes(c.poseName) && P.eye > 0.4 && !(c.step && c.step.groom);
+    if (relaxed) {
+      c.sbT -= dt * (1 + (near ? 1.5 : 0) + (c.lookCam ? 1.5 : 0) + (c.poseName !== "stand" ? 0.5 : 0));
+      if (c.sbT < 0) { c.sb = { ph: 1, t: 0 }; c.sbT = rand(10, 22); }
+    }
+  } else {
+    c.sb.t += dt;
+    if (c.sb.ph === 1) { sbF = 1 - smooth(0, 0.7, c.sb.t); if (c.sb.t > 0.7) c.sb = { ph: 2, t: 0 }; }
+    else if (c.sb.ph === 2) { sbF = 0; if (c.sb.t > 0.42) c.sb = { ph: 3, t: 0 }; }
+    else { sbF = smooth(0, 0.75, c.sb.t); if (c.sb.t > 0.75) c.sb = { ph: 0, t: 0 }; }
+    sbDip = (1 - sbF) * 0.1;
+  }
+  const lying = smooth(0.12, 0.07, P.hipY) * smooth(0.5, 0.2, P.pitch);
+  c.headPivot.position.y = 0.09 - 0.04 * lying;
+  c.headPivot.rotation.y = P.yaw + c.lookYaw - P.bend;
+  c.headPivot.rotation.x = pitch - (P.up + c.lookUp + c.extraUp - sbDip);
+  c.headPivot.rotation.z = -P.roll * 0.6 + c.tilt;
+
+  // eyes: quick blinks, slow blinks, pupils narrow in the sun and go wide when playing
+  if ((c.blinkT -= dt) < 0) { c.blink = 0.15; c.blinkT = rand(2.5, 7); }
+  c.blink = Math.max(0, c.blink - dt);
+  const open = P.eye * (c.blink > 0 ? 0.08 : 1) * sbF;
+  for (const e of c.eyes) e.scale.y = Math.max(0.07, open);
+  for (const h of c.hls) h.visible = open > 0.3;
+  c.irisMat.color.copy(c.eyeCol).lerp(tmpC.set(0x2a2322), smooth(0.35, 0.08, open));
+  c.irisMat.emissiveIntensity = 0.25 * smooth(0.1, 0.5, open);
+  const pw = c.playing ? 0.75 : c.sun > 0.3 ? 0.14 : 0.32;
+  c.pupilW += (pw - c.pupilW) * Math.min(1, dt * 3);
+  for (const p of c.pupils) p.scale.x = c.pupilW;
+
+  // ears: flatten for play, twitch now and then
+  if ((c.earT -= dt) < 0) { c.earT = rand(2, 7); pick(c.ears).tw = 1; }
+  for (const e of c.ears) {
+    e.tw = Math.max(0, e.tw - dt * 5);
+    e.g.rotation.set(e.rx - P.ear * 0.5 - e.tw * 0.45, e.ry + e.sx * P.ear * 0.3, e.rz - e.sx * P.ear * 0.5);
+  }
+  // tail
+  const N = c.tail.length;
+  {   // keep the tail out of the body roll so it lies flat when curled up: Ry(-b) * Rz(-roll) * Ry(b), b = rear yaw
+    const b = -P.bend * 0.85;
+    _q1.setFromAxisAngle(_ay, -b); _q2.setFromAxisAngle(_az, -P.roll); _q3.setFromAxisAngle(_ay, b);
+    c.tailRoot.quaternion.copy(_q1).multiply(_q2).multiply(_q3);
+  }
+  for (let i = 0; i < N; i++) {
+    const f = i / (N - 1), sg = c.tail[i];
+    sg.rotation.x = (i === 0 ? P.tailBase : P.tailX) + (i >= N - 3 ? P.tailTip : 0);
+    sg.rotation.y = (i === 0 ? 0 : P.tailY) + Math.sin(t * P.swaySpd - i * 0.55 + c.ph) * P.sway * (0.25 + f);
+  }
+  // legs
+  c.root.updateMatrixWorld(true);
+  for (const leg of c.legs) {
+    leg.hip.getWorldPosition(_w); c.root.worldToLocal(_w);
+    let tx = _w.x, tz = _w.z + (leg.front ? P.fOff : P.hOff), ty = 0.016;
+    if (c.air) { ty = _w.y - 0.17; tz = _w.z + (leg.front ? 0.09 : -0.12); }
+    else if (gAmt > 0.001) {
+      const ph = c.gait + (run ? leg.runPh : leg.ph) * Math.PI * 2;
+      tz += A * Math.cos(ph) * gAmt; ty += (run ? 0.06 : 0.035) * Math.max(0, -Math.sin(ph)) * gAmt;
+    }
+    if (leg === c.groomLeg) { ty = _w.y + 0.1; tz = _w.z + 0.1; tx = _w.x * 0.5; }
+      solveLeg(c, leg, new THREE.Vector3(tx, ty, tz), pitch);
+  }
+  // sunlight warms the fur
+  const sunT = !c.perch && !c.air ? sunAt(c.pos.x, c.pos.z) : 0;
+  c.sun += (sunT - c.sun) * Math.min(1, dt * 2);
+  c.fur.emissive.setRGB(0.07, 0.04, 0.012).multiplyScalar(c.sun * (c.def.pat === "black" ? 0.35 : 1));
+}
+
+// ===================================================================
+//  Dolly's party hat: an ice-cream cone (pink top with sprinkles, waffle cone, white elastic)
+// ===================================================================
+const waffleTex = canvasTex(128, 128, (g, w, h) => {
+  g.fillStyle = "#dca65a"; g.fillRect(0, 0, w, h);
+  g.strokeStyle = "#f3cd7c"; g.lineWidth = 3;
+  for (let k = -w; k < 2 * w; k += 22) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k + h * 0.6, h); g.stroke(); g.beginPath(); g.moveTo(k, h); g.lineTo(k + h * 0.6, 0); g.stroke(); }
+});
+waffleTex.wrapS = waffleTex.wrapT = THREE.RepeatWrapping; waffleTex.repeat.set(2, 1);
+function makeHat() {
+  const g = new THREE.Group();
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.049, 0.05, 10), M(0xf2909c)); band.position.y = 0.025; g.add(band);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.036, 0.1, 10, 2), new THREE.MeshStandardMaterial({ map: waffleTex, roughness: 0.6, metalness: 0.1, flatShading: true }));
+  cone.position.y = 0.1; g.add(cone);
+  const sprCols = [0xffffff, 0x7fd0c0, 0xf6d45a, 0x8fb4ec, 0xe4605a, 0xb79be0];
+  for (let k = 0; k < 16; k++) {
+    const a = k * 2.399, y = 0.008 + (k * 0.37 % 1) * 0.036, r = 0.049 - (y / 0.05) * 0.013 + 0.001;
+    const sp = new THREE.Mesh(new THREE.BoxGeometry(0.0035, 0.0035, 0.011), M(sprCols[k % sprCols.length]));
+    sp.position.set(Math.sin(a) * r, y, Math.cos(a) * r); sp.rotation.set(0, a, (k % 3 - 1) * 0.9); g.add(sp);
+  }
+  g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  return g;
+}
+const dolly = cats.find((c) => c.name === "Dolly");
+{   // Dolly always wears her hat, slightly tilted, held on by a white elastic under the chin
+  const hat = makeHat();
+  hat.position.set(0.006, 0.096, 0.028); hat.rotation.set(-0.18, 0, -0.32); dolly.head.add(hat);
+  const elastic = new THREE.Mesh(new THREE.TorusGeometry(0.084, 0.0018, 4, 14, Math.PI), M(0xf7f5f0));   // lower half only: down the cheeks, under the chin
+  elastic.position.set(0, 0.05, 0.05); elastic.rotation.set(-0.3, 0, Math.PI); dolly.head.add(elastic);
+  dolly.hat = { g: hat, elastic };
+}
+
+// ===================================================================
+//  starting scene
+// ===================================================================
+function placeOn(c, P, h) { c.perch = P; P.occ = c; c.pos.copy(P.pos); c.heading = h; c.prevH = h; }
+{
+  const byName = (n) => cats.find((c) => c.name === n);
+  const L1 = byName("Lenny 1"), L2 = byName("Lenny 2"), E = byName("Edna"), D = byName("Dolly"), F = byName("Frank"), Fl = byName("Fläckli");
+  // Fläckli sits by the rug, looking at you
+  Fl.pos.set(1.25, 0, 0.15); Fl.heading = -0.8; setPose(Fl, "sit"); snapPose(Fl); Fl.step = poseStep("sit", 6, {}); Fl.full = 0.6;
+  // Frank naps in the sun
+  const [fx, fz] = sunFloor(0.55, 0.5); F.pos.set(fx, 0, fz); F.heading = 2.2; F.side = 1;
+  setPose(F, "curl"); snapPose(F); F.step = poseStep("curl", 30, { nap: true }); F.stepT = 0; push(F, { type: "fn", f: () => { F.wake = true; } }); F.full = 0.9;
+  // Edna on the sofa
+  placeOn(E, PERCHES[0], Math.PI / 2 + 0.3); E.side = -1; setPose(E, "loaf"); snapPose(E); E.step = poseStep("loaf", 14, {}); E.perchActs = 2; E.full = 0.7;
+  // Dolly on top of the cat tree
+  placeOn(D, PERCHES[4], 0.6); D.side = 1; setPose(D, "loaf"); snapPose(D); D.step = poseStep("loaf", 9, {}); D.perchActs = 2; D.full = 0.1;
+  // the Lennys on the floor
+  L1.pos.set(0.6, 0, 0.9); L1.heading = 0.5; setPose(L1, "sit"); snapPose(L1); L1.step = poseStep("sit", 5, {}); L1.full = 0.5;
+  L2.pos.set(-0.7, 0, 1.2); L2.heading = -2.4; setPose(L2, "stand"); snapPose(L2); L2.step = poseStep("stand", 1.5, {}); L2.full = 0.12;
+  for (const c of cats) { c.prevH = c.heading; c.decay = 0.75 / rand(60, 120); }
+}
+
+// ===================================================================
+//  panel, labels, list
+// ===================================================================
+const panel = $("panel"), openBtn = $("openPanel");
+function setPanel(open) { panel.classList.toggle("hidden", !open); openBtn.hidden = open; }
+$("closePanel").onclick = () => setPanel(false);
+openBtn.onclick = () => setPanel(true);
+addEventListener("keydown", (e) => { if (e.key === "h" || e.key === "H") setPanel(panel.classList.contains("hidden")); });
+const isTouch = matchMedia("(pointer: coarse)").matches;
+setPanel(!(innerWidth < 760 || isTouch));
+if (isTouch) {
+  $("hintbar").textContent = "Drag to look around · tap the floor to put down food · tap a cat to see its name";
+}
+setTimeout(() => $("hintbar").style.opacity = 0, 10000);
+
+const listEl = $("catList");
+for (const c of allCats) {
+  const li = document.createElement("li");
+  li.title = c.def.desc;
+  li.innerHTML = `<span class="sw" style="background:${c.def.sw}"></span><span class="nm">${c.name}</span><span class="st"></span>`;
+  li.onclick = () => { showLabel(c, 5); cam.follow = c; cam.followT = 6; cam.idle = 0; if (innerWidth < 760) setPanel(false); };
+  listEl.appendChild(li); c.li = li.querySelector(".st"); c.row = li;
+}
+// ---- modes: everyone, the Swiss cats, or the American cats
+const MODES = {
+  all: { label: "All the kitties", names: null },
+  ch: { label: "Switzerland", names: ["Lenny 1", "Lenny 2", "Edna", "Fläckli"] },
+  us: { label: "America", names: ["Dolly", "Frank"], tip: "Leslie mode" },
+};
+const usSvg = (() => {
+  let t = '<svg viewBox="0 0 190 100" aria-hidden="true">';
+  for (let i = 0; i < 13; i++) t += `<rect y="${(i * 100 / 13).toFixed(2)}" width="190" height="${(100 / 13 + 0.4).toFixed(2)}" fill="${i % 2 ? "#fff" : "#b22234"}"/>`;
+  t += '<rect width="76" height="53.85" fill="#3c3b6e"/>';
+  for (let r = 0; r < 9; r++) for (let k = 0; k < (r % 2 ? 5 : 6); k++) t += `<circle cx="${(76 * ((r % 2 ? 2 : 1) + k * 2) / 12).toFixed(1)}" cy="${(53.85 * (r + 1) / 10).toFixed(1)}" r="2.6" fill="#fff"/>`;
+  return t + "</svg>";
+})();
+const MODE_ICONS = {
+  all: '<svg class="paw" viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor"><ellipse cx="12" cy="16.5" rx="5.2" ry="4.4"/><circle cx="5.6" cy="10.5" r="2.3"/><circle cx="9.6" cy="6.4" r="2.3"/><circle cx="14.4" cy="6.4" r="2.3"/><circle cx="18.4" cy="10.5" r="2.3"/></g></svg>',
+  ch: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" fill="#da291c"/><rect x="13" y="6" width="6" height="20" fill="#fff"/><rect x="6" y="13" width="20" height="6" fill="#fff"/></svg>',
+  us: usSvg,
+};
+let mode = "all";
+$("modes").innerHTML = Object.entries(MODES).map(([k, m]) => `<button data-m="${k}" aria-pressed="false"${m.tip ? ` data-tip="${m.tip}" aria-description="${m.tip}"` : ""}>${MODE_ICONS[k]}<span>${m.label}</span></button>`).join("");
+$("modes").querySelectorAll("button").forEach((b) => b.onclick = () => setMode(b.dataset.m));
+function updateSub() {
+  const n = cats.map((c) => c.name);
+  const list = n.length > 1 ? n.slice(0, -1).join(", ") + " and " + n[n.length - 1] : n[0];
+  panel.querySelector(".sub").textContent = `${list}. ${isTouch ? "Tap" : "Click"} the floor to put down food.`;
+}
+function leaveCat(c, instant) {
+  clearPlan(c);
+  for (const P of PERCHES) if (P.occ === c) P.occ = null;
+  for (const b of bowls) releaseSpot(b, c);
+  c.present = false; c.air = false; c.perch = null; c.goal = null; c.labelT = 0; c.label.classList.remove("on");
+  if (hoverCat === c) hoverCat = null;
+  if (cam.follow === c) { cam.follow = null; cam.followT = 0; }
+  c.row.hidden = true;
+  c.fade = instant ? 0 : 1; if (instant) c.root.visible = false;
+}
+function enterCat(c, instant) {
+  c.present = true; c.row.hidden = false;
+  c.perch = null; c.air = false; c.queue = []; c.step = null; c.speed = 0; c.playing = false; c.wake = false; c.afterMeal = false;
+  const p = randomFloorPoint(c, null) || { x: rand(-1, 1), z: rand(0, 1) };
+  c.pos.set(p.x, 0, p.z); c.heading = c.prevH = rand(-Math.PI, Math.PI);
+  c.side = Math.random() < 0.5 ? -1 : 1; setPose(c, "sit"); snapPose(c);
+  c.queue.push(poseStep("sit", rand(2, 5), { face: "cam" }));
+  c.root.visible = true; c.fade = 0; c.pop = instant ? 1 : 0;
+  c.root.scale.setScalar(c.def.scale * (instant ? 1 : 0.001));
+}
+function setMode(m, instant) {
+  if (!MODES[m]) m = "all";
+  mode = m;
+  const want = MODES[m].names;
+  for (const c of allCats) {
+    const on = !want || want.includes(c.name);
+    if (on && !c.present) enterCat(c, instant);
+    else if (!on && c.present) leaveCat(c, instant);
+  }
+  cats.length = 0; cats.push(...allCats.filter((c) => c.present));
+  $("modes").querySelectorAll("button").forEach((b) => { const on = b.dataset.m === m; b.classList.toggle("on", on); b.setAttribute("aria-pressed", on); });
+  setFlag(m); setSky(m); updateSub();
+  try { localStorage.setItem("cats-mode", m); } catch (e) {}
+}
+function initMode() { let m = "all"; try { m = localStorage.getItem("cats-mode") || "all"; } catch (e) {} setMode(m, true); }
+// cats popping in and shrinking out when the mode changes
+function updatePops(dt) {
+  for (const c of allCats) {
+    if (c.present && c.pop < 1) {
+      c.pop = Math.min(1, c.pop + dt * 3);
+      const t = c.pop - 1, k = 1 + 2.7 * t * t * t + 1.7 * t * t;   // ease out with a little overshoot
+      c.root.scale.setScalar(c.def.scale * Math.max(0.001, k));
+    } else if (!c.present && c.root.visible) {
+      c.fade -= dt * 4;
+      if (c.fade <= 0) { c.root.visible = false; c.root.scale.setScalar(c.def.scale); }
+      else c.root.scale.setScalar(c.def.scale * c.fade);
+    }
+  }
+}
+function statusOf(c) {
+  const s = c.step; let st = "";
+  if (s) st = s.status || (s.type === "pose" ? (s.nap ? "napping" : POSE_STATUS[s.pose] || "") : s.type === "eat" ? "eating" : s.type === "jump" ? "jumping" : "exploring");
+  if (c.perch && !c.air && s && s.type !== "jump" && !/sofa|tree|box|bed/.test(st)) st += " " + c.perch.where;
+  else if (!c.perch && c.sun > 0.4 && /napping|loafing|sitting|lying|grooming/.test(st)) st += " in the sun";
+  if (hungry(c) && !/food|eating|hungry/.test(st)) st = "hungry, " + st;
+  return st.charAt(0).toUpperCase() + st.slice(1);
+}
+function showLabel(c, secs) { c.labelT = Math.max(c.labelT, secs); }
+let hoverCat = null;
+function updateLabels(dt) {
+  for (const c of cats) {
+    c.labelT = Math.max(0, c.labelT - dt);
+    const on = c.labelT > 0 || hoverCat === c;
+    c.label.classList.toggle("on", on);
+    if (!on && c.label.style.opacity === "0") continue;
+    c.headPivot.getWorldPosition(_w); _w.y += 0.2 * c.s;
+    _w.project(camera);
+    if (_w.z > 1) { c.label.classList.remove("on"); continue; }
+    const x = (_w.x * 0.5 + 0.5) * innerWidth, y = (-_w.y * 0.5 + 0.5) * innerHeight;
+    c.label.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
+  }
+}
+
+// ===================================================================
+//  camera: drag to orbit, wheel / pinch zoom, slow drift when idle
+// ===================================================================
+const CAM_TARGET = new THREE.Vector3(0.05, 0.3, 0.1);
+const cam = { th: 0.62, ph: 0.98, r: 7.3, target: CAM_TARGET.clone(), idle: 0, follow: null, followT: 0 };
+const pointers = new Map();
+let drag = null, pinch = null;
+const gl = renderer.domElement;
+gl.addEventListener("pointerdown", (e) => {
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); gl.setPointerCapture(e.pointerId);
+  if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t: performance.now() };
+  else if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), r: cam.r }; drag = null; }
+  $("hintbar").style.opacity = 0;
+});
+gl.addEventListener("pointermove", (e) => {
+  if (!pointers.has(e.pointerId)) { if (e.pointerType === "mouse") hover(e); return; }
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && pointers.size === 2) { const [a, b] = [...pointers.values()]; cam.r = clamp(pinch.r * pinch.d / Math.max(20, Math.hypot(a.x - b.x, a.y - b.y)), 1.6, 10); cam.idle = 0; return; }
+  if (!drag) return;
+  cam.th -= (e.clientX - drag.x) * 0.006; cam.ph = clamp(cam.ph - (e.clientY - drag.y) * 0.005, 0.25, 1.42);
+  drag.x = e.clientX; drag.y = e.clientY; cam.idle = 0;
+});
+const endPointer = (e) => {
+  pointers.delete(e.pointerId);
+  if (drag && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 7 && performance.now() - drag.t < 450) click(e);
+  if (pointers.size < 2) pinch = null;
+  drag = null;
+};
+gl.addEventListener("pointerup", endPointer); gl.addEventListener("pointercancel", endPointer);
+gl.addEventListener("pointerleave", () => { hoverCat = null; gl.classList.remove("oncat"); });
+gl.addEventListener("wheel", (e) => { e.preventDefault(); cam.r = clamp(cam.r * Math.exp(e.deltaY * 0.001), 1.6, 10); cam.idle = 0; }, { passive: false });
+
+const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
+function setRay(e) { ndc.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1); raycaster.setFromCamera(ndc, camera); }
+function catAt(e) { setRay(e); const h = raycaster.intersectObjects(catMeshes, false).find((x) => x.object.userData.cat.present); return h ? h.object.userData.cat : null; }
+let lastHover = 0;
+function hover(e) {
+  const now = performance.now(); if (now - lastHover < 60) return; lastHover = now;
+  hoverCat = catAt(e); gl.classList.toggle("oncat", !!hoverCat);
+}
+const floorHits = [floor, ...rug.children];
+function click(e) {
+  const c = catAt(e);
+  if (c) { showLabel(c, 3.5); return; }
+  setRay(e);
+  const hit = raycaster.intersectObjects([...floorHits, furniture], true)[0];
+  if (hit && (hit.object === floor || hit.object.userData.floor)) dropFood(hit.point.x, hit.point.z);
+}
+
+// ===================================================================
+//  loop
+// ===================================================================
+let viewOff = -1;
+function resize() {
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = innerWidth / innerHeight; camera.fov = innerWidth < innerHeight ? 58 : 40; camera.updateProjectionMatrix(); viewOff = -1;
+  if (innerWidth < innerHeight) cam.r = Math.max(cam.r, 9.2);
+}
+addEventListener("resize", resize);
+
+const tmpP = new THREE.Vector3();
+function update(dt, t) {
+  for (const c of cats) updateCat(c, dt, t);
+  updatePops(dt);
+  // bowls: pop in, kibble shrinks as it is eaten, empty bowls fade away
+  for (let i = bowls.length - 1; i >= 0; i--) {
+    const b = bowls[i];
+    b.pop = Math.min(1, b.pop + dt * 4); b.g.scale.setScalar(1 + Math.sin(b.pop * Math.PI) * 0.25);
+    const n = Math.ceil(b.food / 1.6 * b.kib.length - 1e-6); b.kib.forEach((k, j) => k.visible = j < n);
+    if (b.food <= 0.001 && !b.spots.length) { b.fadeT += dt; if (b.fadeT > 5) b.g.scale.setScalar(Math.max(0.001, 1 - (b.fadeT - 5) * 2)); if (b.fadeT > 5.5) removeBowl(b); }
+  }
+  // camera
+  cam.idle += dt;
+  if (cam.idle > 6 && !drag) { cam.th += dt * 0.025; cam.ph += (0.98 - cam.ph) * dt * 0.2; }
+  if (cam.follow && cam.followT > 0) { cam.followT -= dt; cam.follow.root.getWorldPosition(tmpP); tmpP.y += 0.2; cam.target.lerp(tmpP, Math.min(1, dt * 2.5)); }
+  else cam.target.lerp(CAM_TARGET, Math.min(1, dt * 0.8));
+  const r = cam.r;
+  camera.position.set(cam.target.x + r * Math.sin(cam.ph) * Math.sin(cam.th), cam.target.y + r * Math.cos(cam.ph), cam.target.z + r * Math.sin(cam.ph) * Math.cos(cam.th));
+  camera.lookAt(cam.target);
+  const off = !panel.classList.contains("hidden") && innerWidth > 760 ? (panel.offsetWidth + 16) / 2 : 0;
+  if (off !== viewOff) { viewOff = off; if (off) camera.setViewOffset(innerWidth, innerHeight, -off, 0, innerWidth, innerHeight); else camera.clearViewOffset(); }
+  for (const w of walls) w.g.visible = (camera.position[w.axis] - w.at) * w.sign > 0;
+  // little touches: plants sway, dangling toy, dust in the sunbeam
+  for (const s of swayers) s.o.rotation.x = s.base + Math.sin(t * 0.7 + s.ph) * s.amp;
+  const td = toy.userData;
+  for (const c of cats) if (!c.perch && Math.hypot(c.pos.x - 0.32, c.pos.z + 1.72) < 0.3 && c.speed > 0.05) { td.v += (Math.random() - 0.5) * 3 * dt; td.vb += (Math.random() - 0.5) * 3 * dt; }
+  td.v += (-td.a * 30 - td.v * 0.6) * dt; td.a += td.v * dt; td.vb += (-td.b * 30 - td.vb * 0.6) * dt; td.b += td.vb * dt;
+  toy.rotation.set(td.a, 0, td.b);
+  const dp = dust.pos;
+  dust.seeds.forEach((s, i) => {
+    s.w = (s.w + dt * s.s * 0.4) % 1;
+    const u = s.u + Math.sin(t * 0.3 + s.ph) * 0.03, v = s.v + Math.cos(t * 0.23 + s.ph) * 0.03;
+    const wx = lerp(WIN.x0, WIN.x1, u), wy = lerp(WIN.y0, WIN.y1, v), k = s.w;
+    dp[i * 3] = wx + SUN.kx * wy * k; dp[i * 3 + 1] = wy * (1 - k); dp[i * 3 + 2] = -RZ + SUN.kz * wy * k;
+  });
+  dust.pts.geometry.attributes.position.needsUpdate = true;
+  updateLabels(dt);
+}
+let statusT = 0;
+function updateStatus(dt) {
+  if ((statusT -= dt) > 0) return; statusT = 0.4;
+  for (const c of cats) { const s = statusOf(c); if (c.li.textContent !== s) c.li.textContent = s; }
+}
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  update(dt, now / 1000); updateStatus(dt);
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+initMode();
+resize();
+requestAnimationFrame(frame);
+</script>
+<script>/* links to other websites open in a new tab */ document.querySelectorAll("a[href]").forEach((a) => { if (/^https?:$/.test(a.protocol) && a.origin !== location.origin) { a.target = "_blank"; a.rel = "noopener noreferrer"; } });</script>
+</body>
+</html>

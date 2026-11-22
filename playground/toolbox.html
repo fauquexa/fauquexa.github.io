@@ -104,6 +104,26 @@
   .toolbar .f { flex: 1 1 180px; }
   .count { color: var(--soft); font-size: 12.5px; margin: 8px 2px 0; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
+
+  /* plots, data entry and two-column card grids (resonator fit, transmon, lumped elements) */
+  .plots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+  .plots.one { grid-template-columns: minmax(0, 1fr); }
+  .cards2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+  .cards2 .card + .card { margin-top: 0; }
+  @media (max-width: 780px) { .plots, .cards2 { grid-template-columns: minmax(0, 1fr); } }
+  canvas.pl { display: block; width: 100%; height: 240px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--soft); font-size: 12px; margin: 8px 0 0; }
+  .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+  textarea.data { display: block; width: 100%; min-height: 150px; resize: vertical; font: 12px/1.45 var(--code); color: var(--ink);
+    background: rgba(255, 255, 255, .06); border: 1px solid var(--rule); border-radius: 6px; padding: 8px 10px; }
+  textarea.data:focus { outline: 2px solid rgba(143, 180, 236, .55); outline-offset: 1px; }
+  .filebtn { position: relative; display: inline-block; overflow: hidden; }
+  .filebtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px 0 14px; }
+  .actions .hint { font-size: 12px; }
+  table.data.cmp td, table.data.cmp th { white-space: normal; }
+  table.data.cmp td.num { white-space: nowrap; }
+  .card .res + h3, .card dl.res + h3 { margin-top: 16px; }
 </style>
 </head>
 <body>
@@ -115,6 +135,13 @@
   <nav class="tabs" id="tabs" aria-label="Tools">
     <button data-tab="cpw">CPW impedance</button>
     <button data-tab="res">CPW resonator</button>
+    <button data-tab="fit">Resonator fit</button>
+    <button data-tab="ph">Photon number</button>
+    <button data-tab="tr">Transmon</button>
+    <button data-tab="jj">Josephson junction</button>
+    <button data-tab="sc">Superconductor</button>
+    <button data-tab="lc">Lumped elements</button>
+    <button data-tab="rf">RF power</button>
     <button data-tab="dew">Dew point</button>
     <button data-tab="units">Unit converter</button>
     <button data-tab="threads">Inch threads</button>
@@ -391,6 +418,383 @@
         <li>E. Oberg et al., <i>Machinery’s Handbook</i> (Industrial Press): tap drill and clearance hole tables.</li>
         <li>ISO 261 and ISO 262, ISO general purpose metric screw threads.</li>
       </ul>
+    </details>
+  </section>
+
+  <!-- ============================== Resonator fit ============================== -->
+  <section class="tool" id="tool-fit">
+    <h2>Notch resonator fit</h2>
+    <p class="intro">Fits f₀, Q<sub>i</sub>, Q<sub>c</sub> and Q<sub>l</sub> of a notch-type (hanger) resonator from a measured S21 trace with the circle-fit method: remove the cable delay and the environment, fit a circle, fit the phase around its centre, then read Q<sub>c</sub> and Q<sub>i</sub> with the diameter-correction method. Paste data, upload a file, or load the synthetic example.</p>
+    <div class="cols">
+      <div class="card">
+        <div class="actions" style="margin-top:0">
+          <button id="fit-ex">Load example</button>
+          <span class="filebtn"><button type="button" tabindex="-1">Upload file</button><input type="file" id="fit-file" accept=".csv,.tsv,.txt,.dat,.s2p,.s1p,text/plain,text/csv" aria-label="Upload a trace file"></span>
+          <span class="hint" id="fit-file-name"></span>
+        </div>
+        <label class="hint" for="fit-data" style="display:block;margin:0 0 5px">Data: one point per line, columns separated by commas, tabs, semicolons or spaces. Lines that are not numbers are skipped.</label>
+        <textarea class="data" id="fit-data" spellcheck="false" autocomplete="off" placeholder="6.0119,0.0123,-0.0281&#10;6.0120,0.0121,-0.0283&#10;…"></textarea>
+        <div class="fields" style="margin-top:12px">
+          <div class="f wide"><label for="fit-fmt">Data columns contain</label>
+            <select autocomplete="off" id="fit-fmt">
+              <option value="reim">Real and imaginary part</option>
+              <option value="dbdeg">Magnitude (dB) and phase (degrees)</option>
+              <option value="lindeg">Magnitude (linear) and phase (degrees)</option>
+              <option value="dbrad">Magnitude (dB) and phase (radians)</option>
+              <option value="linrad">Magnitude (linear) and phase (radians)</option>
+            </select></div>
+          <div class="f"><label for="fit-funit">Frequency unit</label>
+            <select autocomplete="off" id="fit-funit"><option value="auto">Guess from values</option><option value="1">Hz</option><option value="1000">kHz</option><option value="1000000">MHz</option><option value="1000000000">GHz</option></select></div>
+          <div class="f"><label for="fit-c1">Frequency column</label><input type="text" autocomplete="off" inputmode="numeric" id="fit-c1" value="1"></div>
+          <div class="f"><label for="fit-c2">First data column</label><input type="text" autocomplete="off" inputmode="numeric" id="fit-c2" value="2"></div>
+          <div class="f"><label for="fit-c3">Second data column</label><input type="text" autocomplete="off" inputmode="numeric" id="fit-c3" value="3"></div>
+        </div>
+        <p class="hint" style="margin:12px 0 0">Touchstone files are recognised from their option line (for example “# GHz S RI R 50”); for two-port files S21 is used.</p>
+      </div>
+      <div class="card" aria-live="polite">
+        <div class="bigcap">Resonance frequency</div>
+        <div class="big" id="fit-big">—</div>
+        <div class="bigcap" id="fit-bigsub"></div>
+        <dl class="res" id="fit-res"></dl>
+        <p class="msg" id="fit-msg"></p>
+      </div>
+    </div>
+    <div class="plots hide" id="fit-plots">
+      <div class="card"><h3>Complex plane, raw</h3><canvas class="pl" id="fit-pl-raw" role="img" aria-label="Measured S21 in the complex plane with the fitted circle"></canvas>
+        <div class="legend"><span><i style="background:rgba(160,163,169,.8)"></i>Raw</span><span><i style="background:#8fb4ec"></i>Cable delay removed</span><span><i style="background:#e3b26b"></i>Fitted circle</span><span><i style="background:#ececea"></i>Off-resonant point</span></div></div>
+      <div class="card"><h3>Complex plane, normalised</h3><canvas class="pl" id="fit-pl-norm" role="img" aria-label="Normalised S21 with the fitted circle"></canvas>
+        <div class="legend"><span><i style="background:#8fb4ec"></i>Data / (a e<sup>iα</sup> e<sup>−2πifτ</sup>)</span><span><i style="background:#e3b26b"></i>Fitted circle</span><span><i style="background:#ececea"></i>(1, 0) and resonance</span></div></div>
+      <div class="card"><h3>Magnitude</h3><canvas class="pl" id="fit-pl-mag" role="img" aria-label="Magnitude of S21 versus frequency with the fit"></canvas>
+        <div class="legend"><span><i style="background:#8fb4ec"></i>Data</span><span><i style="background:#e3b26b"></i>Fit</span></div></div>
+      <div class="card"><h3>Phase</h3><canvas class="pl" id="fit-pl-ph" role="img" aria-label="Phase of S21 with the cable delay removed, versus frequency, with the fit"></canvas>
+        <div class="legend"><span><i style="background:#8fb4ec"></i>Data</span><span><i style="background:#e3b26b"></i>Fit</span></div></div>
+    </div>
+    <details class="ref">
+      <summary>Formulas, assumptions and references</summary>
+      <h4>Model</h4>
+      <p class="eq">S<sub>21</sub>(<i>f</i>) = <i>a</i> e<sup><i>i</i>α</sup> e<sup>−2π<i>ifτ</i></sup> [1 − (<i>Q</i><sub>l</sub>/|<i>Q</i><sub>c</sub>|) e<sup><i>i</i>φ</sup> / (1 + 2<i>iQ</i><sub>l</sub>(<i>f</i>/<i>f</i><sub>0</sub> − 1))]</p>
+      <p><i>a</i> and α describe the attenuation and phase of the wiring, τ the cable delay, and φ the rotation of the circle caused by impedance mismatch around the resonator.</p>
+      <h4>Steps</h4>
+      <ul>
+        <li>Cable delay: a first estimate from the phase slope of the outer 10 % of points on each side, then refined by minimising the scatter of the delay-corrected data about a fitted circle.</li>
+        <li>Circle fit: algebraic (Taubin) fit followed by a few geometric least-squares iterations.</li>
+        <li>Phase fit around the circle centre: θ(<i>f</i>) = θ<sub>0</sub> + 2 arctan(2<i>Q</i><sub>l</sub>(1 − <i>f</i>/<i>f</i><sub>0</sub>)), giving <i>f</i><sub>0</sub>, <i>Q</i><sub>l</sub> and θ<sub>0</sub>.</li>
+        <li>The off-resonant point <i>P</i> = <i>z</i><sub>c</sub> + <i>r</i> e<sup><i>i</i>(θ<sub>0</sub> + π)</sup> gives <i>a</i> = |<i>P</i>| and α = arg <i>P</i>. Dividing by <i>P</i> normalises the circle, which then has radius <i>r</i>′ = <i>Q</i><sub>l</sub>/2|<i>Q</i><sub>c</sub>| and centre 1 − <i>r</i>′e<sup><i>i</i>φ</sup>.</li>
+        <li>Diameter-correction method: 1/<i>Q</i><sub>i</sub> = 1/<i>Q</i><sub>l</sub> − Re(e<sup>−<i>i</i>φ</sup>/|<i>Q</i><sub>c</sub>|) = 1/<i>Q</i><sub>l</sub> − cos φ/|<i>Q</i><sub>c</sub>|. The φ-corrected coupling quality factor is |<i>Q</i><sub>c</sub>|/cos φ.</li>
+      </ul>
+      <h4>Uncertainties and limits</h4>
+      <p>The ± values are one-standard-error estimates from the Jacobian of the full model at the fitted point, with the noise level taken from the residuals. They assume white, uncorrelated noise and are statistical only. The fit expects a single, linear (not bifurcated) resonance with a flat background, and works best when the trace covers at least a few linewidths on both sides. If the phase runs the other way through resonance (opposite sign convention), the data are complex-conjugated first; the page says so.</p>
+      <h4>Example and check</h4>
+      <p>The example is generated in the page from the model above with f<sub>0</sub> = 6.0123457 GHz, Q<sub>i</sub> = 250 000, |Q<sub>c</sub>| = 120 000, φ = −0.2 rad, a = 0.0316, α = 2.0 rad, τ = 62 ns, 1001 points over ±8 linewidths, and Gaussian noise of 0.6 % of <i>a</i> on each quadrature (new noise each time). The true values are printed under the result so you can compare.</p>
+      <ul class="refs">
+        <li>S. Probst, F. B. Song, P. A. Bushev, A. V. Ustinov and M. Weides, Rev. Sci. Instrum. 86, 024706 (2015): circle-fit procedure.</li>
+        <li>M. S. Khalil, M. J. A. Stoutimore, F. C. Wellstood and K. D. Osborn, J. Appl. Phys. 111, 054510 (2012): diameter-correction method.</li>
+        <li>G. Taubin, IEEE Trans. Pattern Anal. Mach. Intell. 13, 1115 (1991), and N. Chernov, <i>Circular and Linear Regression</i> (CRC Press, 2010): algebraic circle fit.</li>
+        <li>Citation details are written from memory.</li>
+      </ul>
+    </details>
+  </section>
+
+  <!-- ============================== Photon number ============================== -->
+  <section class="tool" id="tool-ph">
+    <h2>Photon number from drive power</h2>
+    <p class="intro">Average number of photons in a resonator driven on resonance, from the power that reaches the device and its quality factors.</p>
+    <div class="cols">
+      <div class="card">
+        <div class="fields">
+          <div class="f"><label for="ph-f">Resonance frequency f<sub>0</sub></label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="ph-f" value="6"><span class="u">GHz</span></div></div>
+          <div class="f"><label for="ph-conv">Geometry</label>
+            <select autocomplete="off" id="ph-conv">
+              <option value="notch">Notch (hanger), driven through the feedline</option>
+              <option value="refl">Reflection (one port)</option>
+              <option value="trans">Transmission (two ports)</option>
+            </select></div>
+          <div class="f"><label for="ph-qmode">Quality factors given as</label>
+            <select autocomplete="off" id="ph-qmode"><option value="ic">Internal and coupling</option><option value="lc">Loaded and coupling</option></select></div>
+          <div class="f" id="ph-qi-f"><label for="ph-qi">Internal Q<sub>i</sub></label><input type="text" autocomplete="off" inputmode="decimal" id="ph-qi" value="1e6"></div>
+          <div class="f hide" id="ph-ql-f"><label for="ph-ql">Loaded Q<sub>l</sub></label><input type="text" autocomplete="off" inputmode="decimal" id="ph-ql" value="90909"></div>
+          <div class="f"><label for="ph-qc" id="ph-qc-lab">Coupling Q<sub>c</sub></label><input type="text" autocomplete="off" inputmode="decimal" id="ph-qc" value="1e5"></div>
+          <div class="f"><label for="ph-p">Generator power</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="ph-p" value="-20"><span class="u">dBm</span></div></div>
+          <div class="f"><label for="ph-att">Attenuation to the device</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="ph-att" value="70"><span class="u">dB</span></div></div>
+        </div>
+        <p class="hint" style="margin:12px 0 0">Set the attenuation to 0 to enter the power at the device directly. Include line and component losses in the attenuation.</p>
+      </div>
+      <div class="card" aria-live="polite">
+        <div class="bigcap">Average photon number n̄</div>
+        <div class="big" id="ph-big">—</div>
+        <div class="bigcap" id="ph-bigsub"></div>
+        <dl class="res" id="ph-res"></dl>
+        <p class="msg" id="ph-msg"></p>
+      </div>
+    </div>
+    <details class="ref">
+      <summary>Formulas, assumptions and references</summary>
+      <p>On resonance, input–output theory gives n̄ = (4κ<sub>in</sub>/κ²) · P<sub>in</sub>/(ħω<sub>0</sub>), where κ = ω<sub>0</sub>/Q<sub>l</sub> is the total loss rate and κ<sub>in</sub> the rate at which the resonator leaks into the port you drive. With κ<sub>c</sub> = ω<sub>0</sub>/Q<sub>c</sub>:</p>
+      <ul>
+        <li><b>Notch (hanger):</b> the resonator leaks equally in both directions along the feedline, so κ<sub>in</sub> = κ<sub>c</sub>/2 and <span class="eq">n̄ = 2Q<sub>l</sub>² P<sub>in</sub> / (Q<sub>c</sub> ħω<sub>0</sub>²)</span>. Here Q<sub>c</sub> is the one in S<sub>21</sub> = 1 − (Q<sub>l</sub>/Q<sub>c</sub>)/(1 + 2iQ<sub>l</sub>x), as fitted on the resonator-fit tab (use the φ-corrected value).</li>
+        <li><b>Reflection (one port):</b> κ<sub>in</sub> = κ<sub>c</sub>, so <span class="eq">n̄ = 4Q<sub>l</sub>² P<sub>in</sub> / (Q<sub>c</sub> ħω<sub>0</sub>²)</span>.</li>
+        <li><b>Transmission (two ports):</b> <span class="eq">n̄ = 4Q<sub>l</sub>² P<sub>in</sub> / (Q<sub>c,in</sub> ħω<sub>0</sub>²)</span> with Q<sub>c,in</sub> the coupling Q of the input port alone (2Q<sub>c</sub> for a symmetric resonator whose total coupling Q is Q<sub>c</sub>).</li>
+      </ul>
+      <p>The notch formula is also often written as 4Q<sub>l</sub>²P<sub>in</sub>/(Q<sub>c</sub>ħω<sub>0</sub>²); that is a factor of two higher than the input–output result for the Q<sub>c</sub> convention above, so check which definition a paper uses before comparing photon numbers. Assumes a drive exactly on resonance, a linear resonator (no bifurcation or power-dependent Q), and that P<sub>in</sub> is the power arriving at the coupling port.</p>
+      <ul class="refs">
+        <li>C. W. Gardiner and M. J. Collett, Phys. Rev. A 31, 3761 (1985): input–output theory.</li>
+        <li>A. Bruno et al., Appl. Phys. Lett. 106, 182601 (2015): the notch-resonator expression with the factor 2 (from memory).</li>
+      </ul>
+    </details>
+  </section>
+
+  <!-- ============================== Transmon ============================== -->
+  <section class="tool" id="tool-tr">
+    <h2>Transmon</h2>
+    <p class="intro">Energy levels of a single-junction transmon (or Cooper-pair box) from an exact diagonalisation of H = 4E<sub>C</sub>(n − n<sub>g</sub>)² − E<sub>J</sub> cos φ in the charge basis, with the transmon-regime approximations alongside for comparison.</p>
+    <div class="cols">
+      <div class="card">
+        <div class="fields">
+          <div class="f wide"><label for="tr-ecsrc">Charging energy from</label>
+            <select autocomplete="off" id="tr-ecsrc"><option value="c">Total capacitance C<sub>Σ</sub></option><option value="ec">E<sub>C</sub> directly</option></select></div>
+          <div class="f" id="tr-c-f"><label for="tr-c">Total capacitance C<sub>Σ</sub></label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="tr-c" value="80"><span class="u">fF</span></div></div>
+          <div class="f hide" id="tr-ec-f"><label for="tr-ec">E<sub>C</sub>/h</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="tr-ec" value="240"><span class="u">MHz</span></div></div>
+          <div class="f wide"><label for="tr-ejsrc">Josephson energy from</label>
+            <select autocomplete="off" id="tr-ejsrc"><option value="rn">Junction resistance R<sub>N</sub> and gap Δ (Ambegaokar–Baratoff)</option><option value="ej">E<sub>J</sub> directly</option></select></div>
+          <div class="f" id="tr-rn-f"><label for="tr-rn">Normal-state resistance R<sub>N</sub></label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="tr-rn" value="8"><span class="u">kΩ</span></div></div>
+          <div class="f" id="tr-gap-f"><label for="tr-gap">Superconducting gap Δ</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="tr-gap" value="182"><span class="u">µeV</span></div></div>
+          <div class="f hide" id="tr-ej-f"><label for="tr-ej">E<sub>J</sub>/h</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="tr-ej" value="15"><span class="u">GHz</span></div></div>
+        </div>
+        <p class="hint" style="margin:12px 0 0">Aluminium films: Δ ≈ 180–200 µeV (1.764 k<sub>B</sub>T<sub>c</sub> with T<sub>c</sub> ≈ 1.2–1.3 K).</p>
+      </div>
+      <div class="card" aria-live="polite">
+        <div class="bigcap">Qubit frequency f<sub>01</sub> (average over n<sub>g</sub>)</div>
+        <div class="big" id="tr-big">—</div>
+        <div class="bigcap" id="tr-bigsub"></div>
+        <p class="msg" id="tr-msg"></p>
+        <h3 style="margin-top:16px">Lowest levels versus offset charge</h3>
+        <canvas class="pl" id="tr-plot" role="img" aria-label="Lowest four energy levels versus offset charge"></canvas>
+        <div class="legend"><span><i style="background:#8fb4ec"></i>Ground</span><span><i style="background:#e3b26b"></i>First excited</span><span><i style="background:#9ccfa4"></i>Second</span><span><i style="background:#d79bd0"></i>Third</span></div>
+      </div>
+    </div>
+    <div class="tablewrap" style="margin-top:16px">
+      <table class="data cmp"><thead><tr><th>Quantity</th><th style="text-align:right">Exact (charge basis)</th><th style="text-align:right">Transmon asymptotics</th></tr></thead><tbody id="tr-tbody"></tbody></table>
+    </div>
+    <details class="ref">
+      <summary>Formulas, assumptions and references</summary>
+      <p class="eq">E<sub>C</sub> = e²/2C<sub>Σ</sub>, &nbsp; E<sub>J</sub> = ħI<sub>c</sub>/2e = (R<sub>Q</sub>/2R<sub>N</sub>) Δ with R<sub>Q</sub> = h/4e² ≈ 6.453 kΩ &nbsp; (Ambegaokar–Baratoff, T = 0)</p>
+      <p>H = 4E<sub>C</sub>(n − n<sub>g</sub>)² − E<sub>J</sub> cos φ is written in the charge basis |n⟩ with |n| ≤ 30, where cos φ couples n to n ± 1 with amplitude E<sub>J</sub>/2. The tridiagonal matrix is diagonalised exactly (Sturm-sequence bisection to machine precision) at n<sub>g</sub> = 0 and 0.5.</p>
+      <ul>
+        <li>f<sub>01</sub> and f<sub>12</sub> are the averages of their values at n<sub>g</sub> = 0 and 0.5 (the centre of each band).</li>
+        <li>Charge dispersion ε<sub>m</sub> = E<sub>m</sub>(n<sub>g</sub> = ½) − E<sub>m</sub>(n<sub>g</sub> = 0), the full peak-to-peak width of level m, as defined by Koch et al. The qubit frequency then varies by |ε<sub>1</sub> − ε<sub>0</sub>| peak to peak, i.e. ± |ε<sub>1</sub> − ε<sub>0</sub>|/2 around the average; with quasiparticle parity switching, two lines appear up to |ε<sub>1</sub> − ε<sub>0</sub>| apart.</li>
+        <li>Values below about 10<sup>−13</sup> E<sub>J</sub> are below double-precision resolution and are reported as such.</li>
+      </ul>
+      <p>Transmon-regime asymptotics (E<sub>J</sub> ≫ E<sub>C</sub>):</p>
+      <p class="eq">f<sub>01</sub> ≈ √(8E<sub>J</sub>E<sub>C</sub>) − E<sub>C</sub>, &nbsp; f<sub>12</sub> − f<sub>01</sub> ≈ −E<sub>C</sub>, &nbsp; ε<sub>m</sub> ≈ (−1)<sup>m</sup> E<sub>C</sub> (2<sup>4m+5</sup>/m!) √(2/π) (E<sub>J</sub>/2E<sub>C</sub>)<sup>m/2 + 3/4</sup> e<sup>−√(8E<sub>J</sub>/E<sub>C</sub>)</sup></p>
+      <p>Not included: coupling to a readout resonator (dispersive shifts), junction asymmetry or flux tuning, and higher Josephson harmonics.</p>
+      <ul class="refs">
+        <li>J. Koch et al., Phys. Rev. A 76, 042319 (2007): transmon Hamiltonian, asymptotic levels and charge dispersion.</li>
+        <li>V. Ambegaokar and A. Baratoff, Phys. Rev. Lett. 10, 486 (1963).</li>
+      </ul>
+    </details>
+  </section>
+
+  <!-- ============================== Josephson junction ============================== -->
+  <section class="tool" id="tool-jj">
+    <h2>Josephson junction</h2>
+    <p class="intro">Critical current, Josephson energy and inductance of a tunnel junction from its normal-state resistance, or the resistance you need for a target value. Also junction area from a resistance-area product.</p>
+    <div class="cols">
+      <div class="card">
+        <div class="fields">
+          <div class="f"><label for="jj-tc">Critical temperature T<sub>c</sub></label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="jj-tc" value="1.2"><span class="u">K</span></div></div>
+          <div class="f"><label for="jj-t">Operating temperature</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="jj-t" value="20"><span class="u">mK</span></div></div>
+          <div class="f"><label for="jj-from">Start from</label>
+            <select autocomplete="off" id="jj-from"><option value="rn">Resistance R<sub>N</sub></option><option value="ic">Critical current I<sub>c</sub></option><option value="ej">Josephson energy E<sub>J</sub>/h</option><option value="lj">Josephson inductance L<sub>J</sub></option></select></div>
+          <div class="f"><label for="jj-val">Value</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="jj-val" value="10"><span class="u" id="jj-val-u">kΩ</span></div></div>
+        </div>
+        <hr class="sep">
+        <div class="fields">
+          <div class="f"><label for="jj-amode">Junction size</label>
+            <select autocomplete="off" id="jj-amode"><option value="area">Area from RA product</option><option value="ra">RA from measured area</option></select></div>
+          <div class="f" id="jj-ra-f"><label for="jj-ra">Resistance-area product RA</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="jj-ra" value="400"><span class="u">Ω·µm²</span></div></div>
+          <div class="f hide" id="jj-area-f"><label for="jj-area">Junction area</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="jj-area" value="0.04"><span class="u">µm²</span></div></div>
+        </div>
+        <p class="hint" style="margin:12px 0 0">T<sub>c</sub> = 1.2 K is a typical aluminium film. RA depends on the oxidation (pressure × time) and is best taken from your own test junctions.</p>
+      </div>
+      <div class="card" aria-live="polite">
+        <div class="bigcap" id="jj-bigcap">Critical current</div>
+        <div class="big" id="jj-big">—</div>
+        <dl class="res" id="jj-res"></dl>
+        <p class="msg" id="jj-msg"></p>
+      </div>
+    </div>
+    <details class="ref">
+      <summary>Formulas, assumptions and references</summary>
+      <p class="eq">Δ = 1.764 k<sub>B</sub>T<sub>c</sub>, &nbsp; I<sub>c</sub>R<sub>N</sub> = (πΔ/2e) tanh(Δ/2k<sub>B</sub>T), &nbsp; E<sub>J</sub> = ħI<sub>c</sub>/2e = Φ<sub>0</sub>I<sub>c</sub>/2π, &nbsp; L<sub>J</sub> = Φ<sub>0</sub>/(2πI<sub>c</sub>)</p>
+      <p class="eq">A = RA/R<sub>N</sub>, &nbsp; J<sub>c</sub> = I<sub>c</sub>/A</p>
+      <p>Ambegaokar–Baratoff for a tunnel junction between identical BCS superconductors, using the low-temperature gap; the tanh factor is the only temperature dependence kept, so the result is valid well below T<sub>c</sub>. L<sub>J</sub> is the small-signal inductance at zero bias current. Measured critical currents are often somewhat below this value, so calibrate against your own junctions. R<sub>N</sub> is the room-temperature resistance corrected to low temperature (it typically rises by roughly 10–20 % on cooling; check for your process).</p>
+      <ul class="refs">
+        <li>V. Ambegaokar and A. Baratoff, Phys. Rev. Lett. 10, 486 (1963).</li>
+        <li>M. Tinkham, <i>Introduction to Superconductivity</i>, 2nd ed. (McGraw-Hill, 1996).</li>
+      </ul>
+    </details>
+  </section>
+
+  <!-- ============================== Superconductor ============================== -->
+  <section class="tool" id="tool-sc">
+    <h2>Superconductor basics</h2>
+    <p class="intro">Gap, thermal quasiparticles and the Mattis–Bardeen complex conductivity of a superconducting film, with its surface impedance and kinetic inductance at a given frequency and temperature.</p>
+    <div class="cols">
+      <div class="card">
+        <div class="fields">
+          <div class="f wide"><label for="sc-mat">Material</label><select autocomplete="off" id="sc-mat"></select></div>
+          <div class="f"><label for="sc-tc">Critical temperature T<sub>c</sub></label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="sc-tc" value="1.2"><span class="u">K</span></div></div>
+          <div class="f"><label for="sc-ratio">Gap ratio Δ<sub>0</sub>/k<sub>B</sub>T<sub>c</sub></label><input type="text" autocomplete="off" inputmode="decimal" id="sc-ratio" value="1.764"></div>
+          <div class="f"><label for="sc-rho">Normal resistivity ρ<sub>n</sub></label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="sc-rho" value="0.8"><span class="u">µΩ·cm</span></div></div>
+          <div class="f"><label for="sc-thk">Film thickness</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="sc-thk" value="100"><span class="u">nm</span></div></div>
+          <div class="f"><label for="sc-t">Temperature</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="sc-t" value="100"><span class="u">mK</span></div></div>
+          <div class="f"><label for="sc-f">Frequency</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="sc-f" value="6"><span class="u">GHz</span></div></div>
+          <div class="f wide"><label for="sc-n0">Density of states N<sub>0</sub> (one spin)</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="sc-n0" value="1.72e10"><span class="u">eV⁻¹ µm⁻³</span></div></div>
+        </div>
+        <p class="hint" style="margin:12px 0 0">Presets are typical film values. N<sub>0</sub> is only filled in for aluminium; enter it for other materials to get n<sub>qp</sub>.</p>
+      </div>
+      <div class="card" aria-live="polite">
+        <div class="bigcap">Zero-temperature gap Δ<sub>0</sub></div>
+        <div class="big" id="sc-big">—</div>
+        <div class="bigcap" id="sc-bigsub"></div>
+        <dl class="res" id="sc-res"></dl>
+        <p class="msg" id="sc-msg"></p>
+      </div>
+    </div>
+    <details class="ref">
+      <summary>Formulas, assumptions and references</summary>
+      <p class="eq">Δ<sub>0</sub> = 1.764 k<sub>B</sub>T<sub>c</sub> (BCS; set another ratio for strong coupling), &nbsp; Δ(T) ≈ Δ<sub>0</sub> tanh(1.74 √(T<sub>c</sub>/T − 1))</p>
+      <p class="eq">x<sub>qp</sub> = n<sub>qp</sub>/(2N<sub>0</sub>Δ) = √(2πk<sub>B</sub>T/Δ) e<sup>−Δ/k<sub>B</sub>T</sup></p>
+      <p>Mattis–Bardeen conductivity (local, dirty limit), with f(E) the Fermi function:</p>
+      <p class="eq">σ<sub>1</sub>/σ<sub>n</sub> = (2/ħω) ∫<sub>Δ</sub><sup>∞</sup> [f(E) − f(E + ħω)] g(E) dE − (1/ħω) ∫<sub>Δ−ħω</sub><sup>−Δ</sup> [1 − 2f(E + ħω)] g(E) dE<br>
+        σ<sub>2</sub>/σ<sub>n</sub> = (1/ħω) ∫<sub>max(Δ−ħω, −Δ)</sub><sup>Δ</sup> [1 − 2f(E + ħω)] (E² + Δ² + ħωE) / [√(Δ² − E²) √((E + ħω)² − Δ²)] dE<br>
+        g(E) = (E² + Δ² + ħωE) / [√(E² − Δ²) √((E + ħω)² − Δ²)]</p>
+      <p>The second σ<sub>1</sub> term only exists for ħω &gt; 2Δ (pair breaking). With positive square roots g(E) is negative on that interval, hence the minus sign; at T = 0 this term equals the closed form (1 + 2Δ/ħω)E(k) − (4Δ/ħω)K(k), k = (ħω − 2Δ)/(ħω + 2Δ), which the page reproduces. The integrals are evaluated numerically with substitutions that remove the square-root singularities at the gap edges (E = Δ cosh u, and a cosine map on finite intervals), using Δ(T). For ħω, k<sub>B</sub>T ≪ Δ they approach</p>
+      <p class="eq">σ<sub>1</sub>/σ<sub>n</sub> ≈ (4Δ/ħω) e<sup>−Δ/k<sub>B</sub>T</sup> sinh(ξ) K<sub>0</sub>(ξ), &nbsp; σ<sub>2</sub>/σ<sub>n</sub> ≈ (πΔ/ħω) tanh(Δ/2k<sub>B</sub>T), &nbsp; ξ = ħω/2k<sub>B</sub>T</p>
+      <p>which are shown for comparison (K<sub>0</sub> from Abramowitz and Stegun 9.8.5–9.8.6). The film’s surface impedance in the local limit is Z<sub>s</sub> = √(iωμ<sub>0</sub>/σ) coth(√(iωμ<sub>0</sub>σ) t) with σ = σ<sub>1</sub> − iσ<sub>2</sub>; L<sub>s</sub> = Im Z<sub>s</sub>/ω, and λ = 1/√(μ<sub>0</sub>ωσ<sub>2</sub>). Clean films (long mean free path, such as thick Al or Nb) are outside the local limit, so treat λ and L<sub>s</sub> there as estimates.</p>
+      <ul class="refs">
+        <li>D. C. Mattis and J. Bardeen, Phys. Rev. 111, 412 (1958).</li>
+        <li>J. Gao, PhD thesis, Caltech (2008): Mattis–Bardeen integrals, surface impedance and approximations.</li>
+        <li>M. Tinkham, <i>Introduction to Superconductivity</i>, 2nd ed. (1996): BCS gap.</li>
+        <li>N<sub>0</sub> = 1.72 × 10<sup>10</sup> eV<sup>−1</sup> µm<sup>−3</sup> for aluminium is the value commonly used in the kinetic-inductance-detector literature (from memory).</li>
+      </ul>
+    </details>
+  </section>
+
+  <!-- ============================== Lumped elements ============================== -->
+  <section class="tool" id="tool-lc">
+    <h2>Lumped elements</h2>
+    <p class="intro">Quick estimates for planar capacitors and inductors and the resonance of the resulting LC circuit. Good for first layouts; simulate the final geometry.</p>
+    <div class="cards2">
+      <div class="card">
+        <h3>Interdigitated capacitor</h3>
+        <div class="fields">
+          <div class="f"><label for="lc-in">Number of fingers N</label><input type="text" autocomplete="off" inputmode="numeric" id="lc-in" value="20"></div>
+          <div class="f"><label for="lc-il">Finger length (overlap)</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-il" value="300"><span class="u">µm</span></div></div>
+          <div class="f"><label for="lc-iw">Finger width W</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-iw" value="4"><span class="u">µm</span></div></div>
+          <div class="f"><label for="lc-ig">Gap G</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-ig" value="4"><span class="u">µm</span></div></div>
+          <div class="f"><label for="lc-ie">Substrate εᵣ</label><input type="text" autocomplete="off" inputmode="decimal" id="lc-ie" value="11.45"></div>
+        </div>
+        <hr class="sep"><dl class="res" id="lc-ires"></dl>
+      </div>
+      <div class="card">
+        <h3>Parallel-plate capacitor</h3>
+        <div class="fields">
+          <div class="f"><label for="lc-pw">Width</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-pw" value="20"><span class="u">µm</span></div></div>
+          <div class="f"><label for="lc-pl">Length</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-pl" value="20"><span class="u">µm</span></div></div>
+          <div class="f"><label for="lc-pt">Dielectric thickness</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-pt" value="200"><span class="u">nm</span></div></div>
+          <div class="f"><label for="lc-pd">Dielectric</label><select autocomplete="off" id="lc-pd"></select></div>
+          <div class="f"><label for="lc-pe">εᵣ</label><input type="text" autocomplete="off" inputmode="decimal" id="lc-pe" value="3.9"></div>
+        </div>
+        <hr class="sep"><dl class="res" id="lc-pres"></dl>
+      </div>
+      <div class="card">
+        <h3>Meander inductor</h3>
+        <div class="fields">
+          <div class="f"><label for="lc-mn">Number of strips N</label><input type="text" autocomplete="off" inputmode="numeric" id="lc-mn" value="20"></div>
+          <div class="f"><label for="lc-ml">Strip length</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-ml" value="200"><span class="u">µm</span></div></div>
+          <div class="f"><label for="lc-mw">Line width</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-mw" value="2"><span class="u">µm</span></div></div>
+          <div class="f"><label for="lc-mp">Pitch (centre to centre)</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-mp" value="6"><span class="u">µm</span></div></div>
+          <div class="f"><label for="lc-mt">Film thickness</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-mt" value="100"><span class="u">nm</span></div></div>
+          <div class="f"><label for="lc-mls">Sheet kinetic inductance</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-mls" value="0"><span class="u">pH/□</span></div></div>
+        </div>
+        <hr class="sep"><dl class="res" id="lc-mres"></dl>
+      </div>
+      <div class="card">
+        <h3>Square spiral inductor</h3>
+        <div class="fields">
+          <div class="f"><label for="lc-sn">Turns n</label><input type="text" autocomplete="off" inputmode="decimal" id="lc-sn" value="5"></div>
+          <div class="f"><label for="lc-sd">Outer size d<sub>out</sub></label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-sd" value="200"><span class="u">µm</span></div></div>
+          <div class="f"><label for="lc-sw">Line width</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-sw" value="5"><span class="u">µm</span></div></div>
+          <div class="f"><label for="lc-ss">Spacing</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-ss" value="5"><span class="u">µm</span></div></div>
+          <div class="f"><label for="lc-sls">Sheet kinetic inductance</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-sls" value="0"><span class="u">pH/□</span></div></div>
+        </div>
+        <hr class="sep"><dl class="res" id="lc-sres"></dl>
+      </div>
+    </div>
+    <div class="cols" style="margin-top:16px">
+      <div class="card">
+        <h3>LC resonance</h3>
+        <div class="fields">
+          <div class="f"><label for="lc-rl">Inductor</label><select autocomplete="off" id="lc-rl"><option value="mea">Meander above</option><option value="spi">Spiral above (current sheet)</option><option value="custom">Enter a value</option></select></div>
+          <div class="f hide" id="lc-rlc-f"><label for="lc-rlc">Inductance</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-rlc" value="5"><span class="u">nH</span></div></div>
+          <div class="f"><label for="lc-rc">Capacitor</label><select autocomplete="off" id="lc-rc"><option value="idc">Interdigitated above</option><option value="pp">Parallel plate above</option><option value="custom">Enter a value</option></select></div>
+          <div class="f hide" id="lc-rcc-f"><label for="lc-rcc">Capacitance</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-rcc" value="300"><span class="u">fF</span></div></div>
+        </div>
+      </div>
+      <div class="card" aria-live="polite">
+        <div class="bigcap">Resonance frequency 1/(2π√LC)</div>
+        <div class="big" id="lc-big">—</div>
+        <dl class="res" id="lc-rres"></dl>
+      </div>
+    </div>
+    <details class="ref">
+      <summary>Formulas, assumptions and references</summary>
+      <h4>Interdigitated capacitor</h4>
+      <p class="eq">C = (N − 3) C<sub>I</sub>/2 + 2C<sub>I</sub>C<sub>E</sub>/(C<sub>I</sub> + C<sub>E</sub>), &nbsp; C<sub>I,E</sub> = ε<sub>0</sub>(ε<sub>r</sub> + 1) ℓ K(k<sub>I,E</sub>)/K(k′<sub>I,E</sub>)<br>
+        k<sub>I</sub> = sin(πη/2), &nbsp; k<sub>E</sub> = 2√η/(1 + η), &nbsp; η = W/(W + G)</p>
+      <p>Igreja–Silva conformal mapping for a substrate much thicker than the finger period, with air above; finger-end gaps, bus bars and nearby ground planes are ignored. The Alley/Bahl closed form C = (ε<sub>r</sub> + 1) ℓ[(N − 3)A<sub>1</sub> + A<sub>2</sub>], A<sub>1</sub> = 4.409 × 10<sup>−6</sup> pF/µm, A<sub>2</sub> = 9.92 × 10<sup>−6</sup> pF/µm (W = G, thick substrate) is shown as a cross-check; for W = G the interior terms agree to 0.4 %.</p>
+      <h4>Parallel-plate capacitor</h4>
+      <p class="eq">C = ε<sub>0</sub>ε<sub>r</sub>A/d</p>
+      <p>No fringing fields (fine when the plate is much wider than d). Dielectric constants are typical deposited-film values and depend on the process.</p>
+      <h4>Meander inductor</h4>
+      <p class="eq">L = N L<sub>self</sub>(ℓ) + 2 Σ<sub>k=1</sub><sup>N−1</sup> (N − k)(−1)<sup>k</sup> M(ℓ, kp)<br>
+        L<sub>self</sub> = (μ<sub>0</sub>ℓ/2π)[ln(2ℓ/(w + t)) + ½ + 0.2235(w + t)/ℓ], &nbsp; M = (μ<sub>0</sub>ℓ/2π)[ln(ℓ/d + √(1 + ℓ²/d²)) − √(1 + d²/ℓ²) + d/ℓ]</p>
+      <p>Partial inductances of straight strips (Grover): neighbouring strips carry opposite currents. Mutual terms treat strips as filaments, which is approximate when the gap is not much larger than the width; the short connecting segments and any ground plane are ignored (a nearby ground plane lowers L). Kinetic inductance adds L<sub>s</sub> × (wire length / width).</p>
+      <h4>Square spiral inductor</h4>
+      <p class="eq">d<sub>in</sub> = d<sub>out</sub> − 2nw − 2(n − 1)s, &nbsp; d<sub>avg</sub> = (d<sub>out</sub> + d<sub>in</sub>)/2, &nbsp; ρ = (d<sub>out</sub> − d<sub>in</sub>)/(d<sub>out</sub> + d<sub>in</sub>)<br>
+        Modified Wheeler: L = 2.34 μ<sub>0</sub>n²d<sub>avg</sub>/(1 + 2.75ρ)<br>
+        Current sheet: L = (μ<sub>0</sub>n²d<sub>avg</sub> · 1.27/2)[ln(2.07/ρ) + 0.18ρ + 0.13ρ²]</p>
+      <p>Mohan et al. report errors of a few per cent against field solvers for typical spirals without a ground plane. The kinetic term uses the wire length 4n d<sub>avg</sub>. The air bridge or crossover that returns the inner end is not included.</p>
+      <ul class="refs">
+        <li>R. Igreja and C. J. Dias, Sensors and Actuators A 112, 291 (2004): interdigitated-electrode capacitance by conformal mapping (author list and details from memory; the method is often cited as Igreja–Silva).</li>
+        <li>G. D. Alley, IEEE Trans. Microw. Theory Tech. 18, 1028 (1970), and I. Bahl, <i>Lumped Elements for RF and Microwave Circuits</i> (Artech House, 2003): closed-form IDC coefficients.</li>
+        <li>S. S. Mohan, M. del Mar Hershenson, S. P. Boyd and T. H. Lee, IEEE J. Solid-State Circuits 34, 1419 (1999): modified Wheeler and current-sheet formulas.</li>
+        <li>F. W. Grover, <i>Inductance Calculations</i> (Van Nostrand, 1946; Dover reprint): self and mutual inductance of straight conductors.</li>
+      </ul>
+    </details>
+  </section>
+
+  <!-- ============================== RF power ============================== -->
+  <section class="tool" id="tool-rf">
+    <h2>RF power converter</h2>
+    <p class="intro">Convert between dBm, watts, voltages across a given impedance and photon flux. Click a row to convert from that unit.</p>
+    <div class="card">
+      <div class="toolbar">
+        <div class="f"><label for="rf-val">Value</label><input type="text" autocomplete="off" inputmode="decimal" id="rf-val" value="-90"></div>
+        <div class="f"><label for="rf-from">Unit</label><select autocomplete="off" id="rf-from"></select></div>
+        <div class="f" style="flex:0 1 150px"><label for="rf-z">Impedance</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="rf-z" value="50"><span class="u">Ω</span></div></div>
+        <div class="f" style="flex:0 1 150px"><label for="rf-f">Frequency</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="rf-f" value="6"><span class="u">GHz</span></div></div>
+      </div>
+      <div class="tablewrap">
+        <table class="data conv"><thead><tr><th>Unit</th><th style="text-align:right">Value</th><th>Note</th></tr></thead><tbody id="rf-body"></tbody></table>
+      </div>
+      <p class="msg" id="rf-msg"></p>
+    </div>
+    <details class="ref">
+      <summary>Formulas, assumptions and references</summary>
+      <p class="eq">P = 1 mW · 10<sup>dBm/10</sup>, &nbsp; P = V<sub>rms</sub>²/Z, &nbsp; V<sub>peak</sub> = √2 V<sub>rms</sub>, &nbsp; V<sub>pp</sub> = 2V<sub>peak</sub>, &nbsp; dBV = 20 log<sub>10</sub>(V<sub>rms</sub>/1 V), &nbsp; Ṅ = P/(hf)</p>
+      <p>Voltages are for a sine wave delivered into a matched, purely resistive load Z. Check: 0 dBm into 50 Ω is 223.6 mV rms, 316.2 mV peak and 632.5 mV peak to peak.</p>
     </details>
   </section>
 </div>
@@ -1055,9 +1459,8 @@ $("u-val").addEventListener("input", renderUnits);
 $("u-from").addEventListener("change", renderUnits);
 updateAll(); renderDew();
 showTab(location.hash.slice(1) || "cpw");
-
-// exposed for checking the numbers from the console
-window.toolbox = { cpw, sheetLk, ellipK, KK, dew, UNITS, THREAD_ROWS, solve };
 </script>
+<script src="../assets/toolbox/more.js?v=20261122b"></script>
+<script>/* links to other websites open in a new tab */ document.querySelectorAll("a[href]").forEach((a) => { if (/^https?:$/.test(a.protocol) && a.origin !== location.origin) { a.target = "_blank"; a.rel = "noopener noreferrer"; } });</script>
 </body>
 </html>
