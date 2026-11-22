@@ -154,13 +154,16 @@ class Bake {
       g.computeBoundingBox(); const sz = g.boundingBox.getSize(_e), sx = _a.setFromMatrixColumn(m, 0).length(), sy = _b.setFromMatrixColumn(m, 1).length(), sz2 = _c.setFromMatrixColumn(m, 2).length();
       amp = Math.min(0.02, Math.min(sz.x * sx, sz.y * sy, sz.z * sz2) * 0.12);
     }
+    const bx = this.boxes ? [Infinity, -Infinity, Infinity, -Infinity, Infinity, -Infinity] : null;
     for (let i = 0; i < p.count; i += 3) {
       _a.fromBufferAttribute(p, i).applyMatrix4(m); _b.fromBufferAttribute(p, i + 1).applyMatrix4(m); _c.fromBufferAttribute(p, i + 2).applyMatrix4(m);
       if (amp > 0.0005) { wobble(_a, amp); wobble(_b, amp); wobble(_c, amp); }
+      if (bx) for (const v of [_a, _b, _c]) { bx[0] = Math.min(bx[0], v.x); bx[1] = Math.max(bx[1], v.x); bx[2] = Math.min(bx[2], v.y); bx[3] = Math.max(bx[3], v.y); bx[4] = Math.min(bx[4], v.z); bx[5] = Math.max(bx[5], v.z); }
       _n.subVectors(_b, _a).cross(_e.subVectors(_c, _a)).normalize();
       const t = 1 + (Math.random() - 0.5) * j;
       for (const v of [_a, _b, _c]) { this.p.push(v.x, v.y, v.z); this.n.push(_n.x, _n.y, _n.z); this.c.push(col.r * t, col.g * t, col.b * t); }
     }
+    if (bx && bx[0] < Infinity) this.boxes.push(bx);
     if (g !== geo) g.dispose();
     if (!keep) geo.dispose();
     return this;
@@ -499,7 +502,7 @@ const MAIN_W = W;
 // see-through instead of pushing the camera about
 const FADES = [];
 let FCUR = null;
-function newFade(name) { const F = { name, solid: new Bake(), extra: [], c: 0, lastC: -1 }; FADES.push(F); return F; }
+function newFade(name) { const F = { name, solid: new Bake(), extra: [], c: 0, lastC: -1, want: 0 }; F.solid.boxes = []; FADES.push(F); return F; }
 function intoF(F) { FCUR = F; W = F ? F.solid : MAIN_W; }
 intoF(newFade("garage"));
 // the long garage: brick base with proud bricks, corrugated sheet above, corrugated gable roof
@@ -1081,23 +1084,34 @@ for (const F of FADES) {
   F.mats = []; F.objs = [];
   if (F.solid.p.length) { const m = F.solid.build(true, true); m.material = FLAT.clone(); F.mats.push(m.material); F.objs.push(m); }
   for (const o of F.extra) o.traverse((q) => { if (q.isMesh) { q.material = q.material.clone(); F.mats.push(q.material); F.objs.push(q); } });
-  const b = new THREE.Box3(); for (const o of F.objs) { o.updateMatrixWorld(true); b.expandByObject(o); }
-  F.box = [b.min.x - 0.05, b.max.x + 0.05, b.min.y - 0.05, b.max.y + 0.05, b.min.z - 0.05, b.max.z + 0.05];
+  let parts = F.solid.boxes.filter((q) => Math.max(q[1] - q[0], q[3] - q[2], q[5] - q[4]) >= 0.12);
+  if (!parts.length) parts = F.solid.boxes.slice();
+  for (const o of F.extra) o.traverse((q) => { if (q.isMesh) { q.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(q); parts.push([b.min.x, b.max.x, b.min.y, b.max.y, b.min.z, b.max.z]); } });
+  const within = (a, b) => a !== b && a[0] >= b[0] && a[1] <= b[1] && a[2] >= b[2] && a[3] <= b[3] && a[4] >= b[4] && a[5] <= b[5];
+  F.parts = parts.filter((a) => !parts.some((b) => within(a, b))).map((q) => [q[0] - 0.03, q[1] + 0.03, q[2] - 0.03, q[3] + 0.03, q[4] - 0.03, q[5] + 0.03]);
+  F.box = F.parts.reduce((u, q) => [Math.min(u[0], q[0]), Math.max(u[1], q[1]), Math.min(u[2], q[2]), Math.max(u[3], q[3]), Math.min(u[4], q[4]), Math.max(u[5], q[5])], [Infinity, -Infinity, Infinity, -Infinity, Infinity, -Infinity]);
   for (const mm of F.mats) mm.userData.op = mm.opacity;
   fadeObjs.push(...F.objs);
 }
 // each frame: anything of these between the camera and the look-at point (or around the camera) fades to about 20 %
 // over a fifth of a second, and comes back when it's out of the way
 function updateFade(dt, pos, look) {
+  const inB = (p, q, m) => p.x > q[0] - m && p.x < q[1] + m && p.y > q[2] - m && p.y < q[3] + m && p.z > q[4] - m && p.z < q[5] + m;
+  const close = pos.distanceTo(look) < 2.5, M = 0.25;
   for (const F of FADES) {
-    const q = F.box, m = 0.35;
-    const near = pos.x > q[0] - m && pos.x < q[1] + m && pos.y > q[2] - m && pos.y < q[3] + m && pos.z > q[4] - m && pos.z < q[5] + m;
-    const want = near || segHits(pos, look, [q]) ? 1 : 0;
+    let want = 0;
+    if (inB(pos, F.box, M) || segHits(pos, look, [F.box])) {
+      for (const q of F.parts) {
+        if (inB(pos, q, M)) { want = 1; break; }
+        if ((close || !inB(look, q, 0)) && segHits(pos, look, [q])) { want = 1; break; }
+      }
+    }
+    F.want = want;
     F.c = damp(F.c, want, 15, dt); if (Math.abs(F.c - want) < 0.004) F.c = want;
     if (F.c === F.lastC) continue;
     F.lastC = F.c;
-    const op = 1 - 0.8 * F.c;
-    for (const mm of F.mats) { mm.opacity = mm.userData.op * op; mm.transparent = F.c > 0.004 || mm.userData.op < 1; mm.depthWrite = F.c < 0.5; }
+    const op = 1 - 0.8 * F.c, faded = F.c > 0;
+    for (const mm of F.mats) { mm.opacity = faded ? mm.userData.op * op : mm.userData.op; mm.transparent = faded || mm.userData.op < 1; mm.depthWrite = F.c < 0.5; }
   }
 }
 structures.add(builtStatic);
