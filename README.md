@@ -12,7 +12,7 @@ assets/headshot.jpg
 playground/julia.html          Julia of the day (WebGL): pick c on the Mandelbrot set, zoom, save
 playground/stereogram.html     Stereogram Studio: logo / text / shapes → SIRDS, PNG + HTML export
 playground/maze.html           first-person maze screensaver (raycaster, right-hand-rule autopilot)
-playground/flight.html         little flight sim (three.js): procedural terrain, rings, time of day
+playground/flight.html         flight sim (three.js): PC-24/12/21/6 + heli, fuel, airports, real Bay Area terrain, high scores
 ```
 
 ## Publish on GitHub Pages
@@ -41,3 +41,9 @@ Then open http://localhost:8000.
 
 - **CV PDF.** Add `assets/cv.pdf` and link it from the sidebar in `index.html`. Remove your phone number before publishing it.
 - **Custom domain.** Add a `CNAME` file containing the domain, then set DNS as GitHub describes.
+
+## High scores
+
+The flight sim's leaderboard lives in a free Supabase project (`flight-scores`). The page only uses the public
+(publishable) key. Row-level security allows visitors to read scores and add new ones, but not to edit or delete them.
+To remove a score, use the Supabase dashboard → SQL editor: `delete from public.scores where id = …;`
