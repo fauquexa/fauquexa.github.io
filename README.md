@@ -9,6 +9,7 @@ assets/toy.css                 shared look of the playground pages
 assets/site.js                 theme toggle, nav highlighting, email link
 assets/julia-day.js            date-seeded Julia-set parameters (shared)
 assets/previews.js             generated previews for the Julia and stereogram tiles
+assets/ambient.js              calm generated music + mute button (cats, fish, chickens); cinema mode goes fullscreen
 assets/thumbs/                 screenshots used as playground thumbnails
 assets/salemi-mouse.svg        Salemi group logo (stereogram default)
 playground/flight.html         flight sim: Pilatus aircraft + helicopter, fuel, airports, high scores (Supabase)
