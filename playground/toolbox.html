@@ -104,6 +104,15 @@
   .toolbar .f { flex: 1 1 180px; }
   .count { color: var(--soft); font-size: 12.5px; margin: 8px 2px 0; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
+  /* two-way unit converter */
+  .conv2 { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 10px; align-items: center; }
+  .crow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 9.5em); gap: 6px; }
+  .crow input[type=text] { font-size: 16px; padding: 9px 10px; font-variant-numeric: tabular-nums; }
+  .crow select { padding: 9px 8px; }
+  #u-swap { width: 40px; height: 40px; padding: 0; border-radius: 50%; font-size: 17px; line-height: 1; }
+  @media (max-width: 640px) { .conv2 { grid-template-columns: minmax(0, 1fr); gap: 8px; } #u-swap { justify-self: center; transform: rotate(90deg); } }
+  .u-sum { margin: 14px 0 0; color: var(--soft); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .u-sum b { color: var(--ink); font-weight: 500; }
 
   /* plots, data entry and two-column card grids (resonator fit, transmon, lumped elements) */
   .plots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
@@ -163,7 +172,7 @@
     <button data-tab="tr">Transmon</button>
     <button data-tab="jj">Josephson junction</button>
     <button data-tab="sc">Superconductor</button>
-    <button data-tab="lc">Lumped elements</button>
+    <button data-tab="lumped">Nanofabricated lumped elements</button>
     <button data-tab="dew">Dew point</button>
     <button data-tab="units">Unit converter</button>
     <button data-tab="threads">Inch threads</button>
@@ -177,7 +186,8 @@
       <div>
         <div class="card">
           <svg class="dia" viewBox="0 0 400 162" role="img" aria-label="Coplanar waveguide cross-section: centre width w, gaps s, substrate thickness h, metal thickness t and substrate permittivity">
-            <g data-for="cpw-er cpw-sub"><rect class="sub" x="10" y="74" width="380" height="64"/><text x="24" y="104">substrate</text><text class="sym" x="24" y="126">ε<tspan font-size="10" dy="3">r</tspan></text></g>
+            <g data-for="cpw-er cpw-sub cpw-eperp cpw-epar"><rect class="sub" x="10" y="74" width="380" height="64"/><text x="24" y="104">substrate</text><text class="sym" id="dia-er-iso" x="24" y="126">ε<tspan font-size="10" dy="3">r</tspan></text>
+              <g id="dia-er-aniso" class="hide"><path class="dim" d="M250 118H300M294 114l6 4-6 4M320 128V88M316 94l4-6 4 6"/><text class="sym" x="262" y="112">ε<tspan font-size="10" dy="3">⊥</tspan></text><text class="sym" x="326" y="106">ε<tspan font-size="10" dy="3">∥</tspan></text></g></g>
             <rect class="metal" x="10" y="66" width="120" height="8"/><rect class="metal2" x="160" y="66" width="80" height="8"/><rect class="metal" x="270" y="66" width="120" height="8"/>
             <text x="62" y="60" text-anchor="middle">ground</text><text x="330" y="60" text-anchor="middle">ground</text><text x="200" y="96" text-anchor="middle">signal</text>
             <text x="200" y="156" text-anchor="middle">vacuum below (no backside metal)</text>
@@ -212,7 +222,12 @@
             <div class="f"><label for="cpw-t">Metal thickness t</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="cpw-t" value="0"><span class="u">nm</span></div></div>
             <div class="f wide"><label for="cpw-sub">Substrate</label>
               <select autocomplete="off" id="cpw-sub"></select></div>
-            <div class="f"><label for="cpw-er">Relative permittivity εᵣ</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="cpw-er" value="11.45"><span class="u"></span></div></div>
+            <div class="f wide hide" id="cpw-aniso-f"><label>Custom substrate is</label>
+              <div class="seg" id="cpw-aniso" style="margin:0"><button type="button" data-v="iso" class="on">Isotropic</button><button type="button" data-v="aniso">Anisotropic (uniaxial)</button></div></div>
+            <div class="f" id="cpw-er-f"><label for="cpw-er">Relative permittivity εᵣ</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="cpw-er" value="11.45"><span class="u"></span></div></div>
+            <div class="f hide" id="cpw-eperp-f"><label for="cpw-eperp">εᵣ⊥, in plane across the line</label><input type="text" autocomplete="off" inputmode="decimal" id="cpw-eperp" value="9.27"></div>
+            <div class="f hide" id="cpw-epar-f"><label for="cpw-epar">εᵣ∥, normal to the substrate</label><input type="text" autocomplete="off" inputmode="decimal" id="cpw-epar" value="11.35"></div>
+            <p class="hint wide hide" id="cpw-aniso-hint" style="margin:0">Uniaxial crystal with its optic axis normal to the surface (for example c-plane sapphire: ε⊥ = 9.27, ε∥ = 11.35 near 4 K). For other cuts, enter the permittivity across the line as ε⊥ and the one normal to the surface as ε∥. Valid for a straight line running along a principal axis.</p>
           </div>
         </div>
 
@@ -250,8 +265,8 @@
       <p class="eq">Δ = (1.25<i>t</i>/π)[1 + ln(4π<i>w</i>/<i>t</i>)], &nbsp; <i>w</i><sub>e</sub> = <i>w</i> + Δ, &nbsp; <i>s</i><sub>e</sub> = <i>s</i> − Δ<br>
         ε<sub>eff,t</sub> = ε<sub>eff</sub> − 0.7(ε<sub>eff</sub> − 1)(<i>t</i>/<i>s</i>) / [<i>K</i>(<i>k</i><sub>0</sub>)/<i>K</i>(<i>k</i><sub>0</sub>′) + 0.7<i>t</i>/<i>s</i>]</p>
       <p><i>Z</i><sub>0</sub> then uses <i>k</i><sub>e</sub> = <i>w</i><sub>e</sub>/(<i>w</i><sub>e</sub> + 2<i>s</i><sub>e</sub>) and ε<sub>eff,t</sub>. Set t = 0 to ignore thickness. For thin films (t ≪ s) the correction is about 1–2 %.</p>
-      <h4>Anisotropic sapphire</h4>
-      <p>A uniaxial substrate with in-plane (across the line) permittivity ε<sub>x</sub> and out-of-plane ε<sub>y</sub> is mapped to an isotropic one with ε<sub>r</sub> = √(ε<sub>x</sub>ε<sub>y</sub>) and thickness <i>h</i>√(ε<sub>x</sub>/ε<sub>y</sub>). The presets use ε<sub>⊥</sub> = 9.27 and ε<sub>∥</sub> = 11.35 (sapphire near 4 K, Krupka et al.). Editing ε<sub>r</sub> by hand switches to an isotropic custom substrate.</p>
+      <h4>Anisotropic substrates</h4>
+      <p>A uniaxial substrate with permittivity ε<sub>⊥</sub> in the plane across the line and ε<sub>∥</sub> normal to the surface is mapped to an isotropic one with ε<sub>r</sub> = √(ε<sub>⊥</sub>ε<sub>∥</sub>) and thickness <i>h</i>√(ε<sub>⊥</sub>/ε<sub>∥</sub>), after Szentkuti’s transform method. The sapphire presets use ε<sub>⊥</sub> = 9.27 and ε<sub>∥</sub> = 11.35 near 4 K (Krupka et al.); the A-plane presets put the c-axis across or along the line. Choose “Custom” and “Anisotropic” to enter your own pair. The transform holds for a straight line running along a principal axis of the crystal; bends and lines at other angles see a different mix of the two permittivities.</p>
       <h4>Kinetic inductance</h4>
       <p class="eq">Δ = 1.764 <i>k</i><sub>B</sub><i>T</i><sub>c</sub>, &nbsp; λ = √(ħρ<sub>n</sub> / (πμ<sub>0</sub>Δ)) / √tanh(Δ/2<i>k</i><sub>B</sub><i>T</i>), &nbsp; <i>L</i><sub>s</sub> = μ<sub>0</sub>λ coth(<i>t</i>/λ)</p>
       <p>For <i>t</i> ≪ λ this is the familiar <i>L</i><sub>s</sub> = ħ<i>R</i><sub>s</sub>/(πΔ) with <i>R</i><sub>s</sub> = ρ<sub>n</sub>/<i>t</i> (local, dirty-limit Mattis–Bardeen, valid well below T<sub>c</sub>). The kinetic inductance per length is <i>L</i><sub>k</sub>′ = <i>g</i> <i>L</i><sub>s</sub> with the CPW geometric factor <i>g</i> = <i>g</i><sub>c</sub> + <i>g</i><sub>g</sub>:</p>
@@ -388,18 +403,19 @@
   <!-- ============================== Units ============================== -->
   <section class="tool" id="tool-units">
     <h2>Unit converter</h2>
-    <p class="intro">Type a value, pick its unit, and read it in every other unit. Click a row to convert from that unit instead. The RF power category converts between dBm, watts, voltages across an impedance and photon flux.</p>
+    <p class="intro">Pick a category, then a unit on each side. Type in either box and the other one follows. Frequency, energy and temperature share one category (via h and k<sub>B</sub>); RF power converts between dBm, watts, voltages across an impedance and photon flux.</p>
     <div class="chips" id="u-cats"></div>
     <div class="card">
-      <div class="toolbar">
-        <div class="f"><label for="u-val">Value</label><input type="text" autocomplete="off" inputmode="decimal" id="u-val" value="1"></div>
-        <div class="f"><label for="u-from">Unit</label><select autocomplete="off" id="u-from"></select></div>
-        <div class="f hide u-rf" style="flex:0 1 150px"><label for="u-z">Impedance</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="u-z" value="50"><span class="u">Ω</span></div></div>
-        <div class="f hide u-rf" style="flex:0 1 150px"><label for="u-f">Frequency</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="u-f" value="6"><span class="u">GHz</span></div></div>
+      <div class="conv2">
+        <div class="crow"><input type="text" autocomplete="off" inputmode="decimal" id="u-a" value="5" aria-label="Value on the left"><select autocomplete="off" id="u-ua" aria-label="Unit on the left"></select></div>
+        <button type="button" id="u-swap" title="Swap the two sides" aria-label="Swap the two sides">⇄</button>
+        <div class="crow"><input type="text" autocomplete="off" inputmode="decimal" id="u-b" aria-label="Value on the right"><select autocomplete="off" id="u-ub" aria-label="Unit on the right"></select></div>
       </div>
-      <div class="tablewrap">
-        <table class="data conv"><thead><tr><th>Unit</th><th style="text-align:right">Value</th><th>Note</th></tr></thead><tbody id="u-body"></tbody></table>
+      <div class="fields hide u-rf" style="margin-top:14px">
+        <div class="f"><label for="u-z">Impedance (for voltages)</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="u-z" value="50"><span class="u">Ω</span></div></div>
+        <div class="f"><label for="u-f">Frequency (for photons/s)</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="u-f" value="6"><span class="u">GHz</span></div></div>
       </div>
+      <p class="u-sum" id="u-sum"></p>
       <p class="msg" id="u-msg"></p>
     </div>
     <details class="ref">
@@ -747,10 +763,10 @@
     </details>
   </section>
 
-  <!-- ============================== Lumped elements ============================== -->
-  <section class="tool" id="tool-lc">
-    <h2>Lumped elements</h2>
-    <p class="intro">Quick estimates for planar capacitors and inductors and the resonance of the resulting LC circuit. Good for first layouts; simulate the final geometry.</p>
+  <!-- ============================== Nanofabricated lumped elements ============================== -->
+  <section class="tool" id="tool-lumped">
+    <h2>Nanofabricated lumped elements</h2>
+    <p class="intro">Estimates for on-chip thin-film structures patterned in a (superconducting) metal film on a substrate: interdigitated and parallel-plate capacitors, meander and square-spiral inductors, and the resonance of the LC circuit they form. Good for first layouts; simulate the final geometry.</p>
     <div class="cards2">
       <div class="card">
         <h3>Interdigitated capacitor</h3>
@@ -1031,7 +1047,7 @@ const SUBSTRATES = [
   { id: "sap-a-par", name: "Sapphire, A-plane, line along the c-axis, cryogenic", ex: 9.27, ey: 9.27 },
   { id: "sap-a-perp", name: "Sapphire, A-plane, line across the c-axis, cryogenic", ex: 11.35, ey: 9.27 },
   { id: "quartz", name: "Fused silica / quartz (3.8)", ex: 3.8, ey: 3.8 },
-  { id: "custom", name: "Custom (isotropic)", ex: null, ey: null },
+  { id: "custom", name: "Custom", ex: null, ey: null },
 ];
 const MATERIALS = [
   { id: "none", name: "None: ideal conductor, no kinetic inductance" },
@@ -1043,7 +1059,7 @@ const MATERIALS = [
   { id: "custom", name: "Custom: enter Tc and ρn" },
   { id: "sheet", name: "Enter the sheet kinetic inductance directly" },
 ];
-let cpwMode = "analyse", lastCPW = null;
+let cpwMode = "analyse", lastCPW = null, cpwAniso = false;
 
 function initCPW() {
   $("cpw-sub").innerHTML = SUBSTRATES.map(s => `<option value="${s.id}">${s.name}</option>`).join("");
@@ -1051,12 +1067,17 @@ function initCPW() {
   $("cpw-sub").addEventListener("change", () => {
     const s = SUBSTRATES.find(x => x.id === $("cpw-sub").value);
     if (s.ex) $("cpw-er").value = String(+Math.sqrt(s.ex * s.ey).toFixed(3));
-    updateAll();
+    subVisibility(); updateAll();
   });
   $("cpw-er").addEventListener("input", () => {
     const s = SUBSTRATES.find(x => x.id === $("cpw-sub").value);
-    if (s.ex && Math.abs(num("cpw-er") - Math.sqrt(s.ex * s.ey)) > 1e-3) $("cpw-sub").value = "custom";
+    if (s.ex && Math.abs(num("cpw-er") - Math.sqrt(s.ex * s.ey)) > 1e-3) { $("cpw-sub").value = "custom"; subVisibility(); }
   });
+  document.querySelectorAll("#cpw-aniso button").forEach(b => b.addEventListener("click", () => {
+    cpwAniso = b.dataset.v === "aniso";
+    document.querySelectorAll("#cpw-aniso button").forEach(x => x.classList.toggle("on", x === b));
+    subVisibility(); updateAll();
+  }));
   $("ki-mat").addEventListener("change", () => {
     const m = MATERIALS.find(x => x.id === $("ki-mat").value);
     if (m.Tc) { $("ki-tc").value = m.Tc; $("ki-rho").value = m.rho; if (!(num("cpw-t") > 0)) $("cpw-t").value = "100"; }
@@ -1077,7 +1098,17 @@ function initCPW() {
     if ($("cpw-free").value === "ws" && isFinite(num("cpw-w")) && isFinite(num("cpw-s"))) $("cpw-tot").value = String(+(num("cpw-w") + 2 * num("cpw-s")).toPrecision(6));
     synthVisibility(); updateAll();
   });
-  kiVisibility(); synthVisibility();
+  kiVisibility(); synthVisibility(); subVisibility();
+}
+function subVisibility() {
+  const sub = SUBSTRATES.find(x => x.id === $("cpw-sub").value);
+  const custom = sub.id === "custom", an = custom && cpwAniso;
+  $("cpw-aniso-f").classList.toggle("hide", !custom);
+  $("cpw-er-f").classList.toggle("hide", an);
+  ["cpw-eperp-f", "cpw-epar-f", "cpw-aniso-hint"].forEach(id => $(id).classList.toggle("hide", !an));
+  const showAniso = an || (sub.ex && sub.ex !== sub.ey);
+  $("dia-er-iso").classList.toggle("hide", !!showAniso);
+  $("dia-er-aniso").classList.toggle("hide", !showAniso);
 }
 function kiVisibility() {
   const id = $("ki-mat").value;
@@ -1097,8 +1128,13 @@ function synthVisibility() {
 function computeCPW() {
   const msgs = [];
   const sub = SUBSTRATES.find(x => x.id === $("cpw-sub").value);
-  const er = num("cpw-er");
-  const hScale = sub.ex ? Math.sqrt(sub.ex / sub.ey) : 1;
+  let er, hScale, ex, ey;
+  if (sub.ex) { ex = sub.ex; ey = sub.ey; er = Math.sqrt(ex * ey); hScale = Math.sqrt(ex / ey); }
+  else if (cpwAniso) {   // custom uniaxial substrate: Szentkuti transform, as for the sapphire presets
+    ex = num("cpw-eperp"); ey = num("cpw-epar");
+    if (!(ex >= 1 && ey >= 1)) return { err: "Enter ε⊥ and ε∥ of at least 1." };
+    er = Math.sqrt(ex * ey); hScale = Math.sqrt(ex / ey);
+  } else { er = num("cpw-er"); ex = ey = er; hScale = 1; }
   const p = { w: num("cpw-w") * 1e-6, s: num("cpw-s") * 1e-6, h: num("cpw-h") * 1e-6, er, hScale, t: num("cpw-t") * 1e-9 };
   if (cpwMode === "synth") {   // solved fields are outputs; don't flag them
     if ($("cpw-w").disabled) $("cpw-w").classList.remove("bad");
@@ -1152,7 +1188,7 @@ function computeCPW() {
   }
   const r = cpw(p);
   if (r.err) return r;
-  r.film = film; r.Ls = p.Ls || 0; r.msgs = msgs; r.solvedNote = solvedNote; r.mat = mat;
+  r.film = film; r.Ls = p.Ls || 0; r.ex = ex; r.ey = ey; r.hs = hScale; r.msgs = msgs; r.solvedNote = solvedNote; r.mat = mat;
   if (p.t > 0 && p.t > 0.2 * p.s) msgs.push(["warn", "t is more than 20 % of s; the thickness correction is approximate."]);
   if (p.h < 2 * (p.w + 2 * p.s)) msgs.push(["", "The substrate is thin compared with w + 2s, so the field below the substrate matters; the finite-h model accounts for this."]);
   return r;
@@ -1199,6 +1235,7 @@ function renderCPW() {
     ["k<sub>0</sub> = w/(w + 2s)", fmt(r.k0, 5)],
     ["w + 2s", `${fmt((r.w + 2 * r.s) * 1e6, 5)} µm`],
     ["Filling factor q", fmt(r.q, 4)]);
+  if (r.ex !== r.ey) list.push(["Equivalent εᵣ = √(ε⊥ε∥)", fmt(r.er, 4)], ["Scaled height h√(ε⊥/ε∥)", `${fmt(r.h * r.hs * 1e6, 4)}${"\u00a0"}µm`]);
   if (r.t > 0) list.push(["Thickness correction Δ", `${fmt(r.delta * 1e6, 3)} µm`], ["Z<sub>0</sub> at t = 0", `${fmt(r.Zthin, 4)} Ω`]);
   $("cpw-res").innerHTML = rows(list);
   const m = r.msgs.filter(x => x[0]);
@@ -1367,7 +1404,7 @@ const UNITS = {
   "Mass": [
     lin("kg", 1), lin("g", 1e-3), lin("mg", 1e-6), lin("µg", 1e-9), lin("t", 1e3, "tonne"), lin("lb", 0.45359237, "avoirdupois pound"), lin("oz", 0.45359237 / 16, "avoirdupois ounce"),
   ],
-  "Energy and frequency": [
+  "Frequency / energy / temperature": [
     lin("GHz", HP * 1e9, "E = hf"), lin("MHz", HP * 1e6, "E = hf"), lin("THz", HP * 1e12, "E = hf"),
     lin("K", KB, "E = k<sub>B</sub>T"), lin("mK", KB * 1e-3, "E = k<sub>B</sub>T"),
     lin("µeV", QE * 1e-6), lin("meV", QE * 1e-3), lin("eV", QE),
@@ -1396,44 +1433,92 @@ const UNITS = {
     lin("Φ₀/µm²", PHI0 / 1e-12, "one flux quantum per µm²"),
   ],
 };
-const UNIT_DEFAULTS = { "Length": "µm", "Pressure": "mbar", "Temperature": "K", "Mass": "g", "Energy and frequency": "GHz", "RF power": "dBm", "Magnetic field": "mT" };
-let uCat = "Energy and frequency";
+const UNIT_PAIRS = {   // default left unit, right unit and left value
+  "Length": ["µm", "mil", "1"], "Pressure": ["mbar", "Torr", "1"], "Temperature": ["K", "°C", "4.2"], "Mass": ["g", "oz", "1"],
+  "Frequency / energy / temperature": ["GHz", "mK", "5"], "RF power": ["dBm", "µV rms", "-90"], "Magnetic field": ["mT", "G", "1"],
+};
+let uCat = "Frequency / energy / temperature", uLast = "a";
 function initUnits() {
   $("u-cats").innerHTML = Object.keys(UNITS).map(c => `<button data-c="${c}">${c}</button>`).join("");
   $("u-cats").querySelectorAll("button").forEach(b => b.addEventListener("click", () => setCat(b.dataset.c, true)));
-  $("u-body").addEventListener("click", e => {
-    const tr = e.target.closest("tr"); if (!tr || !tr.dataset.u) return;
-    $("u-val").value = tr.dataset.raw; $("u-from").value = tr.dataset.u; renderUnits();
+  $("u-a").addEventListener("input", () => { uLast = "a"; uConvert(); });
+  $("u-b").addEventListener("input", () => { uLast = "b"; uConvert(); });
+  ["u-ua", "u-ub"].forEach(id => $(id).addEventListener("change", uConvert));
+  ["u-z", "u-f"].forEach(id => $(id).addEventListener("input", uConvert));
+  $("u-swap").addEventListener("click", () => {
+    const ua = $("u-ua").value, a = $("u-a").value;
+    $("u-ua").value = $("u-ub").value; $("u-a").value = $("u-b").value;
+    $("u-ub").value = ua; $("u-b").value = a;
+    uLast = uLast === "a" ? "b" : "a";
+    uConvert();
   });
-  setCat(uCat, false);
+  setCat(uCat, true);
 }
 function setCat(c, resetVal) {
   uCat = c;
+  const [ua, ub, v] = UNIT_PAIRS[c];
   $("u-cats").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.c === c));
-  $("u-from").innerHTML = UNITS[c].map(u => `<option value="${u.name}">${u.name}</option>`).join("");
-  $("u-from").value = UNIT_DEFAULTS[c];
-  if (resetVal) $("u-val").value = c === "Temperature" ? "4.2" : c === "RF power" ? "-90" : "1";
+  const opts = UNITS[c].map(u => `<option value="${u.name}">${u.name}</option>`).join("");
+  $("u-ua").innerHTML = opts; $("u-ub").innerHTML = opts;
+  $("u-ua").value = ua; $("u-ub").value = ub;
+  if (resetVal) $("u-a").value = v;
+  uLast = "a";
   document.querySelectorAll(".u-rf").forEach(e => e.classList.toggle("hide", c !== "RF power"));
-  renderUnits();
+  uConvert();
 }
-function renderUnits() {
-  const x = num("u-val"), list = UNITS[uCat], src = list.find(u => u.name === $("u-from").value);
-  if (!isFinite(x)) { $("u-body").innerHTML = ""; $("u-msg").className = "msg err"; $("u-msg").textContent = "Enter a number (e.g. 1.5 or 2e-3)."; return; }
-  const base = src.to(x);
+// accepts 1.5, 2e-3, 2×10^-3, 2 × 10⁻³ and a comma decimal
+function parseLoose(id) {
+  const el = $(id);
+  let t = el.value.trim().replace(/\u2212/g, "-").replace(",", ".").replace(/\s+/g, "");
+  t = t.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁻]/g, ch => "0123456789-"["⁰¹²³⁴⁵⁶⁷⁸⁹⁻".indexOf(ch)]);
+  t = t.replace(/[×xX*]10\^?/, "e");
+  const v = t === "" ? NaN : Number(t);
+  el.classList.toggle("bad", !isFinite(v));
+  return v;
+}
+function fieldNum(y) {   // what goes back into an editable box: 7 significant figures, exponent only when needed
+  if (!isFinite(y)) return "";
+  if (y === 0) return "0";
+  const a = Math.abs(y);
+  if (a >= 1e-4 && a < 1e9) return String(Number(y.toPrecision(7)));
+  return y.toExponential(6).replace(/\.?0+e/, "e").replace("e+", "e");
+}
+const PREFIXABLE = new Set(["m", "Pa", "g", "W", "J", "eV", "T", "V rms", "V peak", "V peak-to-peak", "K", "Hz"]);
+const SI_PRE = { "-24": "y", "-21": "z", "-18": "a", "-15": "f", "-12": "p", "-9": "n", "-6": "µ", "-3": "m", "0": "", "3": "k", "6": "M", "9": "G", "12": "T" };
+const PRE_EXP = { y: -24, z: -21, a: -18, f: -15, p: -12, n: -9, "µ": -6, m: -3, k: 3, M: 6, G: 9, T: 12 };
+function pretty(y, unit) {   // readable form: values far from 1 are re-expressed with a fitting SI prefix
+  const a = Math.abs(y);
+  let base = unit, e0 = 0;
+  if (!PREFIXABLE.has(unit) && PRE_EXP[unit[0]] !== undefined && PREFIXABLE.has(unit.slice(1))) { base = unit.slice(1); e0 = PRE_EXP[unit[0]]; }
+  if (PREFIXABLE.has(base) && a > 0 && (a < 1e-2 || a >= 1e4)) {
+    const v = y * Math.pow(10, e0);
+    const e = Math.max(-24, Math.min(base === "K" ? 0 : 12, Math.floor(Math.log10(Math.abs(v)) / 3) * 3));   // no "kK"
+    return `<b>${fmt(v / Math.pow(10, e), 5)}</b> ${SI_PRE[e]}${base}`;
+  }
+  return `<b>${fmt(y, 6)}</b> ${unit}`;
+}
+function uConvert() {
+  const list = UNITS[uCat];
+  const ua = list.find(u => u.name === $("u-ua").value), ub = list.find(u => u.name === $("u-ub").value);
+  const [srcId, dstId, su, du] = uLast === "a" ? ["u-a", "u-b", ua, ub] : ["u-b", "u-a", ub, ua];
+  const fail = t => { $(dstId).value = ""; $("u-sum").innerHTML = ""; $("u-msg").className = "msg err"; $("u-msg").textContent = t; };
+  if (uCat === "RF power" && !(num("u-z") > 0 && num("u-f") > 0)) return fail("Enter a positive impedance and frequency.");
+  const x = parseLoose(srcId);
+  $(dstId).classList.remove("bad");
+  if (!isFinite(x)) return fail("Enter a number, for example 1.5, 2e-3 or 2×10^-3.");
+  const base = su.to(x), y = du.from(base);
   let msg = "";
   if (uCat === "Temperature" && base < 0) msg = "That is below absolute zero.";
-  if (src.name.startsWith("nm") && x <= 0) msg = "Wavelength must be positive.";
-  if (uCat === "RF power") {
-    if (!(num("u-z") > 0 && num("u-f") > 0)) { $("u-body").innerHTML = ""; $("u-msg").className = "msg err"; $("u-msg").textContent = "Enter a positive impedance and frequency."; return; }
-    if (!(base > 0)) msg = "Power must be positive.";
-  }
-  $("u-msg").className = "msg err"; $("u-msg").textContent = msg;
-  $("u-body").innerHTML = list.map(u => {
-    const y = u.from(base);
-    const raw = isFinite(y) ? String(Number(y.toPrecision(10))) : "";
-    return `<tr data-u="${u.name}" data-raw="${raw}" class="${u === src ? "src" : ""}"><td>${u.name}</td><td class="num">${fmt(y, 6)}</td><td class="hint">${u.note}</td></tr>`;
-  }).join("");
+  if ((su.name.startsWith("nm") && x <= 0)) msg = "Wavelength must be positive.";
+  if (uCat === "RF power" && !(base > 0)) msg = "Power must be positive.";
+  if (msg) return fail(msg);
+  $(dstId).value = fieldNum(y);
+  const va = uLast === "a" ? x : y, vb = uLast === "a" ? y : x;
+  const notes = [ua, ub].filter((u, i, arr) => u.note && arr.indexOf(u) === i).map(u => `${u.name}: ${u.note}`);
+  $("u-sum").innerHTML = `${pretty(va, ua.name)} = ${pretty(vb, ub.name)}` + (notes.length ? `<br><span class="hint">${notes.join(" · ")}</span>` : "");
+  $("u-msg").className = "msg"; $("u-msg").textContent = "";
 }
+const renderUnits = uConvert;
 
 /* ======================================================================
    Tool 5: threads
@@ -1523,9 +1608,15 @@ function keyMatch(r, t) {
 /* ======================================================================
    tabs and wiring
    ====================================================================== */
-const TAB_ALIAS = { rf: "units", rfpower: "units", power: "units" };   // the RF power tab now lives in the unit converter
+// old links: the RF power tab now lives in the unit converter; "lc" became "lumped"
+const TAB_ALIAS = { rf: ["units", "RF power"], rfpower: ["units", "RF power"], power: ["units", "RF power"], lc: ["lumped"] };
 function showTab(id) {
-  if (TAB_ALIAS[id]) { if (uCat !== "RF power") setCat("RF power", true); id = TAB_ALIAS[id]; }
+  const al = TAB_ALIAS[id];
+  if (al) {
+    if (al[1] && uCat !== al[1]) setCat(al[1], true);
+    id = al[0];
+    history.replaceState(null, "", "#" + id);
+  }
   if (!document.getElementById("tool-" + id)) id = "cpw";
   document.querySelectorAll(".tool").forEach(s => s.classList.toggle("active", s.id === "tool-" + id));
   document.querySelectorAll("#tabs button").forEach(b => { b.classList.toggle("on", b.dataset.tab === id); b.setAttribute("aria-pressed", b.dataset.tab === id); });
@@ -1561,13 +1652,10 @@ $("tool-cpw").addEventListener("input", updateAll);
 $("tool-res").addEventListener("input", () => { renderRes(); updatePeek(); });
 $("tool-res").addEventListener("click", () => setTimeout(updatePeek));
 $("tool-dew").addEventListener("input", () => { renderDew(); updatePeek(); });
-$("u-val").addEventListener("input", renderUnits);
-$("u-from").addEventListener("change", renderUnits);
-["u-z", "u-f"].forEach(id => $(id).addEventListener("input", renderUnits));
 updateAll(); renderDew();
 showTab(location.hash.slice(1) || "cpw");
 </script>
-<script src="../assets/toolbox/more.js?v=20261123a"></script>
+<script src="../assets/toolbox/more.js?v=20261124a"></script>
 <script>/* links to other websites open in a new tab */ document.querySelectorAll("a[href]").forEach((a) => { if (/^https?:$/.test(a.protocol) && a.origin !== location.origin) { a.target = "_blank"; a.rel = "noopener noreferrer"; } });</script>
 </body>
 </html>

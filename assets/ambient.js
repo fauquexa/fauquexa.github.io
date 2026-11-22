@@ -69,7 +69,8 @@
     const M = MOODS[name] || MOODS.cats;
     const KEY = "playground-music", VOL = 0.4;
     let muted = false;
-    try { muted = localStorage.getItem(KEY) === "off"; } catch (e) { }
+    muted = true;   // off until the visitor turns it on with the speaker; their choice is remembered
+    try { const v = localStorage.getItem(KEY); if (v) muted = v !== "on"; } catch (e) { }
 
     // ---- the speaker button
     const css = document.createElement("style");

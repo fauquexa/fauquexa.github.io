@@ -19,7 +19,7 @@ playground/chickens.html       back-garden chickens
 playground/cats.html           six cats at home
 playground/julia.html          Julia set of the day, with an endless dive
 playground/stereogram.html     stereogram generator
-playground/toolbox.html        quantum device toolbox: CPW, resonator fit, transmon, JJ, photon number, superconductors, lumped elements, dew point, units (incl. RF power), inch threads
+playground/toolbox.html        quantum device toolbox: CPW, resonator fit, transmon, JJ, photon number, superconductors, nanofabricated lumped elements, dew point, units (incl. RF power), inch threads
 playground/maze3d.html         first-person maze screensaver (not linked from the homepage)
 ```
 

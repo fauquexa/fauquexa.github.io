@@ -26,6 +26,48 @@
   #depth { font-family: var(--code); font-size: 11.5px; margin: 8px 0 0; min-height: 1.5em; }
   #nogl { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--soft); padding: 24px; text-align: center; }
   #nogl[hidden] { display: none; }
+  .panel { max-height: calc(100dvh - 32px); }
+  /* "What is the Julia set?": closed by default */
+  :root { --warm: #e0b35a; }
+  .explain { margin-top: 12px; border-top: 1px solid var(--rule); padding-top: 8px; }
+  .explain summary {
+    list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 4px 0;
+    font-size: 13px; font-weight: 500; color: var(--ink); border-radius: 4px;
+  }
+  .explain summary::-webkit-details-marker { display: none; }
+  .explain summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .chev { width: 12px; height: 12px; flex: none; fill: none; stroke: var(--soft); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s; }
+  .explain summary:hover .chev { stroke: var(--ink); }
+  .explain[open] .chev { transform: rotate(90deg); }
+  .explain-body { font-size: 12.5px; line-height: 1.55; color: #cfd2d6; padding-bottom: 2px; }
+  .explain-body p { margin: 8px 0 0; }
+  .explain strong { color: var(--ink); font-weight: 600; }
+  .explain .m { font-family: var(--code); font-size: 12px; color: var(--accent); white-space: nowrap; }
+  .explain figure { margin: 10px 0 0; }
+  .explain figcaption { font-size: 11.5px; color: var(--soft); margin-top: 4px; line-height: 1.45; }
+  .fig { display: block; width: 100%; height: auto; }
+  .fig text { font-family: var(--mono); font-size: 11px; fill: var(--soft); }
+  .fig text.stay { fill: var(--accent); }
+  .fig text.esc { fill: var(--warm); }
+  .fig .ax { stroke: var(--rule); stroke-width: 1; fill: none; }
+  .fig .ring { fill: none; stroke: var(--soft); stroke-width: 1; stroke-dasharray: 3 3; opacity: .7; }
+  .fig g.stay polyline, .fig g.esc polyline { fill: none; stroke-width: 1.1; stroke-linejoin: round; opacity: .75; }
+  .fig g.stay polyline { stroke: var(--accent); }
+  .fig g.esc polyline { stroke: var(--warm); }
+  .fig g.stay circle { fill: var(--accent); }
+  .fig g.esc circle { fill: var(--warm); }
+  .fig g.stay circle.start { fill: #18191c; stroke: var(--accent); stroke-width: 1.6; }
+  .fig g.esc circle.start { fill: #18191c; stroke: var(--warm); stroke-width: 1.6; }
+  .fig .mset { fill: var(--soft); fill-opacity: .35; }
+  .fig .mset .antenna { fill: none; stroke: var(--soft); stroke-opacity: .5; stroke-width: 1.2; }
+  .fig .lead { fill: none; stroke-width: 1; stroke-dasharray: 2 3; }
+  .fig .lead.stay { stroke: var(--accent); }
+  .fig .lead.esc { stroke: var(--warm); }
+  .fig .cmark { fill: none; stroke-width: 1.6; }
+  .fig .cmark.stay { stroke: var(--accent); }
+  .fig .cmark.esc { stroke: var(--warm); }
+  .fig .rabbit { fill: var(--accent); }
+  .fig .dust { fill: none; stroke: var(--warm); stroke-width: 1.8; stroke-linecap: round; }
 </style>
 </head>
 <body>
@@ -52,6 +94,42 @@
   </div>
   <p class="hint" id="depth"></p>
   <p class="hint" id="howto" style="margin-top:10px">scroll or pinch to zoom · drag to pan · double-click to reset · <kbd>D</kbd> dive · <kbd>H</kbd> panel</p>
+  <details class="explain" id="explain">
+    <summary><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5 8 6l-3.5 3.5"/></svg>What is the Julia set?</summary>
+    <div class="explain-body">
+      <p><strong>Numbers as points.</strong> A complex number is just a point on a flat plane: one coordinate across, one up. Squaring it doubles its angle around the centre and squares its distance from the centre.</p>
+      <p><strong>One rule, repeated.</strong> Take a starting point, square it, add a fixed number c, then do the same to the result, again and again: <span class="m">z → z² + c</span>. The point hops around the plane.</p>
+      <figure>
+          <svg class="fig" viewBox="0 0 238 190" role="img" aria-label="Two orbits under z squared plus c: one settles inside the circle of radius 2, the other leaves it and escapes">
+            <path class="ax" d="M0 94.6H238M136.4 0V190"/>
+            <circle class="ring" cx="136.4" cy="94.6" r="88"/>
+            <g class="stay"><polyline points="105.6,112.2 133.3,56.8 86.5,86.7 174,99.3 150.5,89.5 122.7,78.1 116.9,91.6 127.2,84 118.2,85.8 124.6,88.7 121.2,84.6 121.8,88.3"/><circle cx="133.3" cy="56.8" r="2.2"/><circle cx="86.5" cy="86.7" r="2.2"/><circle cx="174" cy="99.3" r="2.2"/><circle cx="150.5" cy="89.5" r="2.2"/><circle cx="122.7" cy="78.1" r="2.2"/><circle cx="116.9" cy="91.6" r="2.2"/><circle cx="127.2" cy="84" r="2.2"/><circle cx="118.2" cy="85.8" r="2.2"/><circle cx="124.6" cy="88.7" r="2.2"/><circle cx="121.2" cy="84.6" r="2.2"/><circle cx="121.8" cy="88.3" r="2.2"/><circle class="start" cx="105.6" cy="112.2" r="3.6"/></g>
+            <g class="esc"><polyline points="162.8,72.6 123.6,55 86.9,104.4 172.4,59.4 120.1,23.8 10.9,133.8" marker-end="url(#jEscArrow)"/><circle cx="123.6" cy="55" r="2.2"/><circle cx="86.9" cy="104.4" r="2.2"/><circle cx="172.4" cy="59.4" r="2.2"/><circle cx="120.1" cy="23.8" r="2.2"/><circle class="start" cx="162.8" cy="72.6" r="3.6"/></g>
+            <defs><marker id="jEscArrow" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 8 4 0 8z" fill="var(--warm)"/></marker></defs>
+            <text class="esc" x="4" y="156">escapes</text>
+            <text class="stay" x="150" y="126">stays</text>
+          </svg>
+        <figcaption>Two starting points (rings) hopping under the rule. The blue one settles down; the gold one leaves the circle, and once outside it a point never comes back.</figcaption>
+      </figure>
+      <p><strong>Escape or stay.</strong> Some starting points race off to infinity; others keep hopping forever without getting far. The Julia set is the border between the two kinds.</p>
+      <p><strong>The colours.</strong> Every pixel is a starting point. Escaping points are coloured by how fast they leave: quickly far from the set, slowly close to the border, which is why the border glows. Points that stay are drawn dark.</p>
+      <p><strong>Today’s number.</strong> c is the number at the top of this panel, and it changes every day. The Mandelbrot set is a map of every possible c: if c is inside it, the Julia set is all one piece; if c is outside, it shatters into infinitely many specks of dust. Today’s c sits near the edge (the cross-hair on the map above), where the shapes are richest.</p>
+      <figure>
+          <svg class="fig" viewBox="0 0 290 168" role="img" aria-label="The Mandelbrot set: a value of c inside it gives a Julia set in one piece, a value outside it gives dust">
+            <g class="mset"><path d="M161.2,81.6 161.5,81.6 161.9,81.4 162.4,81.2 163.1,80.9 163.8,80.4 164.7,79.7 165.5,78.9 166.4,77.8 167.3,76.5 168,75 168.7,73.2 169.2,71.3 169.5,69.2 169.7,66.9 169.5,64.4 169.1,61.9 168.4,59.3 167.4,56.6 166,53.9 164.3,51.3 162.3,48.8 159.9,46.4 157.2,44.3 154.2,42.3 150.9,40.6 147.4,39.3 143.7,38.3 139.7,37.6 135.7,37.4 131.5,37.7 127.3,38.3 123.2,39.4 119.1,41 115.2,43 111.4,45.4 107.9,48.3 104.6,51.5 101.7,55.1 99.2,59 97.1,63.2 95.4,67.6 94.1,72.2 93.4,76.9 93.2,81.6 93.4,86.3 94.1,91 95.4,95.6 97.1,100 99.2,104.2 101.7,108.1 104.6,111.7 107.9,114.9 111.4,117.8 115.2,120.2 119.1,122.2 123.2,123.8 127.3,124.9 131.5,125.5 135.7,125.8 139.7,125.6 143.7,124.9 147.4,123.9 150.9,122.6 154.2,120.9 157.2,118.9 159.9,116.8 162.3,114.4 164.3,111.9 166,109.3 167.4,106.6 168.4,103.9 169.1,101.3 169.5,98.8 169.7,96.3 169.5,94 169.2,91.9 168.7,90 168,88.2 167.3,86.7 166.4,85.4 165.5,84.3 164.7,83.5 163.8,82.8 163.1,82.3 162.4,82 161.9,81.8 161.5,81.6Z"/><circle cx="76.2" cy="81.6" r="17"/><circle cx="55" cy="81.6" r="4"/><circle cx="135.7" cy="30.9" r="6.5"/><circle cx="135.7" cy="132.3" r="6.5"/><circle cx="163.3" cy="45.5" r="3"/><circle cx="163.3" cy="117.7" r="3"/><circle cx="169.9" cy="58.8" r="1.6"/><circle cx="169.9" cy="104.4" r="1.6"/><circle cx="109.9" cy="43.4" r="2.6"/><circle cx="109.9" cy="119.8" r="2.6"/><path class="antenna" d="M51 81.6H8.2"/></g>
+            <text x="8" y="160">Mandelbrot set</text>
+            <path class="lead stay" d="M141 29.5 208 26"/><circle class="cmark stay" cx="136" cy="30.6" r="4"/>
+            <path class="lead esc" d="M181.5 58 214 100"/><circle class="cmark esc" cx="178.2" cy="54.4" r="4"/>
+            <path class="rabbit" transform="translate(212 2)" d="M34 6h1v1h-1zM33 7h2v1h-2zM34 8h1v1h-1zM36 8h2v1h-2zM35 9h2v1h-2zM14 10h2v1h-2zM21 10h1v1h-1zM32 10h3v1h-3zM13 11h3v1h-3zM21 11h2v1h-2zM30 11h6v1h-6zM14 12h2v1h-2zM19 12h1v1h-1zM21 12h1v1h-1zM29 12h7v1h-7zM14 13h2v1h-2zM18 13h6v1h-6zM25 13h1v1h-1zM30 13h7v1h-7zM11 14h14v1h-14zM29 14h8v1h-8zM8 15h1v1h-1zM10 15h5v1h-5zM16 15h10v1h-10zM30 15h5v1h-5zM8 16h1v1h-1zM10 16h4v1h-4zM16 16h11v1h-11zM29 16h5v1h-5zM7 17h2v1h-2zM10 17h4v1h-4zM16 17h13v1h-13zM30 17h3v1h-3zM11 18h1v1h-1zM17 18h12v1h-12zM30 18h1v1h-1zM18 19h11v1h-11zM30 19h1v1h-1zM18 20h10v1h-10zM29 20h5v1h-5zM38 20h1v1h-1zM19 21h6v1h-6zM29 21h8v1h-8zM39 21h1v1h-1zM19 22h1v1h-1zM22 22h1v1h-1zM29 22h10v1h-10zM44 22h1v1h-1zM18 23h1v1h-1zM28 23h13v1h-13zM43 23h3v1h-3zM28 24h14v1h-14zM43 24h2v1h-2zM27 25h20v1h-20zM28 26h16v1h-16zM45 26h1v1h-1zM28 27h16v1h-16zM28 28h16v1h-16zM26 29h1v1h-1zM28 29h16v1h-16zM28 30h16v1h-16zM45 30h1v1h-1zM28 31h16v1h-16zM28 32h16v1h-16zM26 33h1v1h-1zM28 33h16v1h-16zM25 34h20v1h-20zM27 35h2v1h-2zM30 35h14v1h-14zM26 36h3v1h-3zM31 36h13v1h-13zM53 36h1v1h-1zM27 37h1v1h-1zM33 37h10v1h-10zM49 37h1v1h-1zM52 37h1v1h-1zM32 38h1v1h-1zM35 38h8v1h-8zM47 38h6v1h-6zM33 39h1v1h-1zM38 39h5v1h-5zM44 39h10v1h-10zM41 40h1v1h-1zM43 40h11v1h-11zM41 41h1v1h-1zM43 41h12v1h-12zM60 41h1v1h-1zM39 42h3v1h-3zM43 42h13v1h-13zM58 42h4v1h-4zM63 42h2v1h-2zM38 43h5v1h-5zM45 43h11v1h-11zM58 43h4v1h-4zM63 43h1v1h-1zM37 44h5v1h-5zM46 44h10v1h-10zM57 44h5v1h-5zM63 44h1v1h-1zM35 45h8v1h-8zM47 45h14v1h-14zM35 46h7v1h-7zM46 46h1v1h-1zM48 46h6v1h-6zM56 46h2v1h-2zM36 47h7v1h-7zM50 47h1v1h-1zM52 47h1v1h-1zM56 47h2v1h-2zM36 48h6v1h-6zM49 48h2v1h-2zM56 48h3v1h-3zM37 49h3v1h-3zM50 49h1v1h-1zM56 49h2v1h-2zM35 50h2v1h-2zM34 51h2v1h-2zM37 51h1v1h-1zM37 52h2v1h-2zM37 53h1v1h-1z"/>
+            <text class="stay" x="248" y="76" text-anchor="middle">one piece</text>
+            <path class="dust" transform="translate(249 124)" d="M18.5 13.5h0M-18.5 -13.5h0M2 -26h0M-2 26h0M10.5 -18h0M-10.5 18h0M16.5 23.5h0M-16.5 -23.5h0M9.5 -10.5h0M-9.5 10.5h0M12 25h0M-12 -25h0M20.5 17.5h0M-20.5 -17.5h0M6.5 -25.5h0M-6.5 25.5h0M2.5 -6.5h0M-2.5 6.5h0M9 23.5h0M-9 -23.5h0M19.5 19.5h0M-19.5 -19.5h0M7.5 -24h0M-7.5 24h0M20.5 14.5h0M-20.5 -14.5h0M3.5 -27h0M-3.5 27h0M12 -15.5h0M-12 15.5h0M15.5 25h0M-15.5 -25h0M2 14h0M-2 -14h0M8.5 19.5h0M-8.5 -19.5h0M18.5 19.5h0M-18.5 -19.5h0M7 -22.5h0M-7 22.5h0M20.5 15.5h0M-20.5 -15.5h0M4.5 -26.5h0M-4.5 26.5h0M11.5 -14.5h0M-11.5 14.5h0M14.5 25h0M-14.5 -25h0M19.5 13.5h0M-19.5 -13.5h0M2.5 -26.5h0M-2.5 26.5h0M11.5 -17.5h0M-11.5 17.5h0M16.5 24.5h0M-16.5 -24.5h0M9 -8.5h0M-9 8.5h0M11 25h0M-11 -25h0M20.5 18.5h0M-20.5 -18.5h0M7 -25.5h0M-7 25.5h0M13 19.5h0M-13 -19.5h0M3.5 -17.5h0M-3.5 17.5h0M17 18.5h0M-17 -18.5h0M5.5 -22h0M-5.5 22h0M20 15.5h0M-20 -15.5h0M4.5 -26h0M-4.5 26h0M10.5 -14h0M-10.5 14h0M14 24.5h0M-14 -24.5h0M20 13.5h0M-20 -13.5h0M2.5 -27h0M-2.5 27h0M11.5 -17h0M-11.5 17h0M16 24.5h0M-16 -24.5h0M8 -7.5h0M-8 7.5h0M10.5 25h0M-10.5 -25h0M7 -25h0M-7 25h0M19 13h0M-19 -13h0M2 -26.5h0M-2 26.5h0M11 -18h0M-11 18h0M16.5 24h0M-16.5 -24h0M10 -9.5h0M-10 9.5h0M11.5 25.5h0M-11.5 -25.5h0M21 18h0M-21 -18h0M1 7h0M-1 -7h0M8.5 23h0M-8.5 -23h0M7.5 -23.5h0M-7.5 23.5h0M4 -27h0M-4 27h0M15 25.5h0M-15 -25.5h0M18.5 17h0M-18.5 -17h0M5 -24h0M-5 24h0M6.5 -15h0M-6.5 15h0M13 22.5h0M-13 -22.5h0M19.5 16h0M-19.5 -16h0M4 -25.5h0M-4 25.5h0M9.5 -15h0M-9.5 15h0M14.5 24h0M-14.5 -24h0M20 14h0M-20 -14h0M3 -26.5h0M-3 26.5h0M11.5 -16.5h0M-11.5 16.5h0M7.5 -8h0M-7.5 8h0M10.5 24.5h0M-10.5 -24.5h0M10 -9h0M-10 9h0M1.5 8.5h0M-1.5 -8.5h0M8.5 22.5h0M-8.5 -22.5h0M20.5 15h0M-20.5 -15h0M12 -15h0M-12 15h0M15 25h0M-15 -25h0M18.5 13h0M-18.5 -13h0M10 -10h0M-10 10h0M12 25.5h0M-12 -25.5h0M21 17.5h0M-21 -17.5h0M1 -5.5h0M-1 5.5h0M10 18h0M-10 -18h0M1.5 16.5h0M-1.5 -16.5h0M18 19.5h0M-18 -19.5h0M7 -22h0M-7 22h0M9 -8h0M-9 8h0M19.5 15h0M-19.5 -15h0M3.5 -26h0M-3.5 26h0M10.5 -16h0M-10.5 16h0M15 24h0M-15 -24h0M5.5 -11.5h0M-5.5 11.5h0M11.5 23h0M-11.5 -23h0M19.5 18h0M-19.5 -18h0M6 -24h0M-6 24h0M19.5 14h0M-19.5 -14h0M11 -16.5h0M-11 16.5h0M7 -9.5h0M-7 9.5h0M11 24h0M-11 -24h0M20 18.5h0M-20 -18.5h0M11 -17.5h0M-11 17.5h0M9.5 -9h0M-9.5 9h0M11.5 25h0M-11.5 -25h0M1 9.5h0M-1 -9.5h0M8.5 22h0M-8.5 -22h0M19 19.5h0M-19 -19.5h0M11.5 -15h0M-11.5 15h0M0.5 -5.5h0M-0.5 5.5h0M8.5 23.5h0M-8.5 -23.5h0M10.5 18h0M-10.5 -18h0M0.5 17h0M-0.5 -17h0M11 -14.5h0M-11 14.5h0M10 -10.5h0M-10 10.5h0M2 -5.5h0M-2 5.5h0M2.5 15h0M-2.5 -15h0M8.5 18.5h0M-8.5 -18.5h0M21 18.5h0M-21 -18.5h0M17 18h0M-17 -18h0M4.5 -22h0M-4.5 22h0M14 20.5h0M-14 -20.5h0M5 -17.5h0M-5 17.5h0M20 16h0M-20 -16h0M1.5 7h0M-1.5 -7h0"/>
+            <text class="esc" x="249" y="164" text-anchor="middle">dust</text>
+          </svg>
+        <figcaption>Pick c inside the Mandelbrot set and its Julia set is one piece (blue); pick it outside and the set falls apart into dust (gold).</figcaption>
+      </figure>
+      <p><strong>Endless detail.</strong> The rule maps the Julia set onto itself, and near the border it stretches things out: apply it a few times to any tiny piece of the border and you get the whole border back. So every speck holds slightly distorted copies of the whole pattern, which is why the dive never runs out of detail.</p>
+    </div>
+  </details>
 </div>
 
 <script src="../assets/julia-day.js?v=20261122k"></script>

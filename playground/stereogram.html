@@ -108,10 +108,8 @@ button.small { font-size: 12px; padding: 4px 9px; }
   display: flex; justify-content: center; align-items: center; overflow: hidden; min-height: 240px;
 }
 .viewer img { display: block; max-width: 100%; height: auto; border-radius: 4px; cursor: zoom-in; }
-.viewer #live { display: block; width: min(var(--w, 100%), 100%); height: auto; border-radius: 4px; cursor: zoom-in; }
 .viewer:fullscreen { padding: 0; border: 0; border-radius: 0; }
 .viewer:fullscreen img { max-height: 100%; width: auto; border-radius: 0; cursor: zoom-out; }
-.viewer:fullscreen #live { width: min(var(--w, 100vw), 100vw, calc(100vh * var(--ar, 1.78))); border-radius: 0; cursor: zoom-out; }
 
 .howto {
   background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 16px 18px;
@@ -119,6 +117,47 @@ button.small { font-size: 12px; padding: 4px 9px; }
 }
 .howto h3 { margin: 0 0 6px; font-family: var(--serif); font-weight: 500; font-size: 18px; }
 .howto ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; max-width: 62ch; color: #cfd2d6; font-size: 13px; line-height: 1.55; }
+
+/* "How stereograms work": closed by default, at the very bottom */
+.explain { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; }
+.explain summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 14px 18px;
+  font-family: var(--serif); font-size: 18px; font-weight: 500; border-radius: 10px;
+}
+.explain summary::-webkit-details-marker { display: none; }
+.explain summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.chev { width: 12px; height: 12px; flex: none; fill: none; stroke: var(--soft); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s; }
+.explain summary:hover .chev { stroke: var(--ink); }
+.explain[open] .chev { transform: rotate(90deg); }
+.explain-body {
+  padding: 0 18px 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 32px;
+  color: #cfd2d6; font-size: 13px; line-height: 1.55;
+}
+.explain-body > div { min-width: 0; max-width: 64ch; }
+.explain h3 { font-size: 13px; font-weight: 600; color: var(--ink); margin: 14px 0 4px; }
+.explain-body > div > h3:first-child { margin-top: 2px; }
+.explain p { margin: 0; }
+.explain ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.explain strong { color: var(--ink); font-weight: 600; }
+.explain cite { font-style: italic; }
+.explain figure { margin: 12px 0 4px; max-width: 360px; }
+.explain figcaption { font-size: 12px; color: var(--soft); margin-top: 6px; line-height: 1.45; }
+.fig { display: block; width: 100%; height: auto; overflow: visible; }
+.fig text { font-family: var(--mono); font-size: 11px; fill: var(--soft); }
+.fig text.near { fill: var(--accent); }
+.fig .sight path { fill: none; stroke: var(--soft); stroke-width: 1; stroke-dasharray: 3 3; opacity: .75; }
+.fig .sight path.near { stroke: var(--accent); }
+.fig .screen { stroke: var(--soft); stroke-width: 1.5; }
+.fig .dot { fill: var(--soft); }
+.fig .dot.near { fill: var(--accent); }
+.fig .eye ellipse { fill: #18191c; stroke: var(--ink); stroke-width: 1.2; }
+.fig .eye circle { fill: var(--ink); }
+.fig .arcs path { fill: none; stroke: var(--ink); stroke-width: 1.1; opacity: .8; }
+.fig .arcs text { fill: var(--ink); text-anchor: middle; }
+.fig .brace { fill: none; stroke: var(--accent); stroke-width: 1.2; }
+.links .k0 { fill: var(--red); } .links .k1 { fill: var(--cyan); } .links .k2 { fill: #3a3d44; }
+.links .k3 { fill: var(--accent); } .links .k4 { fill: var(--ink); } .links .k5 { fill: #6b6f76; }
+.links rect.on { stroke: var(--ink); stroke-width: 1.2; }
 
 @media (max-width: 920px) {
   .wrap { grid-template-columns: minmax(0, 1fr); }
@@ -171,39 +210,6 @@ button.small { font-size: 12px; padding: 4px 9px; }
       <label for="soft">Edge softness <output id="softOut"></output></label>
       <input type="range" id="soft" min="0" max="12" step="1" value="0">
       <label class="check"><input type="checkbox" id="invert"> Invert depth</label>
-    </section>
-
-    <section id="animSection" hidden>
-      <h2>Animation</h2>
-      <label for="animShape">Shape</label>
-      <select id="animShape">
-        <option value="tesseract" selected>Hypercube</option>
-        <option value="cube">Cube</option>
-        <option value="octa">Octahedron</option>
-        <option value="icosa">Icosahedron</option>
-        <option value="lissajous">Lissajous figure</option>
-        <option value="knot">Trefoil knot</option>
-        <option value="spiro">Spirograph</option>
-        <option value="rose">Rose curve</option>
-        <option value="logo">Logo</option>
-      </select>
-      <div id="motionField">
-        <label for="animMotion">Motion</label>
-        <select id="animMotion">
-          <option value="bounce">Bounce around</option>
-          <option value="orbit">Orbit</option>
-          <option value="eight">Figure eight</option>
-          <option value="tilt">Tilt and turn</option>
-        </select>
-      </div>
-      <label for="animSpeed">Speed <output id="animSpeedOut"></output></label>
-      <input type="range" id="animSpeed" min="1" max="10" step="1" value="5">
-      <div id="lineField">
-        <label for="animLine">Line thickness <output id="animLineOut"></output></label>
-        <input type="range" id="animLine" min="8" max="60" step="2" value="24">
-      </div>
-      <label for="noiseSpeed">Noise speed <output id="noiseSpeedOut"></output></label>
-      <input type="range" id="noiseSpeed" min="1" max="5" step="1" value="2">
     </section>
 
     <section>
@@ -275,16 +281,13 @@ button.small { font-size: 12px; padding: 4px 9px; }
       <span class="status" id="status">Rendering…</span>
       <div class="actions">
         <button type="button" id="dotsBtn" aria-pressed="false" title="Two dots at the top that help you lock your eyes in">Focus dots: off</button>
-        <button type="button" id="animBtn" aria-pressed="false" title="The pattern shimmers and the hidden shape moves, which makes it easier to find">Animation mode</button>
         <button type="button" id="reseed">New pattern</button>
         <button type="button" id="fs">Fullscreen</button>
-        <button type="button" id="recordBtn" title="Save a few seconds of the animation as a video" hidden>Record clip</button>
         <button type="button" class="primary" id="download">Download PNG</button>
       </div>
     </div>
     <div class="viewer" id="viewer">
       <img id="out" alt="Stereogram with a hidden logo">
-      <canvas id="live" aria-label="Moving stereogram with a hidden logo" hidden></canvas>
     </div>
 
     <div class="howto">
@@ -306,6 +309,54 @@ button.small { font-size: 12px; padding: 4px 9px; }
         </ol>
       </div>
     </div>
+
+    <details class="explain" id="explain">
+      <summary><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 2.5 8 6l-3.5 3.5"/></svg>How stereograms work</summary>
+      <div class="explain-body">
+        <div>
+          <h3>Two eyes, two views</h3>
+          <p>Your eyes sit about 6 cm apart, so each one sees the world from a slightly different spot. Something close lands in quite different places in the two views; something far away barely shifts. Your brain reads that difference, called disparity, as depth.</p>
+          <h3>A pattern that fools them</h3>
+          <p>When you look “through” the screen, as if at something far behind it, your two eyes stop aiming at the same spot and each lands on a different dot. If those two dots look the same, which happens all the time in a repeating pattern, your brain merges them into one point and places it where the two lines of sight meet: behind the screen.</p>
+          <figure>
+            <svg class="fig" viewBox="0 0 300 166" role="img" aria-label="Two eyes looking through two matching dots on the screen at a point behind it">
+              <g class="sight"><path d="M125 140 100 22M175 140 100 22"/><path class="near" d="M125 140 205 52M175 140 205 52"/></g>
+              <line class="screen" x1="16" y1="95" x2="284" y2="95"/>
+              <text x="284" y="89" text-anchor="end">screen</text>
+              <rect class="dot" x="112.5" y="92" width="6" height="6" rx="1"/><rect class="dot" x="143.4" y="92" width="6" height="6" rx="1"/>
+              <rect class="dot near" x="162.9" y="92" width="6" height="6" rx="1"/><rect class="dot near" x="187.3" y="92" width="6" height="6" rx="1"/>
+              <circle class="dot" cx="100" cy="22" r="4.5"/><text x="100" y="11" text-anchor="middle">background</text>
+              <circle class="dot near" cx="205" cy="52" r="4.5"/><text class="near" x="214" y="56">shape, nearer</text>
+              <g class="eye"><ellipse cx="125" cy="140" rx="10" ry="6"/><ellipse cx="175" cy="140" rx="10" ry="6"/><circle cx="125" cy="140" r="2.6"/><circle cx="175" cy="140" r="2.6"/></g>
+              <text x="150" y="162" text-anchor="middle">your eyes</text>
+            </svg>
+            <figcaption>Each eye looks through its own dot. When the two dots match, you see a single point where the sight lines meet. A nearer point (blue) needs its two dots closer together.</figcaption>
+          </figure>
+        </div>
+        <div>
+          <h3>Hiding a shape</h3>
+          <p>For every point of the hidden shape, the generator works out which two pixels your eyes would see it through, and links them: they must get the same colour. Nearer points have their pair closer together, so where the shape is, the pattern repeats a little sooner. Up close it looks like noise; once your eyes fuse it, those small shifts become a floating shape.</p>
+          <figure>
+            <svg class="fig links" viewBox="0 0 300 76" role="img" aria-label="A row of pixels where linked pixels share a colour; the links hop 6 pixels over the background and 5 over the shape">
+              <g class="arcs"><path d="M34.5 32Q64.5 -4 94.5 32"/><text x="64.5" y="11">6</text><path d="M94.5 32Q119.5 2 144.5 32"/><text x="119.5" y="14">5</text><path d="M144.5 32Q169.5 2 194.5 32"/><text x="169.5" y="14">5</text><path d="M194.5 32Q224.5 -4 254.5 32"/><text x="224.5" y="11">6</text></g>
+              <rect x="0" y="34" width="9" height="14" rx="1.5" class="k0"/><rect x="10" y="34" width="9" height="14" rx="1.5" class="k1"/><rect x="20" y="34" width="9" height="14" rx="1.5" class="k2"/><rect x="30" y="34" width="9" height="14" rx="1.5" class="k3 on"/><rect x="40" y="34" width="9" height="14" rx="1.5" class="k4"/><rect x="50" y="34" width="9" height="14" rx="1.5" class="k5"/><rect x="60" y="34" width="9" height="14" rx="1.5" class="k0"/><rect x="70" y="34" width="9" height="14" rx="1.5" class="k1"/><rect x="80" y="34" width="9" height="14" rx="1.5" class="k2"/><rect x="90" y="34" width="9" height="14" rx="1.5" class="k3 on"/><rect x="100" y="34" width="9" height="14" rx="1.5" class="k4"/><rect x="110" y="34" width="9" height="14" rx="1.5" class="k5"/><rect x="120" y="34" width="9" height="14" rx="1.5" class="k0"/><rect x="130" y="34" width="9" height="14" rx="1.5" class="k1"/><rect x="140" y="34" width="9" height="14" rx="1.5" class="k3 on"/><rect x="150" y="34" width="9" height="14" rx="1.5" class="k4"/><rect x="160" y="34" width="9" height="14" rx="1.5" class="k5"/><rect x="170" y="34" width="9" height="14" rx="1.5" class="k0"/><rect x="180" y="34" width="9" height="14" rx="1.5" class="k1"/><rect x="190" y="34" width="9" height="14" rx="1.5" class="k3 on"/><rect x="200" y="34" width="9" height="14" rx="1.5" class="k4"/><rect x="210" y="34" width="9" height="14" rx="1.5" class="k5"/><rect x="220" y="34" width="9" height="14" rx="1.5" class="k0"/><rect x="230" y="34" width="9" height="14" rx="1.5" class="k0"/><rect x="240" y="34" width="9" height="14" rx="1.5" class="k1"/><rect x="250" y="34" width="9" height="14" rx="1.5" class="k3 on"/><rect x="260" y="34" width="9" height="14" rx="1.5" class="k4"/><rect x="270" y="34" width="9" height="14" rx="1.5" class="k5"/><rect x="280" y="34" width="9" height="14" rx="1.5" class="k0"/><rect x="290" y="34" width="9" height="14" rx="1.5" class="k0"/>
+              <path class="brace" d="M110 54v4h89v-4"/>
+              <text x="154.5" y="71" text-anchor="middle" class="near">shape</text>
+              <text x="55" y="71" text-anchor="middle">background</text><text x="250" y="71" text-anchor="middle">background</text>
+            </svg>
+            <figcaption>One row of pixels. Linked pixels share a colour; the arcs follow one chain of links, which hops every 6 pixels over the background and every 5 over the shape.</figcaption>
+          </figure>
+          <h3>How this page builds one</h3>
+          <ol>
+            <li><strong>Depth map.</strong> The logo or Julia set becomes a grey image, lighter where it should be nearer, softened a little so the pattern bends at the edges instead of tearing.</li>
+            <li><strong>Linking.</strong> Each row is scanned and every pair of pixels that must match is linked, skipping points one eye can’t see because something nearer is in the way. This is the method of Thimbleby, Inglis and Witten, “Displaying 3D images: algorithms for single-image random-dot stereograms”, <cite>IEEE Computer</cite> 27(10), 1994.</li>
+            <li><strong>Colours.</strong> Each linked group takes its colour from the background pattern, starting at the centre of the picture and working outward, so any leftover distortion spreads thinly to both sides.</li>
+          </ol>
+          <h3>Tips for viewing</h3>
+          <p>Make the picture big and give it a minute the first time. Start with your nose close to the screen, then lean back slowly; when the focus dots look like three, hold still. If the shape looks sunken instead of raised, you’re viewing it the other way round: switch the viewing method.</p>
+        </div>
+      </div>
+    </details>
   </section>
 </div>
 
@@ -541,16 +592,14 @@ button.small { font-size: 12px; padding: 4px 9px; }
   // blobs are what make the hidden shape show through as sheared texture, single dots hide it.
   // Soft colour noise is fine coloured dots whose hue drifts slowly down the picture, in soft bands
   // (the drift runs vertically only, so it never makes a seam where the pattern repeats).
-  function makeField(kind, W, H, grain, seed, loop) {
+  function makeField(kind, W, H, grain, seed) {
     const rnd = mulberry32(seed * 7919 + kind.charCodeAt(0));
     const data = new Uint8ClampedArray(W * H * 4);
     const baseHue = rnd() * 360;
     let drift = null;
     if (kind === 'noise') {
       const n = valueNoise(seed + 31), sc = 5.5 / H;
-      // when animating, the drift runs round a circle so the strip also wraps top to bottom
-      drift = loop ? (x, y) => fbm(n, 3.7 + 0.875 * Math.cos(y * 2 * Math.PI / H), 0.875 * Math.sin(y * 2 * Math.PI / H), 2)
-        : (x, y) => fbm(n, 3.7, y * sc, 2);
+      drift = (x, y) => fbm(n, 3.7, y * sc, 2);
     }
     const cell = grain, cw = Math.ceil(W / cell), ch = Math.ceil(H / cell);
     const cells = new Uint8ClampedArray(cw * ch * 3);
@@ -737,26 +786,13 @@ button.small { font-size: 12px; padding: 4px 9px; }
 
   // the background strip: one repeat (P px) wide and as tall as the picture
   const TEX_UNIT = 10;
-  // When animating, the strip also wraps top to bottom (so it can scroll): textures are made a little
-  // taller and the extra rows are faded into the top.
-  const FOLD = 48;
-  function backgroundTexture(r, P, H, loop) {
+  function backgroundTexture(r, P, H) {
     const grain = +$('grain').value, repeat = +$('repeat').value;
     const dots = ['noise', 'color', 'mono'].includes(r.kind);
-    const key = [r.kind, r.pal, r.scale, r.seed, P, H, grain, dots ? 0 : repeat, !!loop].join('|');
+    const key = [r.kind, r.pal, r.scale, r.seed, P, H, grain, dots ? 0 : repeat].join('|');
     if (state.texCache && state.texCache.key === key) return state.texCache.tex;
     state.texCache = null; // let the old one go before allocating a new one
-    let tex;
-    if (dots) tex = makeField(r.kind, P, H, grain, r.seed, loop);
-    else if (!loop) tex = makeTexture(r, P, H, repeat / TEX_UNIT * grain / 2);
-    else {
-      const big = makeTexture(r, P, H + FOLD, repeat / TEX_UNIT * grain / 2), d = big.data, n = P * 4;
-      for (let y = 0; y < FOLD; y++) {
-        const f = y / FOLD, a = y * n, b = (H + y) * n;
-        for (let i = 0; i < n; i++) d[a + i] = d[a + i] * f + d[b + i] * (1 - f);
-      }
-      tex = { w: P, h: H, data: d.subarray(0, H * n) };
-    }
+    const tex = dots ? makeField(r.kind, P, H, grain, r.seed) : makeTexture(r, P, H, repeat / TEX_UNIT * grain / 2);
     opaque(tex.data);
     state.texCache = { key, tex };
     return tex;
@@ -777,15 +813,11 @@ button.small { font-size: 12px; padding: 4px 9px; }
   // P/s per pixel, s being the local repeat: where the shape shortens the repeat, the texture is squeezed
   // evenly instead of torn at one seam. Each row's phase is then nudged to line up best with the rows
   // that miss the shape. Unlinked pixels continue the phase, or get a fresh random dot in dot modes.
-  // z: w×h depth 0..1; E: eye separation in working px; rows of the texture are read at y·sc.
+  // z: w×h depth 0..1; E: eye separation in px.
   const rows = { n: 0 }, NQ = 4096, luts = { E: 0, P: 0 };
   const COS = new Float64Array(256), SIN = new Float64Array(256);
   for (let i = 0; i < 256; i++) { COS[i] = Math.cos(i * Math.PI / 128); SIN[i] = Math.sin(i * Math.PI / 128); }
-  // `noise` (animation only) moves the texture: rows scroll by noise.row, the phase jumps by noise.col,
-  // and noise.seed re-rolls the fresh dots.
-  function stereogram(z, w, h, E, tex, sc, freshSeed, out, noise) {
-    const rowOff = noise ? noise.row | 0 : 0, colOff = noise ? noise.col | 0 : 0;
-    if (noise && freshSeed) freshSeed = (freshSeed ^ noise.seed) | 1;
+  function stereogram(z, w, h, E, tex, freshSeed, out) {
     if (rows.n !== w) {
       rows.n = w;
       for (const k of ['same', 'root', 'best', 'cnt', 'rep']) rows[k] = new Int32Array(w);
@@ -849,9 +881,8 @@ button.small { font-size: 12px; padding: 4px 9px; }
         g[x] = v;
         if ((x & 3) === 0) { const a = ((v - (x - c) * rate0) * toAng) & 255; cs += COS[a]; sn += SIN[a]; }
       }
-      const shift = c - Math.atan2(sn, cs) * P / (2 * Math.PI) + P * 1024 + colOff % P;
-      let ty = ((y * sc) | 0) + rowOff;
-      ty = ty < th ? ty : ty % th;
+      const shift = c - Math.atan2(sn, cs) * P / (2 * Math.PI) + P * 1024;
+      let ty = y < th ? y : y % th;
       const hy = ty + 7;
       ty *= P;
       for (let x = 0; x < w; x++) {
@@ -906,188 +937,6 @@ button.small { font-size: 12px; padding: 4px 9px; }
     return z;
   }
 
-  // the box around the shape in the base depth (output px), for the logo motions
-  function depthBox(W, H) {
-    const d = state.depth;
-    if (d.box) return d.box;
-    const z = d.z, bg = z[0];
-    let x0 = W, y0 = H, x1 = 0, y1 = 0;
-    for (let y = 0; y < H; y += 2) for (let x = 0, o = y * W; x < W; x += 2) {
-      if (Math.abs(z[o + x] - bg) > 0.04) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-    }
-    d.box = x1 < x0 ? [W * 0.3, H * 0.3, W * 0.7, H * 0.7] : [x0, y0, x1, y1];
-    return d.box;
-  }
-
-  // Resamples the base depth into a w×h buffer as A + B·z. With a frame `f`, the shape is scaled by
-  // f.zoom (and f.squash across), moved by (f.dx, f.dy) output px, and its height scaled by f.gain,
-  // with f.ramp tilting it (one side nearer than the other). The background stays where it is.
-  const samp = { n: 0 };
-  function sampleDepth(base, W, H, dst, w, h, f, A, B) {
-    if (w === W && h === H && (!f || (f.dx === 0 && f.dy === 0 && f.zoom === 1 && f.squash === 1 && f.ramp === 0 && f.gain === 1))) {
-      for (let i = 0; i < dst.length; i++) dst[i] = A + B * base[i];
-      return;
-    }
-    const zoom = f ? f.zoom : 1, sx = zoom * (f ? f.squash : 1), dx = f ? f.dx : 0, dy = f ? f.dy : 0;
-    const gain = f ? f.gain : 1, ramp = f ? f.ramp : 0, zbg = base[0], cx = (W - 1) / 2, cy = (H - 1) / 2;
-    const fx = W / w, fy = H / h;
-    if (samp.n !== w) { samp.n = w; samp.xs = new Int32Array(w); samp.xt = new Float32Array(w); samp.gx = new Float32Array(w); }
-    const xs = samp.xs, xt = samp.xt, gx = samp.gx;
-    for (let x = 0; x < w; x++) {
-      let u = cx + ((x + 0.5) * fx - 0.5 - cx - dx) / sx;
-      gx[x] = gain * (1 + ramp * (u - cx) / cx);
-      u = u < 0 ? 0 : u > W - 2 ? W - 2 : u;
-      xs[x] = u | 0; xt[x] = u - (u | 0);
-    }
-    for (let y = 0; y < h; y++) {
-      let v = cy + ((y + 0.5) * fy - 0.5 - cy - dy) / zoom;
-      v = v < 0 ? 0 : v > H - 1 ? H - 1 : v;
-      const y0 = v | 0, ty = v - y0, r0 = y0 * W, r1 = Math.min(H - 1, y0 + 1) * W, o = y * w;
-      for (let x = 0; x < w; x++) {
-        const x0 = xs[x], tx = xt[x];
-        const a = base[r0 + x0] + (base[r0 + x0 + 1] - base[r0 + x0]) * tx;
-        const b = base[r1 + x0] + (base[r1 + x0 + 1] - base[r1 + x0]) * tx;
-        let val = zbg + (a + (b - a) * ty - zbg) * gx[x];
-        val = val < 0 ? 0 : val > 1 ? 1 : val;
-        dst[o + x] = A + B * val;
-      }
-    }
-  }
-
-  // ---------- animated line shapes, drawn straight into the depth buffer ----------
-  const PHI = (1 + Math.sqrt(5)) / 2;
-  function solid(verts, dim) {
-    const n = verts.length / dim, e = [];
-    let rad = 0, dmin = Infinity;
-    for (let i = 0; i < n; i++) {
-      let r = 0;
-      for (let k = 0; k < dim; k++) r += verts[i * dim + k] ** 2;
-      rad = Math.max(rad, Math.sqrt(r));
-    }
-    const d2 = (i, j) => { let s = 0; for (let k = 0; k < dim; k++) s += (verts[i * dim + k] - verts[j * dim + k]) ** 2; return s; };
-    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) dmin = Math.min(dmin, d2(i, j));
-    for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) if (d2(i, j) < dmin * 1.001) e.push(i, j);
-    return { v: Float64Array.from(verts, (q) => q / rad), dim, n, e: Int16Array.from(e) };
-  }
-  const signs = (dim) => {
-    const out = [];
-    for (let m = 0; m < 1 << dim; m++) for (let k = 0; k < dim; k++) out.push(m & (1 << k) ? 1 : -1);
-    return out;
-  };
-  const SOLIDS = {
-    tesseract: solid(signs(4), 4),
-    cube: solid(signs(3), 3),
-    octa: solid([1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1], 3),
-    icosa: solid([0, 1, PHI, 0, 1, -PHI, 0, -1, PHI, 0, -1, -PHI, 1, PHI, 0, 1, -PHI, 0, -1, PHI, 0, -1, -PHI, 0,
-      PHI, 0, 1, PHI, 0, -1, -PHI, 0, 1, -PHI, 0, -1], 3),
-  };
-  const CURVE_N = 720;
-  const pts = new Float64Array((CURVE_N + 1) * 3); // projected x, y (unit units) and depth -1..1 per point
-  const LISSA = [[3, 2], [5, 4], [3, 4], [5, 6], [1, 2], [5, 3]];
-  const ROSE = [2, 3, 4, 5, 3.5];
-  const smooth01 = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
-  // a value that holds on each item of a list for `hold` s, then glides to the next over `glide` s
-  function cycle(list, t, hold, glide) {
-    const per = hold + glide, i = Math.floor(t / per), u = smooth01((t - i * per - hold) / glide);
-    const a = list[i % list.length], b = list[(i + 1) % list.length];
-    return Array.isArray(a) ? a.map((v, k) => v + (b[k] - v) * u) : a + (b - a) * u;
-  }
-  // rotates point (x, y, z) about Y by ay, then about X by ax; returns into pts at i
-  function put(i, x, y, z, ay, ax) {
-    const c1 = Math.cos(ay), s1 = Math.sin(ay), c2 = Math.cos(ax), s2 = Math.sin(ax);
-    const x1 = x * c1 + z * s1, z1 = -x * s1 + z * c1;
-    const y2 = y * c2 - z1 * s2, z2 = y * s2 + z1 * c2;
-    pts[i * 3] = x1; pts[i * 3 + 1] = y2; pts[i * 3 + 2] = z2;
-  }
-  // Fills pts for shape `name` at time t; returns { n: points, edges: Int16Array or null (= a closed path) }.
-  const projected = { n: 0, edges: null };
-  function shapePoints(name, t) {
-    const S = SOLIDS[name];
-    if (name === 'tesseract') {
-      // two simultaneous rotations (XW and YZ planes), then a 4D perspective down to 3D
-      const a = t * 0.55, b = t * 0.31, ca = Math.cos(a), sa = Math.sin(a), cb = Math.cos(b), sb = Math.sin(b), d4 = 2;
-      for (let i = 0; i < S.n; i++) {
-        const v = S.v, o = i * 4;
-        const x = v[o] * ca - v[o + 3] * sa, w4 = v[o] * sa + v[o + 3] * ca;
-        const y = v[o + 1] * cb - v[o + 2] * sb, z = v[o + 1] * sb + v[o + 2] * cb;
-        const k = (d4 - 0.5) / (d4 - w4);
-        put(i, x * k, y * k, z * k, 0.45 + t * 0.12, 0.42);
-      }
-      projected.n = S.n; projected.edges = S.e;
-    } else if (S) {
-      for (let i = 0; i < S.n; i++) put(i, S.v[i * 3], S.v[i * 3 + 1], S.v[i * 3 + 2], t * 0.6, 0.5 + 0.35 * Math.sin(t * 0.37));
-      projected.n = S.n; projected.edges = S.e;
-    } else {
-      const N = CURVE_N, TAU = 2 * Math.PI;
-      if (name === 'lissajous') {
-        const [fa, fb] = cycle(LISSA, t * 0.6, 9, 3), d = t * 0.5;
-        for (let i = 0; i <= N; i++) {
-          const s = i / N * TAU;
-          put(i, Math.sin(fa * s + d) * 1.25, Math.sin(fb * s), Math.sin((fa - fb) * s + d * 0.7) * 0.9, 0, 0);
-        }
-      } else if (name === 'knot') {
-        for (let i = 0; i <= N; i++) {
-          const s = i / N * TAU, r = (2 + Math.cos(3 * s)) / 3;
-          put(i, r * Math.cos(2 * s), r * Math.sin(2 * s), Math.sin(3 * s) / 3 * 1.2, t * 0.5, 0.6 + 0.3 * Math.sin(t * 0.3));
-        }
-      } else if (name === 'spiro') {
-        const R = 5, r = 3, dd = 2.6 + 1.2 * Math.sin(t * 0.21), sc = 1 / (R - r + dd), spin = t * 0.25;
-        for (let i = 0; i <= N; i++) {
-          const s = i / N * TAU * 3, q = s + spin;
-          const x = (R - r) * Math.cos(q) + dd * Math.cos((R - r) / r * s - spin);
-          const y = (R - r) * Math.sin(q) - dd * Math.sin((R - r) / r * s - spin);
-          put(i, x * sc, y * sc, 0, 0.5 * Math.sin(t * 0.33), 0.55 * Math.cos(t * 0.27));
-        }
-      } else { // rose
-        const k = cycle(ROSE, t * 0.6, 8, 3), spin = t * 0.2;
-        for (let i = 0; i <= N; i++) {
-          const s = i / N * TAU * 2, r = Math.cos(k * s);
-          put(i, r * Math.cos(s + spin), r * Math.sin(s + spin), 0, 0.55 * Math.sin(t * 0.29), 0.5 * Math.cos(t * 0.23));
-        }
-      }
-      projected.n = N + 1; projected.edges = null;
-    }
-    return projected;
-  }
-
-  // One thick stroke with rounded caps and a rounded (tube) profile, kept where it is nearer than what's
-  // there already. Depth runs from d0 to d1 along it.
-  function capsule(buf, w, h, ax, ay, d0, bx, by, d1, r) {
-    const ex = bx - ax, ey = by - ay, L2 = ex * ex + ey * ey || 1e-9, r2 = r * r, inv = 1 / r2;
-    const xa = Math.max(0, Math.floor(Math.min(ax, bx) - r)), xb = Math.min(w - 1, Math.ceil(Math.max(ax, bx) + r));
-    const ya = Math.max(0, Math.floor(Math.min(ay, by) - r)), yb = Math.min(h - 1, Math.ceil(Math.max(ay, by) + r));
-    for (let y = ya; y <= yb; y++) {
-      const o = y * w, py = y - ay;
-      for (let x = xa; x <= xb; x++) {
-        const px = x - ax;
-        let t = (px * ex + py * ey) / L2;
-        t = t < 0 ? 0 : t > 1 ? 1 : t;
-        const qx = px - t * ex, qy = py - t * ey, dd = qx * qx + qy * qy;
-        if (dd >= r2) continue;
-        const e = Math.sqrt(1 - dd * inv), v = (d0 + (d1 - d0) * t) * (e > 0.45 ? 1 : e / 0.45) + 0.07 * e;
-        if (v > buf[o + x]) buf[o + x] = v;
-      }
-    }
-  }
-  // draws the current shape into buf (w×h, cleared to 0); depth 0.34 (far) to 0.9 (near) plus the tube
-  function renderShape(buf, w, h, W, name, t) {
-    buf.fill(0);
-    const { n, edges } = shapePoints(name, t);
-    const S = 0.42 * Math.min(w, h), cx = w / 2, cy = h / 2, r = Math.max(1.2, +$('animLine').value / 2 * w / 1600);
-    const X = (i) => cx + pts[i * 3] * S, Y = (i) => cy - pts[i * 3 + 1] * S, D = (i) => 0.62 + 0.28 * Math.max(-1, Math.min(1, pts[i * 3 + 2]));
-    const seg = (i, j) => {
-      const ax = X(i), ay = Y(i), bx = X(j), by = Y(j), len = Math.hypot(bx - ax, by - ay), m = Math.max(1, Math.ceil(len / (3 * r)));
-      const da = D(i), db = D(j);
-      for (let k = 0; k < m; k++) {
-        const u0 = k / m, u1 = (k + 1) / m;
-        capsule(buf, w, h, ax + (bx - ax) * u0, ay + (by - ay) * u0, da + (db - da) * u0,
-          ax + (bx - ax) * u1, ay + (by - ay) * u1, da + (db - da) * u1, r);
-      }
-    };
-    if (edges) for (let k = 0; k < edges.length; k += 2) seg(edges[k], edges[k + 1]);
-    else for (let i = 0; i < n - 1; i++) seg(i, i + 1);
-  }
-
   const opaque = (d) => { for (let i = 3; i < d.length; i += 4) d[i] = 255; };
   const tileCache = { key: '', tile: null };
   function tileFor(img, sBg) {
@@ -1098,49 +947,26 @@ button.small { font-size: 12px; padding: 4px 9px; }
     return tileCache.tile;
   }
 
-  // Renders one stereogram at `k` times the output size [W, H] into ImageData `img` (reallocated when the
-  // size differs; the one used is returned). With an animation frame `f`: either the picture moves
-  // (f.shape 'logo', see sampleDepth) or a line shape is drawn, and the background texture is read at
-  // f's noise offsets. Without one, it's the still picture.
+  // Renders the stereogram at the output size [W, H] and draws it on canvas `cv`.
   const work = { z: null, img: null };
-  const workSize = (W, H, k) => (k >= 1 ? [W, H] : [Math.max(2, Math.round(W * k)), Math.max(2, Math.round(H * k))]);
-  function render(W, H, k, f, img) {
-    const [w, h] = workSize(W, H, k);
+  function compose(cv, W, H) {
     const strength = +$('depth').value, cross = $('viewCross').checked;
-    if (!work.z || work.z.length !== w * h) work.z = new Float32Array(w * h);
+    if (!work.z || work.z.length !== W * H) work.z = new Float32Array(W * H);
     const A = cross ? strength : 0, B = cross ? -strength : strength;
-    let zbg = 0;
-    if (f && f.shape !== 'logo') {
-      renderShape(work.z, w, h, W, f.shape, f.t);
-      const z = work.z;
-      for (let i = 0; i < z.length; i++) z[i] = A + B * z[i];
-    } else {
-      const base = depthBase(W, H);
-      zbg = base[0];
-      sampleDepth(base, W, H, work.z, w, h, f, A, B);
-    }
+    const base = depthBase(W, H), zbg = base[0], z = work.z;
+    for (let i = 0; i < z.length; i++) z[i] = A + B * base[i];
     const E = +$('repeat').value * 2, zb = cross ? strength * (1 - zbg) : strength * zbg;
     const sBg = Math.round((1 - MU * zb) * E / (2 - MU * zb));
     const kind = $('pattern').value, recipe = currentRecipe(), custom = kind === 'custom' && state.texture;
-    const tex = custom ? tileFor(state.texture, sBg) : backgroundTexture(recipe, sBg, H, !!f);
+    const tex = custom ? tileFor(state.texture, sBg) : backgroundTexture(recipe, sBg, H);
     const fresh = !custom && (recipe.kind === 'color' || recipe.kind === 'mono') ? (recipe.seed * 2654435761) | 1 : 0;
-    if (!img || img.width !== w || img.height !== h) img = new ImageData(w, h);
-    stereogram(work.z, w, h, E * w / W, tex, W / w, fresh, img, f);
-    return { img, w, h, sBg, recipe, kind };
-  }
-  function show(cv, img, W, sBg) {
-    if (cv.width !== img.width) cv.width = img.width;
-    if (cv.height !== img.height) cv.height = img.height;
+    if (!work.img || work.img.width !== W || work.img.height !== H) work.img = new ImageData(W, H);
+    stereogram(z, W, H, E, tex, fresh, work.img);
+    cv.width = W; cv.height = H;
     const g = cv.getContext('2d');
-    g.putImageData(img, 0, 0);
-    if ($('dots').checked) drawDots(g, img.width, sBg * img.width / W);
-  }
-  // renders and shows on canvas `cv` (the still picture, and full-size saves)
-  function compose(cv, W, H, k, f) {
-    const r = render(W, H, k, f, work.img);
-    work.img = r.img;
-    show(cv, r.img, W, r.sBg);
-    return r;
+    g.putImageData(work.img, 0, 0);
+    if ($('dots').checked) drawDots(g, W, sBg);
+    return { sBg, recipe, kind };
   }
 
   const canvas = document.createElement('canvas');
@@ -1149,7 +975,7 @@ button.small { font-size: 12px; padding: 4px 9px; }
     const t0 = performance.now();
     if (!sourceReady()) { $('status').textContent = 'Loading the logo…'; return; }
     const [W, H] = getSize();
-    const { sBg, recipe, kind } = compose(canvas, W, H, 1, null);
+    const { sBg, recipe, kind } = compose(canvas, W, H);
     canvas.toBlob((blob) => {
       if (!blob) return;
       if (state.url) URL.revokeObjectURL(state.url);
@@ -1160,169 +986,16 @@ button.small { font-size: 12px; padding: 4px 9px; }
     const bg = kind === 'random' ? ' · ' + recipeName(recipe) : '';
     $('status').textContent = `${W} × ${H} px · repeat ${sBg} px${bg} · ${Math.round(performance.now() - t0)} ms`;
   }
-  // the still image replaces the moving one only once it has loaded, so nothing flashes
-  $('out').addEventListener('load', () => { if (!anim.on) { $('live').hidden = true; $('out').hidden = false; } });
 
   let timer = 0;
   function schedule(delay = 80) {
     clearTimeout(timer);
-    if (!anim.on) $('status').textContent = 'Rendering…';
+    $('status').textContent = 'Rendering…';
     timer = setTimeout(() => {
-      if (anim.on) { anim.size = getSize(); return; } // the running animation picks the change up
       try { generate(); }
       catch (e) { $('status').innerHTML = '<span class="error">Could not render: ' + (e && e.message ? e.message : e) + '</span>'; }
     }, delay);
   }
-
-  // ---------- animation mode ----------
-  // A dynamic random-dot stereogram. Every refresh is a whole new stereogram (at a reduced working size,
-  // scaled up by CSS) with the shape moved on and the background dots re-rolled everywhere, so every part
-  // of the picture changes together and nothing points to the shape until the eyes fuse it. Between
-  // refreshes the picture cross-fades from the last one to the new one; the two fastest speeds don't fade.
-  // Noise speed sets how often a refresh comes.
-  const NOISE = [null, { ms: 300, fade: true, name: 'calm' }, { ms: 180, fade: true, name: 'gentle' },
-    { ms: 110, fade: true, name: 'lively' }, { ms: 66, fade: false, name: 'fast' }, { ms: 0, fade: false, name: 'every frame' }];
-  const coarse = matchMedia('(pointer: coarse)').matches;
-  const anim = {
-    on: false, raf: 0, last: 0, t: 0, amp: 0, size: [1600, 900], q: 1, cost: 0, n: 0, frames: 0, fpsAt: 0,
-    since: 0, every: 1, fade: false, a: null, b: null, d: null, key: '', sBg: 120, rnd: mulberry32(Date.now() & 0xffffff), rec: null,
-    frame: { shape: 'logo', t: 0, dx: 0, dy: 0, zoom: 1, squash: 1, ramp: 0, gain: 1, row: 0, col: 0, seed: 1 },
-    frameMs: coarse ? 50 : 1000 / 30,     // 20 fps on phones, 30 on computers
-    budget: coarse ? 150000 : 360000,     // working pixels per refresh
-  };
-  function animScale(W, H) {
-    const shown = ($('viewer').clientWidth || 800) * Math.min(2, devicePixelRatio || 1);
-    return Math.min(1, shown / W, Math.sqrt(anim.budget / (W * H))) * anim.q;
-  }
-  // triangle wave -1..1 (screensaver bounce)
-  const bounce = (u) => { const f = u - Math.floor(u); return f < 0.5 ? 4 * f - 1 : 3 - 4 * f; };
-  // sets the logo motion for time t into f (eased in from rest by anim.amp)
-  function logoMotion(f, W, H, t) {
-    depthBase(W, H);
-    const m = $('animMotion').value, a = anim.amp, TAU = 2 * Math.PI;
-    let zoom = 1, dx = 0, dy = 0, squash = 1, ramp = 0;
-    if (m === 'bounce') {
-      const [x0, y0, x1, y1] = depthBox(W, H);
-      zoom = Math.min(0.7, 0.45 * W / Math.max(1, x1 - x0), 0.6 * H / Math.max(1, y1 - y0));
-      const ox = ((x0 + x1) / 2 - W / 2) * zoom, oy = ((y0 + y1) / 2 - H / 2) * zoom, m0 = 0.03 * Math.min(W, H);
-      const rx = Math.max(0, W / 2 - (x1 - x0) / 2 * zoom - m0), ry = Math.max(0, H / 2 - (y1 - y0) / 2 * zoom - m0);
-      dx = bounce(t * 0.061 + 0.25) * rx - ox; dy = bounce(t * 0.047 + 0.25) * ry - oy;
-    } else if (m === 'eight') {
-      zoom = 0.8; dx = 0.16 * W * Math.sin(t * TAU / 9); dy = 0.09 * H * Math.sin(t * 2 * TAU / 9);
-    } else if (m === 'tilt') {
-      const th = 0.75 * Math.sin(t * TAU / 8);
-      zoom = 0.86; squash = Math.cos(th); ramp = 0.55 * Math.sin(th);
-      dx = 0.025 * W * Math.sin(t * TAU / 11); dy = 0.02 * H * Math.sin(t * TAU / 7);
-    } else { // orbit
-      zoom = 0.82; dx = 0.1 * W * Math.sin(t * TAU / 7); dy = 0.08 * H * Math.cos(t * TAU / 7);
-    }
-    f.zoom = 1 + (zoom - 1) * a; f.dx = dx * a; f.dy = dy * a; f.squash = 1 + (squash - 1) * a; f.ramp = ramp * a;
-    f.gain = 1 - 0.16 * a * (0.5 - 0.5 * Math.cos(t * TAU / 3.7));
-  }
-  // blends two frames: out = a + (b - a)·u, u in 0..256
-  function blend(a, b, out, u) {
-    const pa = a.data, pb = b.data, po = out.data;
-    for (let i = 0; i < po.length; i++) po[i] = pa[i] + (((pb[i] - pa[i]) * u) >> 8);
-  }
-  function tick(now) {
-    anim.raf = requestAnimationFrame(tick);
-    if (now - anim.last < anim.frameMs - 3) return;
-    const dt = Math.min(100, now - anim.last) / 1000;
-    anim.last = now;
-    const f = anim.frame, shape = $('animShape').value;
-    if (shape === 'logo' && !sourceReady()) return;
-    anim.t += dt * +$('animSpeed').value / 5;
-    anim.amp = Math.min(1, anim.amp + dt / 1.5);
-    const [W, H] = anim.size, live = $('live'), lv = NOISE[+$('noiseSpeed').value] || NOISE[2], key = W + 'x' + H;
-    if (live.dataset.size !== key) {
-      live.dataset.size = key;
-      live.style.setProperty('--w', W + 'px'); live.style.setProperty('--ar', W / H);
-    }
-    const [w, h] = workSize(W, H, animScale(W, H));
-    const same = anim.b && anim.b.width === w && anim.b.height === h && anim.key === key;
-    anim.since++;
-    if (anim.since >= anim.every || !same) {
-      // a refresh: move the shape on, re-roll the dots, render a new frame
-      f.shape = shape; f.t = anim.t;
-      if (shape === 'logo') logoMotion(f, W, H, anim.t);
-      f.row = Math.floor(anim.rnd() * H * 64); f.col = Math.floor(anim.rnd() * 1e6); f.seed = (anim.rnd() * 0x7fffffff) | 1;
-      const t0 = performance.now();
-      let r;
-      try { r = render(W, H, w / W, f, same ? anim.a : null); }
-      catch (e) { stopAnim(); $('status').innerHTML = '<span class="error">Could not render: ' + (e && e.message ? e.message : e) + '</span>'; return; }
-      anim.a = same ? anim.b : null; anim.b = r.img; anim.sBg = r.sBg; anim.key = key;
-      anim.since = 0; anim.every = Math.max(1, Math.round(lv.ms / anim.frameMs)); anim.fade = lv.fade && anim.every > 1;
-      // keep the frame rate: lower the working size if renders get slow, raise it again when there's room
-      // (not while recording, so the clip keeps one size)
-      const cost = Math.min(performance.now() - t0, anim.frameMs * 2); // a one-off rebuild after a change doesn't count fully
-      anim.cost = anim.n ? anim.cost * 0.8 + cost * 0.2 : cost;
-      if (++anim.n % 10 === 0 && !anim.rec) {
-        if (anim.cost > anim.frameMs * 0.7 && anim.q > 0.4) anim.q *= 0.85;
-        else if (anim.cost < anim.frameMs * 0.3 && anim.q < 1) anim.q = Math.min(1, anim.q / 0.9);
-      }
-    }
-    let img = anim.b;
-    if (anim.fade && anim.a && anim.since + 1 < anim.every) {
-      if (!anim.d || anim.d.width !== w || anim.d.height !== h) anim.d = new ImageData(w, h);
-      blend(anim.a, anim.b, anim.d, Math.round(256 * smooth01((anim.since + 1) / anim.every)));
-      img = anim.d;
-    }
-    show(live, img, W, anim.sBg);
-    if (live.hidden) { live.hidden = false; $('out').hidden = true; }
-    anim.frames++;
-    if (now - anim.fpsAt >= 1000) {
-      const fps = Math.round(anim.frames * 1000 / (now - anim.fpsAt));
-      $('status').textContent = `${W} × ${H} px · animation · ${live.width} × ${live.height} working · ${fps} fps`;
-      anim.frames = 0; anim.fpsAt = now;
-    }
-  }
-  function runAnim() {
-    cancelAnimationFrame(anim.raf);
-    if (!anim.on || document.hidden) return;
-    anim.last = anim.fpsAt = performance.now() - anim.frameMs; anim.frames = 0;
-    anim.raf = requestAnimationFrame(tick);
-  }
-  function stopAnim() {
-    anim.on = false;
-    cancelAnimationFrame(anim.raf);
-    if (anim.rec && anim.rec.state !== 'inactive') anim.rec.stop();
-    syncLabels();
-  }
-  $('animBtn').addEventListener('click', () => {
-    if (anim.on) { stopAnim(); schedule(0); return; }
-    clearTimeout(timer);
-    Object.assign(anim, { on: true, t: 0, amp: 0, q: 1, n: 0, since: 0, a: null, b: null, size: getSize() });
-    syncLabels();
-    runAnim();
-  });
-  document.addEventListener('visibilitychange', runAnim);
-  ['animShape', 'animMotion'].forEach((id) => $(id).addEventListener('input', () => { anim.amp = 0; syncLabels(); }));
-  ['animSpeed', 'animLine', 'noiseSpeed'].forEach((id) => $(id).addEventListener('input', syncLabels));
-
-  // a few seconds of the animation as a video, when the browser can record a canvas
-  const REC_TYPE = window.MediaRecorder && HTMLCanvasElement.prototype.captureStream
-    ? ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'].find((t) => MediaRecorder.isTypeSupported(t)) : null;
-  const REC_SECONDS = 6;
-  $('recordBtn').addEventListener('click', () => {
-    if (!anim.on || anim.rec || !REC_TYPE) return;
-    let stream, rec;
-    try {
-      stream = $('live').captureStream(Math.round(1000 / anim.frameMs));
-      rec = new MediaRecorder(stream, { mimeType: REC_TYPE, videoBitsPerSecond: 8e6 });
-    } catch (e) { $('status').innerHTML = '<span class="error">Recording isn’t available here.</span>'; return; }
-    const chunks = [];
-    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
-    rec.onstop = () => {
-      stream.getTracks().forEach((t) => t.stop());
-      clearTimeout(anim.recTimer);
-      anim.rec = null; syncLabels();
-      if (chunks.length) offerFile(new Blob(chunks, { type: REC_TYPE }), 'stereogram.' + (REC_TYPE.includes('mp4') ? 'mp4' : 'webm'));
-    };
-    rec.start(500);
-    anim.rec = rec;
-    anim.recTimer = setTimeout(() => { if (rec.state !== 'inactive') rec.stop(); }, REC_SECONDS * 1000);
-    syncLabels();
-  });
 
   function syncLabels() {
     const julia = $('source').value === 'julia';
@@ -1330,18 +1003,6 @@ button.small { font-size: 12px; padding: 4px 9px; }
     $('dotsBtn').textContent = 'Focus dots: ' + (dotsOn ? 'on' : 'off');
     $('dotsBtn').setAttribute('aria-pressed', String(dotsOn));
     $('dotsBtn').classList.toggle('on', dotsOn);
-    $('animBtn').setAttribute('aria-pressed', String(anim.on));
-    $('animBtn').classList.toggle('on', anim.on);
-    $('animSection').hidden = !anim.on;
-    const logoShape = $('animShape').value === 'logo';
-    $('motionField').hidden = !logoShape;
-    $('lineField').hidden = logoShape;
-    $('animSpeedOut').textContent = $('animSpeed').value;
-    $('animLineOut').textContent = $('animLine').value + ' px';
-    $('noiseSpeedOut').textContent = (NOISE[+$('noiseSpeed').value] || NOISE[2]).name;
-    $('recordBtn').hidden = !anim.on || !REC_TYPE;
-    $('recordBtn').disabled = !!anim.rec;
-    $('recordBtn').textContent = anim.rec ? 'Recording…' : 'Record clip';
     $('softOut').textContent = $('soft').value === '0' ? 'off' : $('soft').value + ' px';
     $('thickOut').textContent = $('thick').value === '0' ? 'off' : '+' + $('thick').value + ' px';
     $('drop').hidden = julia;
@@ -1469,14 +1130,7 @@ button.small { font-size: 12px; padding: 4px 9px; }
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
-  // while animating, the frame on screen is saved, rendered again at full size
-  $('download').addEventListener('click', () => {
-    if (!anim.on) { if (state.blob) offerFile(state.blob, 'stereogram.png'); return; }
-    if (anim.frame.shape === 'logo' && !sourceReady()) return;
-    const [W, H] = anim.size, c = document.createElement('canvas');
-    compose(c, W, H, 1, anim.frame);
-    c.toBlob((blob) => { if (blob) offerFile(blob, 'stereogram.png'); }, 'image/png');
-  });
+  $('download').addEventListener('click', () => { if (state.blob) offerFile(state.blob, 'stereogram.png'); });
 
   const toggleFs = () => {
     if (document.fullscreenElement) { document.exitFullscreen?.().catch(() => {}); return; }
@@ -1485,7 +1139,6 @@ button.small { font-size: 12px; padding: 4px 9px; }
   };
   $('fs').addEventListener('click', toggleFs);
   $('out').addEventListener('dblclick', toggleFs);
-  $('live').addEventListener('dblclick', toggleFs);
 
   applySource();
   loadMouse().then((c) => {

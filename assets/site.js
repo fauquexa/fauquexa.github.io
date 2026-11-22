@@ -3,7 +3,7 @@
   const root = document.documentElement;
   let saved = null;
   try { saved = localStorage.getItem("theme"); } catch (e) {}
-  if (saved) root.dataset.theme = saved;
+  root.dataset.theme = saved || "dark";   // dark by default; the button switches and remembers
 
   document.addEventListener("DOMContentLoaded", () => {
     const btn = document.querySelector(".theme-btn");

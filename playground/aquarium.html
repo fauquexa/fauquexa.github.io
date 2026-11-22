@@ -873,9 +873,14 @@ function fishMaterial(f, o = {}) {
       transformed.x *= 1.0 + uFat * 0.55 * bw;
       transformed.y += (position.y < 0.0 ? position.y * uFat * 0.9 : position.y * uFat * 0.15) * bw;
       float tb = max(0.0, 0.25 - position.z);
-      transformed.x += sin(uPhase - tb * 4.5) * uAmp * tb * tb * 1.6;`);
+      transformed.x += sin(uPhase - tb * 4.5) * uAmp * tb * tb * 1.6;` + (o.fin ? `
+      // the loach's flat side fins: a wave rolling from front to back, stronger toward the fin edge
+      float fs = position.x < 0.0 ? -1.0 : 1.0;
+      transformed.y += sin(uFinPh + position.z * 16.0 + fs * uFinSide) * uFinAmp * aFin * 1.6;
+      transformed.x -= abs(sin(uFinPh + position.z * 16.0)) * uFinAmp * aFin * fs * 0.35;` : ""));
+    if (o.fin) sh.vertexShader = "attribute float aFin;\nuniform float uFinPh;\nuniform float uFinAmp;\nuniform float uFinSide;\n" + sh.vertexShader;
   };
-  mat.customProgramCacheKey = () => "fish";
+  mat.customProgramCacheKey = () => (o.fin ? "fishfin" : "fish");
   return mat;
 }
 const plainMat = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 20, side: THREE.DoubleSide });
@@ -896,7 +901,15 @@ function makeFish(sp, o = {}) {
   if (sp === "cichlid") geo = cichlidGeo(fishSeed++ * 7919, f.big);
   else if (sp === "gourami") geo = gouramiGeo(o.seed, o.red);
   else if (sp === "ram") geo = ramGeo(o.look);
-  else if (sp === "loach") geo = loachGeo();
+  else if (sp === "loach") {
+    geo = loachGeo(); mo = { fin: true };
+    // how far each vertex sits out on a side fin (0 on the body), so only the fins ripple
+    const pos = geo.attributes.position, a = new Float32Array(pos.count), K = fishKit(LOACH_P);
+    for (let i = 0; i < pos.count; i++) a[i] = Math.max(0, Math.abs(pos.getX(i)) - K.w(clamp((0.5 - pos.getZ(i)) / 0.8, 0, 1)) * 0.95);
+    geo.setAttribute("aFin", new THREE.BufferAttribute(a, 1));
+    Object.assign(f.u, { uFinPh: { value: 0 }, uFinAmp: { value: 0.02 }, uFinSide: { value: 0 } });
+    f.finAmp = 0.02;
+  }
   else { geo = shrimpGeo(); mo = { transparent: true, opacity: 0.6, shin: 60, spec: 0x3a3a3a }; }
   f.mat = fishMaterial(f, mo);
   f.g = new THREE.Mesh(geo, f.mat); f.g.scale.setScalar(f.L); f.g.castShadow = sp !== "shrimp";
@@ -1346,8 +1359,16 @@ function updateCrawler(f, dt) {
   const fatT = f.full > 0 ? 0.3 * Math.min(1, f.full / 12) : 0;
   f.fat += (fatT - f.fat) * Math.min(1, dt * 1.2); f.u.uFat.value = f.fat;
   const moving = c.mode === "move";
-  f.phase += dt * (moving ? 9 : 2); f.u.uPhase.value = f.phase;
-  f.u.uAmp.value = f.sp === "loach" ? (moving ? 0.035 : 0.006) : 0;
+  f.phase += dt * (moving ? (f.sp === "loach" ? 12 : 9) : 2); f.u.uPhase.value = f.phase;
+  f.u.uAmp.value = f.sp === "loach" ? (moving ? 0.07 : 0.008) : 0;
+  if (f.u.uFinPh) {   // Frederick's fins: big rolling waves in a glide, a gentle flutter while he grazes or holds on
+    const t = moving ? Math.min(1, c.path.t) : 0;
+    const amp = moving ? 0.15 + 0.1 * Math.sin(Math.PI * t) : c.graze ? 0.045 : 0.028;
+    f.finAmp += (amp - f.finAmp) * Math.min(1, dt * 5);
+    f.u.uFinPh.value += dt * (moving ? 13 : c.graze ? 4.5 : 2.6);
+    f.u.uFinAmp.value = f.finAmp;
+    f.u.uFinSide.value += ((moving ? 0 : 1.1) - f.u.uFinSide.value) * Math.min(1, dt * 2);   // the two sides drift out of step at rest
+  }
   if (f.ant) { f.ant.rotation.y = Math.sin(simT * 1.7 + f.phase * 0.1) * 0.08; f.ant.rotation.x = Math.sin(simT * 1.1) * 0.06; }
 }
 function poseCrawler(f, dt) {
@@ -1851,6 +1872,6 @@ resize();
 requestAnimationFrame(frame);
 </script>
 <script>/* links to other websites open in a new tab */ document.querySelectorAll("a[href]").forEach((a) => { if (/^https?:$/.test(a.protocol) && a.origin !== location.origin) { a.target = "_blank"; a.rel = "noopener noreferrer"; } });</script>
-<script src="../assets/ambient.js?v=20261122c" data-mood="fish"></script>
+<script src="../assets/ambient.js?v=20261123a" data-mood="fish"></script>
 </body>
 </html>

@@ -881,7 +881,7 @@ function initLC() {
   $("lc-pd").innerHTML = DIEL.map((d, i) => `<option value="${i}">${d.n}</option>`).join("");
   $("lc-pd").addEventListener("change", () => { const d = DIEL[+$("lc-pd").value]; if (d.e) $("lc-pe").value = d.e; renderLC(); });
   $("lc-pe").addEventListener("input", () => { const d = DIEL[+$("lc-pd").value]; if (d.e && num("lc-pe") !== d.e) $("lc-pd").value = String(DIEL.length - 1); });
-  $("tool-lc").addEventListener("input", renderLC);
+  $("tool-lumped").addEventListener("input", renderLC);
 }
 function renderLC() {
   const out = (id, list) => { $(id).innerHTML = rows(list); };
@@ -950,8 +950,8 @@ document.querySelectorAll("#tabs button").forEach(b => b.addEventListener("click
 window.addEventListener("hashchange", () => setTimeout(() => redraw.forEach(f => f()), 30));
 setTimeout(() => redraw.forEach(f => f()), 60);
 // phone result bar
-Object.assign(PEEK, { fit: ["fit-big", "f₀"], tr: ["tr-big", "f₀₁"], ph: ["ph-big", "n̄"], sc: ["sc-big", "Δ₀"], lc: ["lc-big", "LC resonance"] });
-[["fit-big", "fit-out"], ["tr-big", "tr-out"], ["jj-big", "jj-out"], ["ph-big", "ph-out"], ["sc-big", "sc-out"], ["lc-big", "lc-out"]].forEach(([b, id]) => {
+Object.assign(PEEK, { fit: ["fit-big", "f₀"], tr: ["tr-big", "f₀₁"], ph: ["ph-big", "n̄"], sc: ["sc-big", "Δ₀"], lumped: ["lc-big", "LC resonance"] });
+[["fit-big", "fit-out"], ["tr-big", "tr-out"], ["jj-big", "jj-out"], ["ph-big", "ph-out"], ["sc-big", "sc-out"], ["lc-big", "lumped-out"]].forEach(([b, id]) => {
   const card = $(b).closest(".card"); card.id = id; peekObs.observe(card);
 });
 Object.defineProperty(PEEK, "jj", { get: () => ["jj-big", $("jj-bigcap").textContent], configurable: true, enumerable: true });
