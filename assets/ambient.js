@@ -88,14 +88,14 @@
     function paint() {
       btn.innerHTML = muted ? ICON_OFF : ICON_ON;
       btn.classList.toggle("off", muted);
-      btn.title = muted ? "Music off" : "Music on";
-      btn.setAttribute("aria-label", muted ? "Turn the music on" : "Mute the music");
+      btn.title = muted ? "Sound off" : "Sound on";
+      btn.setAttribute("aria-label", muted ? "Turn the sound on" : "Mute the sound");
       btn.setAttribute("aria-pressed", String(!muted));
     }
     paint();
 
     // ---- audio graph
-    let ctx = null, master = null, bus = null, timer = null, nextT = 0, step = 0, chord = 0, last = 2;
+    let ctx = null, master = null, bus = null, sfx = null, timer = null, nextT = 0, step = 0, chord = 0, last = 2;
     const midi = (n) => 440 * Math.pow(2, (n - 69) / 12);
     function impulse(sec) {
       const len = Math.floor(ctx.sampleRate * sec), buf = ctx.createBuffer(2, len, ctx.sampleRate);
@@ -116,6 +116,10 @@
       bus = ctx.createGain();
       bus.connect(lp); lp.connect(dry); lp.connect(rev); rev.connect(wet);
       dry.connect(comp); wet.connect(comp); comp.connect(master); master.connect(ctx.destination);
+      // sound effects skip the music's filter and get a touch of room
+      sfx = ctx.createGain(); sfx.gain.value = 1.6;
+      const sWet = ctx.createGain(); sWet.gain.value = 0.12;
+      sfx.connect(comp); sfx.connect(rev); rev.connect(sWet); sWet.connect(comp);
       nextT = ctx.currentTime + 0.15;
       timer = setInterval(schedule, 120);
     }
@@ -231,6 +235,69 @@
       btn.blur();
     });
     btn.addEventListener("pointerdown", (e) => e.stopPropagation());   // don't feed the fish when muting
+
+    // ---- little cat sounds, also generated: a soft purr and a sweet "miu"
+    let noiseBuf = null;
+    const live = () => ctx && sfx && !muted && ctx.state === "running";
+    function noise() {
+      if (!noiseBuf) {
+        const len = ctx.sampleRate * 2; noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
+        const d = noiseBuf.getChannelData(0); let b = 0;
+        for (let i = 0; i < len; i++) { b = 0.97 * b + 0.03 * (Math.random() * 2 - 1); d[i] = b * 6; }   // brown-ish rumble
+      }
+      const s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true; return s;
+    }
+    const purrs = new Map();
+    function makePurr(rate) {
+      const src = noise(), bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 130; bp.Q.value = 1.1;
+      const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 420;
+      const am = ctx.createGain(); am.gain.value = 0.55;                   // the ~25 Hz flutter of a purr
+      const lfo = ctx.createOscillator(); lfo.type = "triangle"; lfo.frequency.value = rate;
+      const lfoG = ctx.createGain(); lfoG.gain.value = 0.45; lfo.connect(lfoG); lfoG.connect(am.gain);
+      const breath = ctx.createGain(); breath.gain.value = 0.7;             // in and out, about every 2 s
+      const bl = ctx.createOscillator(); bl.frequency.value = 0.45 + Math.random() * 0.1;
+      const blG = ctx.createGain(); blG.gain.value = 0.3; bl.connect(blG); blG.connect(breath.gain);
+      const level = ctx.createGain(); level.gain.value = 0;
+      src.connect(bp); bp.connect(lp); lp.connect(am); am.connect(breath); breath.connect(level); level.connect(sfx);
+      const t = ctx.currentTime; src.start(t, Math.random() * 1.5); lfo.start(t); bl.start(t);
+      return { level, stop() { const n = ctx.currentTime; try { src.stop(n + 0.1); lfo.stop(n + 0.1); bl.stop(n + 0.1); } catch (e) { } } };
+    }
+    // level 0..1; call every frame or so for each cat (key), it fades smoothly
+    function purr(key, lvl, rate = 25) {
+      if (!ctx || !sfx) return;
+      let p = purrs.get(key);
+      if (!p) { if (!(lvl > 0.01) || !live()) return; p = makePurr(rate); purrs.set(key, p); }
+      const v = live() ? Math.max(0, Math.min(1, lvl)) * 0.05 : 0;
+      p.level.gain.setTargetAtTime(v, ctx.currentTime, 0.4);
+      if (v === 0) { p.idle = (p.idle || 0) + 1; if (p.idle > 400) { p.stop(); purrs.delete(key); } } else p.idle = 0;
+    }
+    // a soft "miu": a little glide in pitch while the vowel moves from "i" to "u"
+    function meow(lvl = 0.6, pitch = 1) {
+      if (!live() || !(lvl > 0.02)) return;
+      const t = ctx.currentTime + 0.02, len = 0.32 + Math.random() * 0.14;
+      const o = ctx.createOscillator(); o.type = "sawtooth";
+      const f0 = (560 + Math.random() * 80) * pitch;
+      o.frequency.setValueAtTime(f0, t);
+      o.frequency.linearRampToValueAtTime(f0 * 1.28, t + len * 0.38);
+      o.frequency.linearRampToValueAtTime(f0 * 0.92, t + len);
+      const vib = ctx.createOscillator(), vg = ctx.createGain(); vib.frequency.value = 6; vg.gain.value = 9;
+      vib.connect(vg); vg.connect(o.detune);
+      const f1 = ctx.createBiquadFilter(); f1.type = "bandpass"; f1.Q.value = 5;
+      f1.frequency.setValueAtTime(380, t); f1.frequency.linearRampToValueAtTime(330, t + len);
+      const f2 = ctx.createBiquadFilter(); f2.type = "bandpass"; f2.Q.value = 7;
+      f2.frequency.setValueAtTime(2400, t); f2.frequency.exponentialRampToValueAtTime(950, t + len);
+      const g2 = ctx.createGain(); g2.gain.value = 0.55;
+      const nasal = ctx.createBiquadFilter(); nasal.type = "lowpass";       // the closed "m" opening up
+      nasal.frequency.setValueAtTime(350, t); nasal.frequency.exponentialRampToValueAtTime(4200, t + 0.07);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t);
+      const peak = 0.11 * Math.max(0, Math.min(1, lvl));
+      g.gain.exponentialRampToValueAtTime(peak, t + 0.05);
+      g.gain.setValueAtTime(peak, t + len * 0.6);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len + 0.12);
+      o.connect(nasal); nasal.connect(f1); nasal.connect(f2); f2.connect(g2); f1.connect(g); g2.connect(g); g.connect(sfx);
+      o.start(t); vib.start(t); o.stop(t + len + 0.2); vib.stop(t + len + 0.2);
+    }
+    window.playgroundSound = { purr, meow, get on() { return live(); } };
 
     window.playgroundMusic = { get state() { return ctx ? ctx.state : "not started"; }, get muted() { return muted; }, get notes() { return step; } };
 

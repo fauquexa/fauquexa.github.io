@@ -2721,7 +2721,7 @@ function shown(o) { for (; o; o = o.parent) if (!o.visible) return false; return
 function isFloor(o) { for (; o; o = o.parent) { if (o.userData.floor || o === aptFloorG) return true; } return false; }
 function click(e) {
   const c = catAt(e);
-  if (c) { showLabel(c, 3.5); return; }
+  if (c) { showLabel(c, 3.5); catSaid(c); return; }
   setRay(e);
   const targets = [...NAV.floors, ...NAV.blockers];
   if (NAV.walls) for (const w of NAV.walls) { for (const p of w.pieces) targets.push(p.m); targets.push(w.deco); }
@@ -2929,9 +2929,31 @@ function autoFeed() {   // nobody fed them for ~3 minutes and somebody is really
   else dropFood(NAV.autoFood.x, NAV.autoFood.z);
   for (const c of cats) if (hungry(c)) c.smell = rand(0.2, 1.5);
 }
+// ---- sounds (generated in assets/ambient.js): soft purrs and sweet little "miu"s, quieter far away
+const NO_STEP = {};
+function catVoice(c, dt) {
+  const S = window.playgroundSound; if (!S) return;
+  const key = "cat" + c.idx;
+  if (c.present === false) { S.purr(key, 0); return; }
+  const d = camera.position.distanceTo(c.pos), near = Math.max(0, Math.min(1, 1.6 / Math.max(0.4, d)));
+  const st = c.step || NO_STEP, pose = c.poseName;
+  // purr while kneading, eating, being fussed over, or (for some naps) dozing on something soft
+  if (st !== c.voiceStep) { c.voiceStep = st; c.purrNap = Math.random() < 0.55; c.meowT = rand(0.8, 2.5); }
+  const cosy = st.knead || st.type === "eat" || ((pose === "curl" || pose === "loaf") && c.perch && c.purrNap);
+  c.purrLvl = (c.purrLvl || 0) + ((cosy ? 1 : 0) - (c.purrLvl || 0)) * Math.min(1, dt * 1.5);
+  S.purr(key, c.purrLvl * near, 23 + c.idx * 1.3);
+  // a soft meow now and then while begging, and once on the way to fresh food
+  const pitch = 1.18 / Math.sqrt(c.s);
+  if (st.beg || st.food) {
+    c.meowT -= dt;
+    if (c.meowT < 0) { S.meow(0.55 * near, pitch * (0.97 + Math.random() * 0.06)); c.meowT = st.food ? 1e9 : rand(5, 10); }
+  }
+}
+function catSaid(c) { const S = window.playgroundSound; if (S && Math.random() < 0.7) S.meow(0.6 * Math.max(0.3, Math.min(1, 1.6 / camera.position.distanceTo(c.pos))), 1.18 / Math.sqrt(c.s)); }
+
 function update(dt, t) {
   simT += dt;
-  for (const c of cats) updateCat(c, dt, t);
+  for (const c of cats) { updateCat(c, dt, t); catVoice(c, dt); }
   updatePops(dt);
   autoFeed();
   // bowls: pop in, kibble shrinks as it is eaten, empty bowls fade away (the kitchen bowl stays)
@@ -2997,6 +3019,6 @@ resize();
 requestAnimationFrame(frame);
 </script>
 <script>/* links to other websites open in a new tab */ document.querySelectorAll("a[href]").forEach((a) => { if (/^https?:$/.test(a.protocol) && a.origin !== location.origin) { a.target = "_blank"; a.rel = "noopener noreferrer"; } });</script>
-<script src="../assets/ambient.js?v=20261122a" data-mood="cats"></script>
+<script src="../assets/ambient.js?v=20261122b" data-mood="cats"></script>
 </body>
 </html>
