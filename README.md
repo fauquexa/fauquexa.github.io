@@ -11,7 +11,8 @@ assets/toy.css           shared chrome for the playground pages
 assets/headshot.jpg
 playground/julia.html          Julia of the day (WebGL): pick c on the Mandelbrot set, zoom, save
 playground/stereogram.html     Stereogram Studio: logo / text / shapes → SIRDS, PNG + HTML export
-playground/maze.html           first-person maze screensaver (raycaster, right-hand-rule autopilot)
+playground/maze.html           maze lab: BFS/DFS/Dijkstra/greedy/A*, exploring unknown mazes, multi-agent exploration
+playground/maze3d.html         first-person maze screensaver (raycaster, right-hand-rule autopilot)
 playground/flight.html         flight sim (three.js): PC-24/12/21/6 + heli, fuel, procedural airports, high scores
 playground/aquarium.html       3D aquarium (three.js): presets, fish counts, decor, lights, feeding
 assets/previews.js             live mini previews on the homepage playground tiles
@@ -49,3 +50,5 @@ Then open http://localhost:8000.
 The flight sim's leaderboard lives in a free Supabase project (`flight-scores`). The page only uses the public
 (publishable) key. Row-level security allows visitors to read scores and add new ones, but not to edit or delete them.
 To remove a score, use the Supabase dashboard → SQL editor: `delete from public.scores where id = …;`
+
+When you change a file in `assets/`, bump the `?v=` tag on its links (all pages) so browsers fetch the new version.

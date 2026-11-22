@@ -116,17 +116,28 @@
     }
     return { cols, rows, wallE, wallS, path };
   }
-  function maze(c, w, h, t) {
+  function maze(c, w, h, t) {   // a search floods the maze, then the shortest path lights up
     const g = c.getContext("2d");
+    const cols = 16, rows = 9, cycle = 14, gen = Math.floor(t / cycle), ph = t % cycle;
     let m = mazeState.get(c);
-    const cols = 16, rows = 9;
-    if (!m || Math.floor(t / 30) !== m.gen) { m = buildMaze(cols, rows, 7 + Math.floor(t / 30) * 13); m.gen = Math.floor(t / 30); mazeState.set(c, m); }
+    if (!m || m.gen !== gen) {
+      m = buildMaze(cols, rows, 7 + gen * 13); m.gen = gen;
+      const dist = new Array(cols * rows).fill(-1), par = new Array(cols * rows).fill(-1), q = [0]; dist[0] = 0;
+      const open = (x, y, d) => d === 0 ? x < cols - 1 && !m.wallE[y * cols + x] : d === 1 ? y < rows - 1 && !m.wallS[y * cols + x] : d === 2 ? x > 0 && !m.wallE[y * cols + x - 1] : y > 0 && !m.wallS[(y - 1) * cols + x];
+      for (let k = 0; k < q.length; k++) { const n = q[k], x = n % cols, y = (n / cols) | 0; for (let d = 0; d < 4; d++) if (open(x, y, d)) { const nn = (y + [0, 1, 0, -1][d]) * cols + x + [1, 0, -1, 0][d]; if (dist[nn] < 0) { dist[nn] = dist[n] + 1; par[nn] = n; q.push(nn); } } }
+      const path = []; for (let v = cols * rows - 1; v !== -1; v = par[v]) path.push(v);
+      m.dist = dist; m.maxD = Math.max(...dist); m.path = path.reverse();
+      mazeState.set(c, m);
+    }
     g.fillStyle = "#14110f"; g.fillRect(0, 0, w, h);
     const cw = w / (cols + 1), ch = h / (rows + 1), ox = cw / 2, oy = ch / 2;
-    // trail
-    const pos = Math.min(m.path.length - 1, ((t % 30) / 30) * m.path.length * 1.05);
-    g.fillStyle = "rgba(224,179,90,.18)";
-    for (let i = 0; i < Math.floor(pos); i++) { const [x, y] = m.path[i]; g.fillRect(ox + x * cw + 1, oy + y * ch + 1, cw - 2, ch - 2); }
+    const front = (ph / 8) * m.maxD;
+    for (let i = 0; i < cols * rows; i++) {
+      const d = m.dist[i]; if (d > front) continue;
+      const x = i % cols, y = (i / cols) | 0, k = d / Math.max(1, m.maxD), edge = front - d < 1.2 && ph < 8;
+      g.fillStyle = edge ? "rgba(240,95,200,.85)" : `rgba(${Math.round(150 - k * 90)},${Math.round(205 - k * 80)},${Math.round(245 - k * 40)},.55)`;
+      g.fillRect(ox + x * cw + 1, oy + y * ch + 1, cw - 2, ch - 2);
+    }
     g.strokeStyle = "#b5653f"; g.lineWidth = Math.max(1.5, w / 180); g.lineCap = "round";
     g.strokeRect(ox, oy, cols * cw, rows * ch);
     g.beginPath();
@@ -135,11 +146,14 @@
       if (m.wallS[y * cols + x] && y < rows - 1) { g.moveTo(ox + x * cw, oy + (y + 1) * ch); g.lineTo(ox + (x + 1) * cw, oy + (y + 1) * ch); }
     }
     g.stroke();
-    g.fillStyle = "#ffd27a"; g.fillRect(ox + (cols - 1) * cw + cw * 0.3, oy + (rows - 1) * ch + ch * 0.3, cw * 0.4, ch * 0.4);
-    const i0 = Math.floor(pos), i1 = Math.min(m.path.length - 1, i0 + 1), f = pos - i0;
-    const px = m.path[i0][0] + (m.path[i1][0] - m.path[i0][0]) * f, py = m.path[i0][1] + (m.path[i1][1] - m.path[i0][1]) * f;
-    g.fillStyle = "#fff"; g.shadowColor = "#ffd27a"; g.shadowBlur = 8;
-    g.beginPath(); g.arc(ox + (px + 0.5) * cw, oy + (py + 0.5) * ch, Math.min(cw, ch) * 0.28, 0, 7); g.fill(); g.shadowBlur = 0;
+    if (ph > 8) {
+      const n = Math.min(m.path.length, Math.ceil((ph - 8) / 2.5 * m.path.length));
+      g.strokeStyle = "#ffb020"; g.lineWidth = Math.max(2, Math.min(cw, ch) * 0.28); g.lineJoin = "round"; g.beginPath();
+      for (let k = 0; k < n; k++) { const v = m.path[k], px = ox + (v % cols + 0.5) * cw, py = oy + (((v / cols) | 0) + 0.5) * ch; k ? g.lineTo(px, py) : g.moveTo(px, py); }
+      g.stroke();
+    }
+    g.fillStyle = "#3fbf6a"; g.beginPath(); g.arc(ox + cw / 2, oy + ch / 2, Math.min(cw, ch) * 0.3, 0, 7); g.fill();
+    g.fillStyle = "#e0485a"; g.beginPath(); g.arc(ox + (cols - 0.5) * cw, oy + (rows - 0.5) * ch, Math.min(cw, ch) * 0.3, 0, 7); g.fill();
   }
 
   // ---------- julia: today's set (static)

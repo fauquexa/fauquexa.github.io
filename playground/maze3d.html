@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D Maze</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/toy.css?v=20261122d">
+<style>
+  .stage { image-rendering: pixelated; cursor: none; }
+  body.awake .stage { cursor: default; }
+  .toggle-panel { display: none; }
+  #banner {
+    position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%);
+    font-size: clamp(18px, 3vw, 30px); letter-spacing: .3em; color: #fff; text-shadow: 0 0 18px rgba(255,210,120,.8);
+    opacity: 0; transition: opacity .6s; pointer-events: none; text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+<canvas class="stage" id="cv"></canvas>
+<div id="banner"></div>
+
+<div class="panel" id="panel">
+  <a class="back" href="maze.html">← maze lab</a>
+  <h1>the maze</h1>
+  <p class="sub">A screensaver-style walk through a 3D maze. It follows the right-hand wall until it finds the exit, then a new maze is built.</p>
+  <label>size</label>
+  <select id="size">
+    <option value="6">small (6×6)</option>
+    <option value="10" selected>medium (10×10)</option>
+    <option value="16">large (16×16)</option>
+    <option value="24">enormous (24×24)</option>
+  </select>
+  <label>walking speed</label>
+  <input type="range" id="speed" min="0.4" max="3" step="0.1" value="1">
+  <label>world</label>
+  <select id="theme">
+    <option value="cycle">cycle each maze</option>
+    <option value="0">brick dungeon</option>
+    <option value="1">copper cryostat</option>
+    <option value="2">hedge garden</option>
+  </select>
+  <div class="row" style="margin-top:12px">
+    <button id="map">map</button>
+    <button id="new">new maze</button>
+  </div>
+  <hr>
+  <p class="hint"><kbd>M</kbd> map · <kbd>N</kbd> new maze · <kbd>↑↓←→</kbd> take over · <kbd>P</kbd> autopilot<br>The panel fades when you stop moving the mouse.</p>
+</div>
+
+<script>
+// ===================================================================
+//  textures (procedural, 64×64, packed ABGR)
+// ===================================================================
+const TS = 64;
+function hash2(x, y, s) { let h = (x * 374761393 + y * 668265263 + s * 1442695041) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+function vnoise(x, y, s, period) {
+  const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+  const P = (a) => ((a % period) + period) % period;
+  const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+  const a = hash2(P(ix), P(iy), s), b = hash2(P(ix + 1), P(iy), s), c = hash2(P(ix), P(iy + 1), s), d = hash2(P(ix + 1), P(iy + 1), s);
+  return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
+}
+function fbm(x, y, s) { let t = 0, a = 0.5, f = 1; for (let o = 0; o < 4; o++) { t += a * vnoise(x * f, y * f, s + o, 8 * f); a *= 0.5; f *= 2; } return t; }
+function tex(fn) {
+  const t = new Uint32Array(TS * TS);
+  for (let y = 0; y < TS; y++) for (let x = 0; x < TS; x++) {
+    let [r, g, b] = fn(x, y);
+    r = Math.max(0, Math.min(255, r)); g = Math.max(0, Math.min(255, g)); b = Math.max(0, Math.min(255, b));
+    t[y * TS + x] = (255 << 24) | (b << 16) | (g << 8) | r;
+  }
+  return t;
+}
+const N8 = (x, y, s) => fbm(x / 8, y / 8, s);
+
+const THEMES = [
+  { name: "brick dungeon", fog: [8, 6, 6], fogDist: 11,
+    wall: tex((x, y) => {
+      const row = y >> 3, off = (row & 1) * 8, bx = ((x + off) >> 4), mortar = (y & 7) === 0 || ((x + off) & 15) === 0;
+      const n = N8(x, y, 3), v = hash2(bx, row, 7);
+      return mortar ? [150 + n * 40, 145 + n * 40, 135 + n * 40] : [120 + v * 60 + n * 50, 50 + v * 25 + n * 30, 38 + n * 25];
+    }),
+    floor: tex((x, y) => { const c = ((x >> 5) + (y >> 5)) & 1, n = N8(x, y, 11); const v = (c ? 95 : 70) + n * 50; return [v, v * .95, v * .9]; }),
+    ceil: tex((x, y) => { const n = fbm(x / 16, y / 4, 21), v = 70 + n * 60 - ((x & 15) === 0 ? 30 : 0); return [v * .9, v * .65, v * .45]; }),
+  },
+  { name: "copper cryostat", fog: [4, 8, 14], fogDist: 13,
+    wall: tex((x, y) => {
+      const seam = (x & 31) === 0 || (y & 31) === 0, rx = (x & 31), ry = (y & 31);
+      const rivet = (rx - 4) ** 2 + (ry - 4) ** 2 < 4 || (rx - 27) ** 2 + (ry - 4) ** 2 < 4 || (rx - 4) ** 2 + (ry - 27) ** 2 < 4 || (rx - 27) ** 2 + (ry - 27) ** 2 < 4;
+      const brushed = hash2(0, y, 5) * 0.5 + fbm(x / 2, y / 32, 9) * 0.5, n = brushed;
+      if (seam) return [70, 40, 25];
+      if (rivet) return [240, 190, 140];
+      return [170 + n * 70, 95 + n * 50, 50 + n * 35];
+    }),
+    floor: tex((x, y) => { const d = ((x + y) & 7) < 2 || ((x - y) & 7) < 1, n = N8(x, y, 13); const v = 80 + n * 40 + (d ? 35 : 0); return [v, v * 1.02, v * 1.08]; }),
+    ceil: tex((x, y) => {
+      const lx = x & 31, ly = y & 31, light = lx > 6 && lx < 26 && ly > 10 && ly < 22;
+      return light ? [235, 245, 255] : [40 + N8(x, y, 2) * 20, 45 + N8(x, y, 2) * 20, 55 + N8(x, y, 2) * 20];
+    }),
+  },
+  { name: "hedge garden", fog: [170, 200, 225], fogDist: 14,
+    wall: tex((x, y) => {
+      const n = fbm(x / 6, y / 6, 31), l = hash2(x >> 1, y >> 1, 4);
+      return [30 + n * 50 + l * 20, 85 + n * 90 + l * 30, 30 + n * 40];
+    }),
+    floor: tex((x, y) => { const n = fbm(x / 10, y / 10, 41), g = hash2(x, y, 2); return [110 + n * 60 + g * 20, 95 + n * 50 + g * 20, 70 + n * 30]; }),
+    ceil: tex((x, y) => { const n = fbm(x / 16, y / 16, 51), c = Math.max(0, n - 0.45) * 2.2; return [110 + c * 140, 160 + c * 95, 230 + c * 25]; }),
+  },
+];
+
+// ===================================================================
+//  maze generation (recursive backtracker on an N×N cell grid)
+// ===================================================================
+const DX = [1, 0, -1, 0], DY = [0, 1, 0, -1];   // E S W N   (y grows downward)
+let N = 10, G = 21, grid, exitCell, visited;
+function makeMaze(n) {
+  N = n; G = 2 * N + 1;
+  grid = new Uint8Array(G * G).fill(1);
+  const seen = new Uint8Array(N * N), stack = [[0, 0]];
+  seen[0] = 1; grid[1 * G + 1] = 0;
+  while (stack.length) {
+    const [cx, cy] = stack[stack.length - 1];
+    const opts = [];
+    for (let d = 0; d < 4; d++) { const nx = cx + DX[d], ny = cy + DY[d]; if (nx >= 0 && ny >= 0 && nx < N && ny < N && !seen[ny * N + nx]) opts.push(d); }
+    if (!opts.length) { stack.pop(); continue; }
+    const d = opts[Math.floor(Math.random() * opts.length)], nx = cx + DX[d], ny = cy + DY[d];
+    grid[(2 * cy + 1 + DY[d]) * G + (2 * cx + 1 + DX[d])] = 0;
+    grid[(2 * ny + 1) * G + (2 * nx + 1)] = 0;
+    seen[ny * N + nx] = 1; stack.push([nx, ny]);
+  }
+  exitCell = [N - 1, N - 1];
+  visited = new Uint8Array(N * N);
+}
+const wallAt = (x, y) => x < 0 || y < 0 || x >= G || y >= G || grid[(y | 0) * G + (x | 0)] === 1;
+const openDir = (cx, cy, d) => !wallAt(2 * cx + 1 + DX[d], 2 * cy + 1 + DY[d]);
+
+// ===================================================================
+//  player + autopilot (right-hand rule)
+// ===================================================================
+const P = { x: 1.5, y: 1.5, a: 0, cx: 0, cy: 0, d: 0 };
+let action = null, auto = true, speed = 1, themeIdx = 0, themeMode = "cycle", T = THEMES[0];
+let phase = "walk", phaseT = 0, showMap = false;
+
+function newMaze() {
+  if (themeMode === "cycle") themeIdx = (themeIdx + 1) % THEMES.length; else themeIdx = +themeMode;
+  T = THEMES[themeIdx];
+  makeMaze(+document.getElementById("size").value);
+  // face an open direction at the start
+  P.cx = 0; P.cy = 0; P.d = openDir(0, 0, 0) ? 0 : 1;
+  P.x = 1.5; P.y = 1.5; P.a = P.d * Math.PI / 2;
+  action = null; phase = "fadein"; phaseT = 0; auto = true;
+  visited[0] = 1;
+}
+function nextAction() {
+  if (P.cx === exitCell[0] && P.cy === exitCell[1]) { phase = "win"; phaseT = 0; return null; }
+  const right = (P.d + 1) & 3, left = (P.d + 3) & 3;
+  if (openDir(P.cx, P.cy, right)) return { type: "turn", from: P.a, to: P.a + Math.PI / 2, nd: right, t: 0, then: "move" };
+  if (openDir(P.cx, P.cy, P.d)) return { type: "move", fx: P.x, fy: P.y, tx: P.x + 2 * DX[P.d], ty: P.y + 2 * DY[P.d], t: 0 };
+  return { type: "turn", from: P.a, to: P.a - Math.PI / 2, nd: left, t: 0 };
+}
+const ease = t => t < .5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+function stepAuto(dt) {
+  if (!action) action = nextAction();
+  if (!action) return;
+  if (action.type === "turn") {
+    action.t += dt * speed / 0.55;
+    const k = Math.min(1, action.t);
+    P.a = action.from + (action.to - action.from) * ease(k);
+    if (k >= 1) {
+      P.d = action.nd; P.a = action.to;
+      action = action.then === "move" ? { type: "move", fx: P.x, fy: P.y, tx: P.x + 2 * DX[P.d], ty: P.y + 2 * DY[P.d], t: 0 } : null;
+    }
+  } else {
+    action.t += dt * speed / 0.9;
+    const k = Math.min(1, action.t);
+    P.x = action.fx + (action.tx - action.fx) * k; P.y = action.fy + (action.ty - action.fy) * k;
+    // small head bob
+    P.bob = Math.sin(k * Math.PI * 2) * 0.012;
+    if (k >= 1) { P.cx += DX[P.d]; P.cy += DY[P.d]; visited[P.cy * N + P.cx] = 1; P.bob = 0; action = null; }
+  }
+}
+
+// manual control
+const keys = {};
+addEventListener("keydown", e => {
+  const k = e.key.toLowerCase();
+  if (["arrowup", "arrowdown", "arrowleft", "arrowright", "w", "a", "s", "d"].includes(k)) { keys[k] = true; if (auto) { auto = false; action = null; } e.preventDefault(); }
+  if (k === "p") resumeAuto();
+  if (k === "m") toggleMap();
+  if (k === "n") newMaze();
+});
+addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+function resumeAuto() {
+  if (auto) return;
+  P.cx = Math.max(0, Math.min(N - 1, Math.floor(P.x / 2))); P.cy = Math.max(0, Math.min(N - 1, Math.floor(P.y / 2)));
+  P.x = 2 * P.cx + 1.5; P.y = 2 * P.cy + 1.5;
+  P.d = ((Math.round(P.a / (Math.PI / 2)) % 4) + 4) % 4; P.a = P.d * Math.PI / 2;
+  action = null; auto = true;
+}
+function stepManual(dt) {
+  const rot = 2.2 * dt, mv = 3 * dt * (keys.arrowup || keys.w ? 1 : keys.arrowdown || keys.s ? -1 : 0);
+  if (keys.arrowleft || keys.a) P.a -= rot;
+  if (keys.arrowright || keys.d) P.a += rot;
+  const nx = P.x + Math.cos(P.a) * mv, ny = P.y + Math.sin(P.a) * mv, r = 0.2;
+  if (!wallAt(nx + Math.sign(Math.cos(P.a) * mv) * r, P.y)) P.x = nx;
+  if (!wallAt(P.x, ny + Math.sign(Math.sin(P.a) * mv) * r)) P.y = ny;
+  const cx = Math.floor(P.x / 2), cy = Math.floor(P.y / 2);
+  if (cx >= 0 && cy >= 0 && cx < N && cy < N) visited[cy * N + cx] = 1;
+  if (cx === exitCell[0] && cy === exitCell[1] && phase === "walk") { phase = "win"; phaseT = 0; }
+}
+
+// ===================================================================
+//  renderer
+// ===================================================================
+const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+let W, H, img, buf, zbuf;
+function resize() {
+  const ar = Math.min(4, Math.max(0.4, (innerWidth || 16) / Math.max(1, innerHeight || 10)));   // guard against 0-size windows
+  W = 480; H = Math.max(200, Math.round(W / ar));
+  if (H > 420) { H = 420; W = Math.round(H * ar); }
+  cv.width = W; cv.height = H;
+  img = ctx.createImageData(W, H); buf = new Uint32Array(img.data.buffer); zbuf = new Float32Array(W);
+}
+function shade(c, f, fr, fg, fb) {
+  const r = c & 255, g = (c >> 8) & 255, b = (c >> 16) & 255, h = 1 - f;
+  return (255 << 24) | ((b * f + fb * h) << 16) | ((g * f + fg * h) << 8) | (r * f + fr * h);
+}
+function render(time) {
+  const [fr, fg, fb] = T.fog, FD = T.fogDist;
+  const dirX = Math.cos(P.a), dirY = Math.sin(P.a), plX = -dirY * 0.66, plY = dirX * 0.66;
+  const horizon = (H / 2) * (1 + (P.bob || 0) * 4) | 0;
+
+  // floor + ceiling
+  const r0x = dirX - plX, r0y = dirY - plY, r1x = dirX + plX, r1y = dirY + plY;
+  for (let y = 0; y < H; y++) {
+    const isFloor = y > horizon, p = isFloor ? y - horizon : horizon - y;
+    if (p === 0) { for (let x = 0; x < W; x++) buf[y * W + x] = (255 << 24) | (fb << 16) | (fg << 8) | fr; continue; }
+    const rowDist = (0.5 * H) / p;
+    const sx = rowDist * (r1x - r0x) / W, sy = rowDist * (r1y - r0y) / W;
+    let fx = P.x + rowDist * r0x, fy = P.y + rowDist * r0y;
+    const f = Math.max(0, 1 - rowDist / FD), tx = isFloor ? T.floor : T.ceil;
+    for (let x = 0; x < W; x++) {
+      const tu = (fx * TS / 2) & (TS - 1), tv = (fy * TS / 2) & (TS - 1);
+      buf[y * W + x] = shade(tx[tv * TS + tu], f, fr, fg, fb);
+      fx += sx; fy += sy;
+    }
+  }
+
+  // walls (DDA)
+  for (let x = 0; x < W; x++) {
+    const cam = 2 * x / W - 1, rx = dirX + plX * cam, ry = dirY + plY * cam;
+    let mx = P.x | 0, my = P.y | 0;
+    const ddx = Math.abs(1 / rx), ddy = Math.abs(1 / ry);
+    let stx, sty, sdx, sdy, side = 0;
+    if (rx < 0) { stx = -1; sdx = (P.x - mx) * ddx; } else { stx = 1; sdx = (mx + 1 - P.x) * ddx; }
+    if (ry < 0) { sty = -1; sdy = (P.y - my) * ddy; } else { sty = 1; sdy = (my + 1 - P.y) * ddy; }
+    for (let i = 0; i < 200; i++) {
+      if (sdx < sdy) { sdx += ddx; mx += stx; side = 0; } else { sdy += ddy; my += sty; side = 1; }
+      if (wallAt(mx, my)) break;
+    }
+    const dist = side === 0 ? sdx - ddx : sdy - ddy;
+    zbuf[x] = dist;
+    const lh = (H / dist) | 0;
+    let y0 = horizon - (lh >> 1), y1 = horizon + (lh >> 1);
+    let wx = side === 0 ? P.y + dist * ry : P.x + dist * rx; wx -= Math.floor(wx);
+    let tu = (wx * TS) | 0; if ((side === 0 && rx > 0) || (side === 1 && ry < 0)) tu = TS - tu - 1;
+    const f = Math.max(0, 1 - dist / FD) * (side ? 0.78 : 1);
+    const step = TS / lh; let tpos = (Math.max(0, y0) - y0) * step;
+    for (let y = Math.max(0, y0); y < Math.min(H, y1); y++) {
+      buf[y * W + x] = shade(T.wall[((tpos | 0) & (TS - 1)) * TS + tu], f, fr, fg, fb);
+      tpos += step;
+    }
+  }
+
+  // exit beacon: a spinning golden ring billboard
+  const sxw = 2 * exitCell[0] + 1.5 - P.x, syw = 2 * exitCell[1] + 1.5 - P.y;
+  const inv = 1 / (plX * dirY - dirX * plY);
+  const tX = inv * (dirY * sxw - dirX * syw), tY = inv * (-plY * sxw + plX * syw);
+  if (tY > 0.2) {
+    const scx = (W / 2) * (1 + tX / tY), size = Math.abs(H / tY) * 0.55, spin = Math.cos(time * 0.0016);
+    const cy = horizon, x0 = Math.max(0, (scx - size / 2) | 0), x1 = Math.min(W, (scx + size / 2) | 0);
+    const fog = Math.max(0.25, 1 - tY / (FD * 1.6));
+    for (let x = x0; x < x1; x++) {
+      if (tY >= zbuf[x]) continue;
+      const u = (x - scx) / (size / 2) / Math.max(0.12, Math.abs(spin));
+      for (let y = Math.max(0, (cy - size / 2) | 0); y < Math.min(H, (cy + size / 2) | 0); y++) {
+        const v = (y - cy) / (size / 2), r = Math.sqrt(u * u + v * v);
+        const g = Math.exp(-((r - 0.72) ** 2) / 0.008) + 0.35 * Math.exp(-(r * r) / 0.05);
+        if (g < 0.04) continue;
+        const a = Math.min(1, g) * fog, c = buf[y * W + x];
+        const R = c & 255, Gc = (c >> 8) & 255, B = (c >> 16) & 255;
+        buf[y * W + x] = (255 << 24) | (Math.min(255, B * (1 - a) + 120 * a) << 16) | (Math.min(255, Gc * (1 - a) + 215 * a) << 8) | Math.min(255, R * (1 - a) + 255 * a);
+      }
+    }
+  }
+
+  ctx.putImageData(img, 0, 0);
+
+  // fade in / out
+  let fade = 0;
+  if (phase === "fadein") fade = 1 - Math.min(1, phaseT / 1.2);
+  if (phase === "win") fade = Math.max(0, (phaseT - 1.6) / 1.0);
+  if (fade > 0) { ctx.fillStyle = `rgba(0,0,0,${fade})`; ctx.fillRect(0, 0, W, H); }
+
+  if (showMap) drawMap();
+}
+function drawMap() {
+  const s = Math.max(2, Math.floor(Math.min(W, H) * 0.38 / G)), ox = W - G * s - 8, oy = 8;
+  ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(ox - 3, oy - 3, G * s + 6, G * s + 6);
+  for (let y = 0; y < G; y++) for (let x = 0; x < G; x++) {
+    if (grid[y * G + x]) continue;
+    const cx = (x - 1) >> 1, cy = (y - 1) >> 1, isCell = x & 1 && y & 1;
+    ctx.fillStyle = isCell && visited[cy * N + cx] ? "rgba(224,179,90,.55)" : "rgba(255,255,255,.18)";
+    ctx.fillRect(ox + x * s, oy + y * s, s, s);
+  }
+  ctx.fillStyle = "#ffd27a"; ctx.fillRect(ox + (2 * exitCell[0] + 1) * s, oy + (2 * exitCell[1] + 1) * s, s, s);
+  ctx.fillStyle = "#fff";
+  ctx.beginPath(); ctx.arc(ox + P.x * s, oy + P.y * s, Math.max(1.5, s * .6), 0, 7); ctx.fill();
+  ctx.strokeStyle = "#fff"; ctx.beginPath(); ctx.moveTo(ox + P.x * s, oy + P.y * s);
+  ctx.lineTo(ox + (P.x + Math.cos(P.a) * 1.6) * s, oy + (P.y + Math.sin(P.a) * 1.6) * s); ctx.stroke();
+}
+
+// ===================================================================
+//  main loop + UI
+// ===================================================================
+const banner = document.getElementById("banner");
+let last = performance.now();
+function frame(t) {
+  const dt = Math.min(0.05, (t - last) / 1000); last = t;
+  phaseT += dt;
+  if (phase === "fadein" && phaseT > 1.2) phase = "walk";
+  if (phase === "win") {
+    banner.textContent = "exit found"; banner.style.opacity = phaseT < 1.6 ? 1 : 0;
+    P.a += dt * 2.5;           // victory twirl
+    if (phaseT > 2.6) { banner.style.opacity = 0; newMaze(); }
+  } else if (auto) stepAuto(dt); else stepManual(dt);
+  render(t);
+  requestAnimationFrame(frame);
+}
+
+const $ = id => document.getElementById(id);
+function toggleMap() { showMap = !showMap; $("map").classList.toggle("on", showMap); }
+$("map").onclick = toggleMap;
+$("new").onclick = newMaze;
+$("size").onchange = newMaze;
+$("speed").oninput = e => speed = +e.target.value;
+$("theme").onchange = e => { themeMode = e.target.value; if (themeMode !== "cycle") { themeIdx = +themeMode; T = THEMES[themeIdx]; } };
+
+// panel fades away when the mouse is idle (screensaver manners)
+let idle;
+function wake() {
+  document.body.classList.add("awake"); $("panel").classList.remove("hidden");
+  clearTimeout(idle); idle = setTimeout(() => { if (!$("panel").matches(":hover")) { $("panel").classList.add("hidden"); document.body.classList.remove("awake"); } }, 4000);
+}
+addEventListener("pointermove", wake); addEventListener("pointerdown", wake);
+addEventListener("resize", resize);
+
+resize();
+themeIdx = -1; newMaze();
+wake();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

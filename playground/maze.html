@@ -2,362 +2,812 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>The Maze</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../assets/toy.css?v=20261122b">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Maze Lab</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/toy.css?v=20261122d">
 <style>
-  .stage { image-rendering: pixelated; cursor: none; }
-  body.awake .stage { cursor: default; }
-  .toggle-panel { display: none; }
-  #banner {
-    position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%);
-    font-size: clamp(18px, 3vw, 30px); letter-spacing: .3em; color: #fff; text-shadow: 0 0 18px rgba(255,210,120,.8);
-    opacity: 0; transition: opacity .6s; pointer-events: none; text-transform: uppercase;
+  html, body { height: auto; }
+  body { overflow: auto; }
+  .wrap { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; padding: 14px 16px 16px; min-height: 100vh; box-sizing: border-box; }
+  header.top { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+  header.top h1 { font-family: "Source Serif 4", Georgia, serif; font-weight: 600; font-size: 24px; margin: 0; }
+  header.top .back { color: var(--soft); font-size: 11.5px; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tabs button { padding: 7px 12px; }
+  .spacer { flex: 1; }
+  .labstage { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  #boards { display: grid; gap: 10px; }
+  #boards.multi { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+  .board { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 8px; }
+  .board canvas { display: block; width: 100%; border-radius: 4px; touch-action: none; }
+  .board .cap { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; color: var(--soft); margin: 2px 2px 6px; }
+  .board .cap b { color: var(--ink); font-weight: 500; }
+  .board .stats { font-size: 11.5px; color: var(--soft); margin: 6px 2px 0; min-height: 16px; }
+  .board .stats .ok { color: #7ee0a0; } .board .stats .bad { color: #ff8a7a; }
+  #chartBox { display: none; }
+  #chartBox.on { display: block; }
+  #chart { width: 100%; height: 220px; display: block; }
+  .side { background: var(--panel); border: 1px solid var(--rule); border-radius: 12px; padding: 14px 16px; overflow-y: auto; max-height: calc(100vh - 70px); position: sticky; top: 14px; align-self: start; }
+  .side h2 { font-size: 13px; font-weight: 500; margin: 14px 0 6px; color: var(--accent); letter-spacing: .04em; }
+  .side h2:first-child { margin-top: 0; }
+  .side p { margin: 0 0 8px; line-height: 1.55; font-size: 12.5px; color: #cfd2d6; }
+  .side .small { font-size: 11.5px; color: var(--soft); }
+  .ctl { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .ctl.three { grid-template-columns: repeat(3, 1fr); }
+  .ctl select, .ctl button { width: 100%; }
+  .transport { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .transport input[type=range] { flex: 1; min-width: 120px; }
+  .algos { display: flex; flex-wrap: wrap; gap: 6px; }
+  .algos button { padding: 6px 9px; }
+  .props { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12px; margin: 6px 0 8px; }
+  .props span:nth-child(odd) { color: var(--soft); }
+  pre.code { background: rgba(0,0,0,.3); border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; font-size: 11.5px; line-height: 1.6; margin: 6px 0 8px; white-space: pre-wrap; }
+  pre.code .ln { display: block; border-radius: 4px; padding: 0 4px; }
+  pre.code .ln.hl { background: rgba(224,179,90,.22); color: #fff; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--soft); margin: 4px 0; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  table.sum { width: 100%; border-collapse: collapse; font-size: 11.5px; margin: 6px 0; }
+  table.sum td, table.sum th { padding: 3px 4px; border-bottom: 1px solid var(--rule); text-align: right; }
+  table.sum td:first-child, table.sum th:first-child { text-align: left; }
+  table.sum th { color: var(--soft); font-weight: 400; }
+  .takeaway { border-left: 2px solid var(--accent); padding: 4px 0 4px 10px; margin: 8px 0; font-size: 12.5px; color: #e9e6df; }
+  @media (max-width: 900px) {
+    .wrap { grid-template-columns: 1fr; }
+    .side { position: static; max-height: none; }
+    #boards.multi { grid-template-columns: 1fr 1fr; }
   }
+  @media (max-width: 560px) { #boards.multi { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
-<canvas class="stage" id="cv"></canvas>
-<div id="banner"></div>
+<div class="wrap">
+  <header class="top">
+    <a class="back" href="../index.html">← home</a>
+    <h1>maze lab</h1>
+    <div class="tabs" id="tabs">
+      <button data-tab="known" class="on">1 · search a known map</button>
+      <button data-tab="unknown">2 · explore without a map</button>
+      <button data-tab="team">3 · many agents</button>
+    </div>
+    <span class="spacer"></span>
+    <a href="maze3d.html" style="font-size:12px">3D walk-through →</a>
+  </header>
 
-<div class="panel" id="panel">
-  <a class="back" href="../index.html">← home</a>
-  <h1>the maze</h1>
-  <p class="sub">A screensaver-style walk through a 3D maze. It follows the right-hand wall until it finds the exit, then a new maze is built.</p>
-  <label>size</label>
-  <select id="size">
-    <option value="6">small (6×6)</option>
-    <option value="10" selected>medium (10×10)</option>
-    <option value="16">large (16×16)</option>
-    <option value="24">enormous (24×24)</option>
-  </select>
-  <label>walking speed</label>
-  <input type="range" id="speed" min="0.4" max="3" step="0.1" value="1">
-  <label>world</label>
-  <select id="theme">
-    <option value="cycle">cycle each maze</option>
-    <option value="0">brick dungeon</option>
-    <option value="1">copper cryostat</option>
-    <option value="2">hedge garden</option>
-  </select>
-  <div class="row" style="margin-top:12px">
-    <button id="map">map</button>
-    <button id="new">new maze</button>
-  </div>
-  <hr>
-  <p class="hint"><kbd>M</kbd> map · <kbd>N</kbd> new maze · <kbd>↑↓←→</kbd> take over · <kbd>P</kbd> autopilot<br>The panel fades when you stop moving the mouse.</p>
+  <section class="labstage">
+    <div id="boards"></div>
+    <div class="board" id="chartBox"><div class="cap"><b>cells discovered over time</b><span id="chartNote"></span></div><canvas id="chart"></canvas></div>
+  </section>
+
+  <aside class="side">
+    <h2>maze</h2>
+    <div class="ctl three">
+      <select id="mazeType" aria-label="Maze type">
+        <option value="perfect">perfect maze</option>
+        <option value="loops">maze with loops</option>
+        <option value="rooms">rooms</option>
+        <option value="field">open field</option>
+        <option value="empty">empty</option>
+      </select>
+      <select id="mazeSize" aria-label="Maze size">
+        <option value="21x13">small</option>
+        <option value="41x25" selected>medium</option>
+        <option value="61x37">large</option>
+      </select>
+      <button id="newMaze">new maze</button>
+    </div>
+    <div class="ctl" style="margin-top:6px" id="editRow">
+      <select id="paint" aria-label="Paint mode">
+        <option value="wall">draw: walls</option>
+        <option value="mud">draw: mud (cost 5)</option>
+        <option value="erase">draw: erase</option>
+      </select>
+      <button id="mudBtn">sprinkle mud</button>
+    </div>
+    <p class="small" style="margin-top:6px">Drag on the maze to draw. Drag the green start or red goal to move them.</p>
+
+    <div id="algoBlock"></div>
+
+    <h2>run</h2>
+    <div class="transport">
+      <button id="play" class="on">▶ play</button>
+      <button id="stepBtn">step</button>
+      <button id="reset">reset</button>
+      <label style="margin:0;display:flex;gap:6px;align-items:center;flex:1">speed<input type="range" id="speed" min="0" max="100" value="45"></label>
+    </div>
+    <label style="display:flex;gap:8px;align-items:center;margin-top:8px;color:var(--ink)"><input type="checkbox" id="compare"> compare all side by side</label>
+
+    <div id="explain"></div>
+    <div id="summary"></div>
+  </aside>
 </div>
 
 <script>
 // ===================================================================
-//  textures (procedural, 64×64, packed ABGR)
+//  grid + maze generation
 // ===================================================================
-const TS = 64;
-function hash2(x, y, s) { let h = (x * 374761393 + y * 668265263 + s * 1442695041) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
-function vnoise(x, y, s, period) {
-  const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
-  const P = (a) => ((a % period) + period) % period;
-  const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
-  const a = hash2(P(ix), P(iy), s), b = hash2(P(ix + 1), P(iy), s), c = hash2(P(ix), P(iy + 1), s), d = hash2(P(ix + 1), P(iy + 1), s);
-  return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
-}
-function fbm(x, y, s) { let t = 0, a = 0.5, f = 1; for (let o = 0; o < 4; o++) { t += a * vnoise(x * f, y * f, s + o, 8 * f); a *= 0.5; f *= 2; } return t; }
-function tex(fn) {
-  const t = new Uint32Array(TS * TS);
-  for (let y = 0; y < TS; y++) for (let x = 0; x < TS; x++) {
-    let [r, g, b] = fn(x, y);
-    r = Math.max(0, Math.min(255, r)); g = Math.max(0, Math.min(255, g)); b = Math.max(0, Math.min(255, b));
-    t[y * TS + x] = (255 << 24) | (b << 16) | (g << 8) | r;
+const FREE = 0, WALL = 1, MUD = 2;
+const G = { cols: 41, rows: 25, cells: null, start: 0, goal: 0 };
+const idx = (x, y) => y * G.cols + x;
+const XY = (i) => [i % G.cols, (i / G.cols) | 0];
+const cost = (i) => (G.cells[i] === MUD ? 5 : 1);
+const DX = [1, 0, -1, 0], DY = [0, 1, 0, -1];
+function nbrs(i, cells = G.cells) {
+  const x = i % G.cols, y = (i / G.cols) | 0, out = [];
+  for (let d = 0; d < 4; d++) {
+    const nx = x + DX[d], ny = y + DY[d];
+    if (nx < 0 || ny < 0 || nx >= G.cols || ny >= G.rows) continue;
+    const j = ny * G.cols + nx; if (cells[j] !== WALL) out.push(j);
   }
-  return t;
+  return out;
 }
-const N8 = (x, y, s) => fbm(x / 8, y / 8, s);
+const manhattan = (a, b) => Math.abs(a % G.cols - b % G.cols) + Math.abs(((a / G.cols) | 0) - ((b / G.cols) | 0));
+let rng = Math.random;
+const rint = (n) => Math.floor(rng() * n);
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = rint(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
-const THEMES = [
-  { name: "brick dungeon", fog: [8, 6, 6], fogDist: 11,
-    wall: tex((x, y) => {
-      const row = y >> 3, off = (row & 1) * 8, bx = ((x + off) >> 4), mortar = (y & 7) === 0 || ((x + off) & 15) === 0;
-      const n = N8(x, y, 3), v = hash2(bx, row, 7);
-      return mortar ? [150 + n * 40, 145 + n * 40, 135 + n * 40] : [120 + v * 60 + n * 50, 50 + v * 25 + n * 30, 38 + n * 25];
-    }),
-    floor: tex((x, y) => { const c = ((x >> 5) + (y >> 5)) & 1, n = N8(x, y, 11); const v = (c ? 95 : 70) + n * 50; return [v, v * .95, v * .9]; }),
-    ceil: tex((x, y) => { const n = fbm(x / 16, y / 4, 21), v = 70 + n * 60 - ((x & 15) === 0 ? 30 : 0); return [v * .9, v * .65, v * .45]; }),
-  },
-  { name: "copper cryostat", fog: [4, 8, 14], fogDist: 13,
-    wall: tex((x, y) => {
-      const seam = (x & 31) === 0 || (y & 31) === 0, rx = (x & 31), ry = (y & 31);
-      const rivet = (rx - 4) ** 2 + (ry - 4) ** 2 < 4 || (rx - 27) ** 2 + (ry - 4) ** 2 < 4 || (rx - 4) ** 2 + (ry - 27) ** 2 < 4 || (rx - 27) ** 2 + (ry - 27) ** 2 < 4;
-      const brushed = hash2(0, y, 5) * 0.5 + fbm(x / 2, y / 32, 9) * 0.5, n = brushed;
-      if (seam) return [70, 40, 25];
-      if (rivet) return [240, 190, 140];
-      return [170 + n * 70, 95 + n * 50, 50 + n * 35];
-    }),
-    floor: tex((x, y) => { const d = ((x + y) & 7) < 2 || ((x - y) & 7) < 1, n = N8(x, y, 13); const v = 80 + n * 40 + (d ? 35 : 0); return [v, v * 1.02, v * 1.08]; }),
-    ceil: tex((x, y) => {
-      const lx = x & 31, ly = y & 31, light = lx > 6 && lx < 26 && ly > 10 && ly < 22;
-      return light ? [235, 245, 255] : [40 + N8(x, y, 2) * 20, 45 + N8(x, y, 2) * 20, 55 + N8(x, y, 2) * 20];
-    }),
-  },
-  { name: "hedge garden", fog: [170, 200, 225], fogDist: 14,
-    wall: tex((x, y) => {
-      const n = fbm(x / 6, y / 6, 31), l = hash2(x >> 1, y >> 1, 4);
-      return [30 + n * 50 + l * 20, 85 + n * 90 + l * 30, 30 + n * 40];
-    }),
-    floor: tex((x, y) => { const n = fbm(x / 10, y / 10, 41), g = hash2(x, y, 2); return [110 + n * 60 + g * 20, 95 + n * 50 + g * 20, 70 + n * 30]; }),
-    ceil: tex((x, y) => { const n = fbm(x / 16, y / 16, 51), c = Math.max(0, n - 0.45) * 2.2; return [110 + c * 140, 160 + c * 95, 230 + c * 25]; }),
-  },
-];
-
-// ===================================================================
-//  maze generation (recursive backtracker on an N×N cell grid)
-// ===================================================================
-const DX = [1, 0, -1, 0], DY = [0, 1, 0, -1];   // E S W N   (y grows downward)
-let N = 10, G = 21, grid, exitCell, visited;
-function makeMaze(n) {
-  N = n; G = 2 * N + 1;
-  grid = new Uint8Array(G * G).fill(1);
-  const seen = new Uint8Array(N * N), stack = [[0, 0]];
-  seen[0] = 1; grid[1 * G + 1] = 0;
-  while (stack.length) {
-    const [cx, cy] = stack[stack.length - 1];
-    const opts = [];
-    for (let d = 0; d < 4; d++) { const nx = cx + DX[d], ny = cy + DY[d]; if (nx >= 0 && ny >= 0 && nx < N && ny < N && !seen[ny * N + nx]) opts.push(d); }
-    if (!opts.length) { stack.pop(); continue; }
-    const d = opts[Math.floor(Math.random() * opts.length)], nx = cx + DX[d], ny = cy + DY[d];
-    grid[(2 * cy + 1 + DY[d]) * G + (2 * cx + 1 + DX[d])] = 0;
-    grid[(2 * ny + 1) * G + (2 * nx + 1)] = 0;
-    seen[ny * N + nx] = 1; stack.push([nx, ny]);
-  }
-  exitCell = [N - 1, N - 1];
-  visited = new Uint8Array(N * N);
-}
-const wallAt = (x, y) => x < 0 || y < 0 || x >= G || y >= G || grid[(y | 0) * G + (x | 0)] === 1;
-const openDir = (cx, cy, d) => !wallAt(2 * cx + 1 + DX[d], 2 * cy + 1 + DY[d]);
-
-// ===================================================================
-//  player + autopilot (right-hand rule)
-// ===================================================================
-const P = { x: 1.5, y: 1.5, a: 0, cx: 0, cy: 0, d: 0 };
-let action = null, auto = true, speed = 1, themeIdx = 0, themeMode = "cycle", T = THEMES[0];
-let phase = "walk", phaseT = 0, showMap = false;
-
-function newMaze() {
-  if (themeMode === "cycle") themeIdx = (themeIdx + 1) % THEMES.length; else themeIdx = +themeMode;
-  T = THEMES[themeIdx];
-  makeMaze(+document.getElementById("size").value);
-  // face an open direction at the start
-  P.cx = 0; P.cy = 0; P.d = openDir(0, 0, 0) ? 0 : 1;
-  P.x = 1.5; P.y = 1.5; P.a = P.d * Math.PI / 2;
-  action = null; phase = "fadein"; phaseT = 0; auto = true;
-  visited[0] = 1;
-}
-function nextAction() {
-  if (P.cx === exitCell[0] && P.cy === exitCell[1]) { phase = "win"; phaseT = 0; return null; }
-  const right = (P.d + 1) & 3, left = (P.d + 3) & 3;
-  if (openDir(P.cx, P.cy, right)) return { type: "turn", from: P.a, to: P.a + Math.PI / 2, nd: right, t: 0, then: "move" };
-  if (openDir(P.cx, P.cy, P.d)) return { type: "move", fx: P.x, fy: P.y, tx: P.x + 2 * DX[P.d], ty: P.y + 2 * DY[P.d], t: 0 };
-  return { type: "turn", from: P.a, to: P.a - Math.PI / 2, nd: left, t: 0 };
-}
-const ease = t => t < .5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
-function stepAuto(dt) {
-  if (!action) action = nextAction();
-  if (!action) return;
-  if (action.type === "turn") {
-    action.t += dt * speed / 0.55;
-    const k = Math.min(1, action.t);
-    P.a = action.from + (action.to - action.from) * ease(k);
-    if (k >= 1) {
-      P.d = action.nd; P.a = action.to;
-      action = action.then === "move" ? { type: "move", fx: P.x, fy: P.y, tx: P.x + 2 * DX[P.d], ty: P.y + 2 * DY[P.d], t: 0 } : null;
+function genMaze(type) {
+  const C = G.cols, R = G.rows, cells = new Uint8Array(C * R).fill(WALL);
+  const setFree = (x, y) => { cells[y * C + x] = FREE; };
+  const border = () => { for (let x = 0; x < C; x++) { cells[x] = WALL; cells[(R - 1) * C + x] = WALL; } for (let y = 0; y < R; y++) { cells[y * C] = WALL; cells[y * C + C - 1] = WALL; } };
+  if (type === "perfect" || type === "loops") {
+    const seen = new Uint8Array(C * R), st = [[1, 1]]; setFree(1, 1); seen[C + 1] = 1;
+    while (st.length) {
+      const [x, y] = st[st.length - 1], opts = [];
+      for (let d = 0; d < 4; d++) { const nx = x + DX[d] * 2, ny = y + DY[d] * 2; if (nx > 0 && ny > 0 && nx < C - 1 && ny < R - 1 && !seen[ny * C + nx]) opts.push(d); }
+      if (!opts.length) { st.pop(); continue; }
+      const d = opts[rint(opts.length)], nx = x + DX[d] * 2, ny = y + DY[d] * 2;
+      setFree(x + DX[d], y + DY[d]); setFree(nx, ny); seen[ny * C + nx] = 1; st.push([nx, ny]);
     }
-  } else {
-    action.t += dt * speed / 0.9;
-    const k = Math.min(1, action.t);
-    P.x = action.fx + (action.tx - action.fx) * k; P.y = action.fy + (action.ty - action.fy) * k;
-    // small head bob
-    P.bob = Math.sin(k * Math.PI * 2) * 0.012;
-    if (k >= 1) { P.cx += DX[P.d]; P.cy += DY[P.d]; visited[P.cy * N + P.cx] = 1; P.bob = 0; action = null; }
-  }
-}
-
-// manual control
-const keys = {};
-addEventListener("keydown", e => {
-  const k = e.key.toLowerCase();
-  if (["arrowup", "arrowdown", "arrowleft", "arrowright", "w", "a", "s", "d"].includes(k)) { keys[k] = true; if (auto) { auto = false; action = null; } e.preventDefault(); }
-  if (k === "p") resumeAuto();
-  if (k === "m") toggleMap();
-  if (k === "n") newMaze();
-});
-addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
-function resumeAuto() {
-  if (auto) return;
-  P.cx = Math.max(0, Math.min(N - 1, Math.floor(P.x / 2))); P.cy = Math.max(0, Math.min(N - 1, Math.floor(P.y / 2)));
-  P.x = 2 * P.cx + 1.5; P.y = 2 * P.cy + 1.5;
-  P.d = ((Math.round(P.a / (Math.PI / 2)) % 4) + 4) % 4; P.a = P.d * Math.PI / 2;
-  action = null; auto = true;
-}
-function stepManual(dt) {
-  const rot = 2.2 * dt, mv = 3 * dt * (keys.arrowup || keys.w ? 1 : keys.arrowdown || keys.s ? -1 : 0);
-  if (keys.arrowleft || keys.a) P.a -= rot;
-  if (keys.arrowright || keys.d) P.a += rot;
-  const nx = P.x + Math.cos(P.a) * mv, ny = P.y + Math.sin(P.a) * mv, r = 0.2;
-  if (!wallAt(nx + Math.sign(Math.cos(P.a) * mv) * r, P.y)) P.x = nx;
-  if (!wallAt(P.x, ny + Math.sign(Math.sin(P.a) * mv) * r)) P.y = ny;
-  const cx = Math.floor(P.x / 2), cy = Math.floor(P.y / 2);
-  if (cx >= 0 && cy >= 0 && cx < N && cy < N) visited[cy * N + cx] = 1;
-  if (cx === exitCell[0] && cy === exitCell[1] && phase === "walk") { phase = "win"; phaseT = 0; }
-}
-
-// ===================================================================
-//  renderer
-// ===================================================================
-const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
-let W, H, img, buf, zbuf;
-function resize() {
-  W = 480; H = Math.max(200, Math.round(W * innerHeight / innerWidth));
-  if (H > 420) { H = 420; W = Math.round(H * innerWidth / innerHeight); }
-  cv.width = W; cv.height = H;
-  img = ctx.createImageData(W, H); buf = new Uint32Array(img.data.buffer); zbuf = new Float32Array(W);
-}
-function shade(c, f, fr, fg, fb) {
-  const r = c & 255, g = (c >> 8) & 255, b = (c >> 16) & 255, h = 1 - f;
-  return (255 << 24) | ((b * f + fb * h) << 16) | ((g * f + fg * h) << 8) | (r * f + fr * h);
-}
-function render(time) {
-  const [fr, fg, fb] = T.fog, FD = T.fogDist;
-  const dirX = Math.cos(P.a), dirY = Math.sin(P.a), plX = -dirY * 0.66, plY = dirX * 0.66;
-  const horizon = (H / 2) * (1 + (P.bob || 0) * 4) | 0;
-
-  // floor + ceiling
-  const r0x = dirX - plX, r0y = dirY - plY, r1x = dirX + plX, r1y = dirY + plY;
-  for (let y = 0; y < H; y++) {
-    const isFloor = y > horizon, p = isFloor ? y - horizon : horizon - y;
-    if (p === 0) { for (let x = 0; x < W; x++) buf[y * W + x] = (255 << 24) | (fb << 16) | (fg << 8) | fr; continue; }
-    const rowDist = (0.5 * H) / p;
-    const sx = rowDist * (r1x - r0x) / W, sy = rowDist * (r1y - r0y) / W;
-    let fx = P.x + rowDist * r0x, fy = P.y + rowDist * r0y;
-    const f = Math.max(0, 1 - rowDist / FD), tx = isFloor ? T.floor : T.ceil;
-    for (let x = 0; x < W; x++) {
-      const tu = (fx * TS / 2) & (TS - 1), tv = (fy * TS / 2) & (TS - 1);
-      buf[y * W + x] = shade(tx[tv * TS + tu], f, fr, fg, fb);
-      fx += sx; fy += sy;
-    }
-  }
-
-  // walls (DDA)
-  for (let x = 0; x < W; x++) {
-    const cam = 2 * x / W - 1, rx = dirX + plX * cam, ry = dirY + plY * cam;
-    let mx = P.x | 0, my = P.y | 0;
-    const ddx = Math.abs(1 / rx), ddy = Math.abs(1 / ry);
-    let stx, sty, sdx, sdy, side = 0;
-    if (rx < 0) { stx = -1; sdx = (P.x - mx) * ddx; } else { stx = 1; sdx = (mx + 1 - P.x) * ddx; }
-    if (ry < 0) { sty = -1; sdy = (P.y - my) * ddy; } else { sty = 1; sdy = (my + 1 - P.y) * ddy; }
-    for (let i = 0; i < 200; i++) {
-      if (sdx < sdy) { sdx += ddx; mx += stx; side = 0; } else { sdy += ddy; my += sty; side = 1; }
-      if (wallAt(mx, my)) break;
-    }
-    const dist = side === 0 ? sdx - ddx : sdy - ddy;
-    zbuf[x] = dist;
-    const lh = (H / dist) | 0;
-    let y0 = horizon - (lh >> 1), y1 = horizon + (lh >> 1);
-    let wx = side === 0 ? P.y + dist * ry : P.x + dist * rx; wx -= Math.floor(wx);
-    let tu = (wx * TS) | 0; if ((side === 0 && rx > 0) || (side === 1 && ry < 0)) tu = TS - tu - 1;
-    const f = Math.max(0, 1 - dist / FD) * (side ? 0.78 : 1);
-    const step = TS / lh; let tpos = (Math.max(0, y0) - y0) * step;
-    for (let y = Math.max(0, y0); y < Math.min(H, y1); y++) {
-      buf[y * W + x] = shade(T.wall[((tpos | 0) & (TS - 1)) * TS + tu], f, fr, fg, fb);
-      tpos += step;
-    }
-  }
-
-  // exit beacon: a spinning golden ring billboard
-  const sxw = 2 * exitCell[0] + 1.5 - P.x, syw = 2 * exitCell[1] + 1.5 - P.y;
-  const inv = 1 / (plX * dirY - dirX * plY);
-  const tX = inv * (dirY * sxw - dirX * syw), tY = inv * (-plY * sxw + plX * syw);
-  if (tY > 0.2) {
-    const scx = (W / 2) * (1 + tX / tY), size = Math.abs(H / tY) * 0.55, spin = Math.cos(time * 0.0016);
-    const cy = horizon, x0 = Math.max(0, (scx - size / 2) | 0), x1 = Math.min(W, (scx + size / 2) | 0);
-    const fog = Math.max(0.25, 1 - tY / (FD * 1.6));
-    for (let x = x0; x < x1; x++) {
-      if (tY >= zbuf[x]) continue;
-      const u = (x - scx) / (size / 2) / Math.max(0.12, Math.abs(spin));
-      for (let y = Math.max(0, (cy - size / 2) | 0); y < Math.min(H, (cy + size / 2) | 0); y++) {
-        const v = (y - cy) / (size / 2), r = Math.sqrt(u * u + v * v);
-        const g = Math.exp(-((r - 0.72) ** 2) / 0.008) + 0.35 * Math.exp(-(r * r) / 0.05);
-        if (g < 0.04) continue;
-        const a = Math.min(1, g) * fog, c = buf[y * W + x];
-        const R = c & 255, Gc = (c >> 8) & 255, B = (c >> 16) & 255;
-        buf[y * W + x] = (255 << 24) | (Math.min(255, B * (1 - a) + 120 * a) << 16) | (Math.min(255, Gc * (1 - a) + 215 * a) << 8) | Math.min(255, R * (1 - a) + 255 * a);
+    if (type === "loops") {
+      for (let y = 1; y < R - 1; y++) for (let x = 1; x < C - 1; x++) {
+        if (cells[y * C + x] !== WALL || rng() > 0.11) continue;
+        const h = cells[y * C + x - 1] === FREE && cells[y * C + x + 1] === FREE, v = cells[(y - 1) * C + x] === FREE && cells[(y + 1) * C + x] === FREE;
+        if (h !== v) setFree(x, y);
       }
     }
-  }
-
-  ctx.putImageData(img, 0, 0);
-
-  // fade in / out
-  let fade = 0;
-  if (phase === "fadein") fade = 1 - Math.min(1, phaseT / 1.2);
-  if (phase === "win") fade = Math.max(0, (phaseT - 1.6) / 1.0);
-  if (fade > 0) { ctx.fillStyle = `rgba(0,0,0,${fade})`; ctx.fillRect(0, 0, W, H); }
-
-  if (showMap) drawMap();
+  } else if (type === "rooms") {
+    cells.fill(FREE); border();
+    const divide = (x0, y0, x1, y1) => {   // recursive division on the interior [x0..x1]x[y0..y1]
+      const w = x1 - x0 + 1, h = y1 - y0 + 1;
+      if (w < 9 || h < 7) return;
+      const horiz = h > w ? true : w > h ? false : rng() < .5;
+      if (horiz) {
+        const wy = y0 + 1 + 2 * rint(Math.floor((h - 2) / 2)), gaps = [x0 + 2 * rint(Math.ceil(w / 2)), x0 + 2 * rint(Math.ceil(w / 2))];
+        for (let x = x0; x <= x1; x++) if (!gaps.includes(x)) cells[wy * C + x] = WALL;
+        divide(x0, y0, x1, wy - 1); divide(x0, wy + 1, x1, y1);
+      } else {
+        const wx = x0 + 1 + 2 * rint(Math.floor((w - 2) / 2)), gaps = [y0 + 2 * rint(Math.ceil(h / 2)), y0 + 2 * rint(Math.ceil(h / 2))];
+        for (let y = y0; y <= y1; y++) if (!gaps.includes(y)) cells[y * C + wx] = WALL;
+        divide(x0, y0, wx - 1, y1); divide(wx + 1, y0, x1, y1);
+      }
+    };
+    divide(1, 1, C - 2, R - 2);
+  } else if (type === "field") {
+    for (let tries = 0; tries < 30; tries++) {
+      cells.fill(FREE); border();
+      for (let b = 0; b < C * R / 14; b++) { const x = 1 + rint(C - 2), y = 1 + rint(R - 2), w = 1 + rint(3), h = 1 + rint(3); for (let yy = y; yy < Math.min(R - 1, y + h); yy++) for (let xx = x; xx < Math.min(C - 1, x + w); xx++) cells[yy * C + xx] = WALL; }
+      cells[C + 1] = FREE; cells[(R - 2) * C + C - 2] = FREE;
+      G.cells = cells; if (reachableFrom(C + 1)[(R - 2) * C + C - 2]) break;
+    }
+  } else { cells.fill(FREE); border(); }
+  G.cells = cells;
+  G.start = idx(1, 1); G.goal = idx(C - 2, R - 2);
+  cells[G.start] = FREE; cells[G.goal] = FREE;
 }
-function drawMap() {
-  const s = Math.max(2, Math.floor(Math.min(W, H) * 0.38 / G)), ox = W - G * s - 8, oy = 8;
-  ctx.fillStyle = "rgba(0,0,0,.55)"; ctx.fillRect(ox - 3, oy - 3, G * s + 6, G * s + 6);
-  for (let y = 0; y < G; y++) for (let x = 0; x < G; x++) {
-    if (grid[y * G + x]) continue;
-    const cx = (x - 1) >> 1, cy = (y - 1) >> 1, isCell = x & 1 && y & 1;
-    ctx.fillStyle = isCell && visited[cy * N + cx] ? "rgba(224,179,90,.55)" : "rgba(255,255,255,.18)";
-    ctx.fillRect(ox + x * s, oy + y * s, s, s);
+function sprinkleMud() {
+  const C = G.cols, R = G.rows, seeds = Math.round(C * R / 120);
+  for (let s = 0; s < seeds; s++) {
+    const cx = 2 + rint(C - 4), cy = 2 + rint(R - 4), rad = 2 + rint(4);
+    for (let y = cy - rad; y <= cy + rad; y++) for (let x = cx - rad; x <= cx + rad; x++) {
+      if (x < 1 || y < 1 || x >= C - 1 || y >= R - 1) continue;
+      const i = y * C + x; if (G.cells[i] === FREE && (x - cx) ** 2 + (y - cy) ** 2 <= rad * rad && i !== G.start && i !== G.goal) G.cells[i] = MUD;
+    }
   }
-  ctx.fillStyle = "#ffd27a"; ctx.fillRect(ox + (2 * exitCell[0] + 1) * s, oy + (2 * exitCell[1] + 1) * s, s, s);
-  ctx.fillStyle = "#fff";
-  ctx.beginPath(); ctx.arc(ox + P.x * s, oy + P.y * s, Math.max(1.5, s * .6), 0, 7); ctx.fill();
-  ctx.strokeStyle = "#fff"; ctx.beginPath(); ctx.moveTo(ox + P.x * s, oy + P.y * s);
-  ctx.lineTo(ox + (P.x + Math.cos(P.a) * 1.6) * s, oy + (P.y + Math.sin(P.a) * 1.6) * s); ctx.stroke();
+}
+function reachableFrom(s, cells = G.cells) {
+  const seen = new Uint8Array(cells.length), q = [s]; seen[s] = 1;
+  for (let h = 0; h < q.length; h++) for (const j of nbrs(q[h], cells)) if (!seen[j]) { seen[j] = 1; q.push(j); }
+  return seen;
+}
+
+// binary heap (min) for priority queues
+class Heap {
+  constructor() { this.a = []; this.p = []; this.n = 0; this.c = 0; }
+  get size() { return this.a.length; }
+  push(v, pr) {
+    const a = this.a, p = this.p; let i = a.length; a.push(v); p.push([pr, this.c++]);
+    while (i > 0) { const j = (i - 1) >> 1; if (this.less(i, j)) { this.swap(i, j); i = j; } else break; }
+  }
+  less(i, j) { const x = this.p[i], y = this.p[j]; return x[0] < y[0] || (x[0] === y[0] && x[1] < y[1]); }
+  swap(i, j) { [this.a[i], this.a[j]] = [this.a[j], this.a[i]]; [this.p[i], this.p[j]] = [this.p[j], this.p[i]]; }
+  pop() {
+    const a = this.a, top = a[0], last = a.pop(), lp = this.p.pop();
+    if (a.length) { a[0] = last; this.p[0] = lp; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < a.length && this.less(l, m)) m = l; if (r < a.length && this.less(r, m)) m = r; if (m === i) break; this.swap(i, m); i = m; } }
+    return top;
+  }
 }
 
 // ===================================================================
-//  main loop + UI
+//  tab 1: classic search on a known map (generators, one yield per event)
 // ===================================================================
-const banner = document.getElementById("banner");
-let last = performance.now();
-function frame(t) {
-  const dt = Math.min(0.05, (t - last) / 1000); last = t;
-  phaseT += dt;
-  if (phase === "fadein" && phaseT > 1.2) phase = "walk";
-  if (phase === "win") {
-    banner.textContent = "exit found"; banner.style.opacity = phaseT < 1.6 ? 1 : 0;
-    P.a += dt * 2.5;           // victory twirl
-    if (phaseT > 2.6) { banner.style.opacity = 0; newMaze(); }
-  } else if (auto) stepAuto(dt); else stepManual(dt);
-  render(t);
+const ALGOS = {
+  bfs: { name: "BFS", full: "breadth-first search", ds: "queue (first in, first out)", complete: "yes", optimal: "only if all steps cost the same", heur: "no",
+    text: "Explores in rings of equal step-distance from the start. Every node at distance d is expanded before any node at distance d+1, so the first time it reaches the goal it has a path with the fewest steps. It ignores costs, so mud doesn't slow it down in its own mind, only in reality." ,
+    pop: "n ← oldest node in the queue" },
+  dfs: { name: "DFS", full: "depth-first search", ds: "stack (last in, first out)", complete: "yes, on a finite graph", optimal: "no", heur: "no",
+    text: "Dives down one corridor as far as it can, and only backtracks at a dead end. It needs little memory, which made it the natural way to explore by hand. It finds a path, but often a long and winding one.",
+    pop: "n ← newest node on the stack" },
+  dijkstra: { name: "Dijkstra", full: "Dijkstra / uniform-cost search", ds: "priority queue by g (cost so far)", complete: "yes", optimal: "yes (non-negative costs)", heur: "no",
+    text: "Always expands the cheapest-to-reach node. It grows in rings of equal cost rather than equal steps, so it walks around mud when that is cheaper. Optimal, but it searches in every direction, including away from the goal.",
+    pop: "n ← node with the lowest g" },
+  greedy: { name: "Greedy", full: "greedy best-first search", ds: "priority queue by h (estimated distance to goal)", complete: "yes, on a finite graph", optimal: "no", heur: "Manhattan distance",
+    text: "Always expands whatever looks closest to the goal, ignoring how far it has already come. It can be lightning fast in open space, but walls fool it: it charges into dead ends that point the right way.",
+    pop: "n ← node with the lowest h" },
+  astar: { name: "A*", full: "A* search", ds: "priority queue by f = g + h", complete: "yes", optimal: "yes, with an admissible heuristic", heur: "Manhattan distance (never overestimates)",
+    text: "Combines both ideas: cost so far plus a guess of the cost still to go. As long as the guess never overestimates (Manhattan distance can't on a 4-connected grid with step cost ≥ 1), A* finds an optimal path, and it usually expands far fewer nodes than Dijkstra because it leans toward the goal.",
+    pop: "n ← node with the lowest g + h" },
+};
+const CODE = [
+  ["init", "frontier ← { start }"],
+  ["loop", "while frontier is not empty:"],
+  ["pop", "    POP"],
+  ["goal", "    if n is the goal: return path"],
+  ["expand", "    for each neighbour m of n:"],
+  ["push", "        if m is new (or now cheaper):\n            remember n as m's parent\n            add m to the frontier"],
+  ["fail", "return 'no path'"],
+];
+function newSearch(alg) {
+  const R = { kind: "search", alg, N: G.cells.length, expanded: 0, maxFrontier: 0, current: -1, path: null, cost: 0, done: false, failed: false, line: "init" };
+  R.state = new Uint8Array(R.N); R.order = new Int32Array(R.N).fill(-1);
+  R.gen = searchGen(R);
+  return R;
+}
+function* searchGen(R) {
+  const s = G.start, g = G.goal, N = R.N, A = R.alg;
+  const parent = new Int32Array(N).fill(-1), gc = new Float64Array(N).fill(Infinity);
+  const h = (i) => manhattan(i, g);
+  let fr;   // frontier
+  if (A === "bfs") fr = { q: [s], head: 0, push(v) { this.q.push(v); }, pop() { return this.q[this.head++]; }, get size() { return this.q.length - this.head; } };
+  else if (A === "dfs") fr = { q: [s], push(v) { this.q.push(v); }, pop() { return this.q.pop(); }, get size() { return this.q.length; } };
+  else { fr = new Heap(); fr.push(s, A === "greedy" ? h(s) : A === "astar" ? h(s) : 0); }
+  gc[s] = 0; R.state[s] = 1; R.line = "init"; yield;
+  while (fr.size) {
+    R.line = "loop";
+    const n = fr.pop();
+    if (R.state[n] === 2) continue;           // stale entry
+    R.state[n] = 2; R.order[n] = R.expanded++; R.current = n; R.line = "pop"; yield;
+    if (n === g) {
+      const path = []; for (let v = g; v !== -1; v = parent[v]) path.push(v); path.reverse();
+      R.path = path; R.cost = path.slice(1).reduce((a, v) => a + cost(v), 0); R.line = "goal"; R.done = true; return;
+    }
+    R.line = "expand";
+    for (const m of (A === "dfs" ? nbrs(n).reverse() : nbrs(n))) {
+      if (R.state[m] === 2) continue;
+      if (A === "bfs") { if (R.state[m] === 0) { R.state[m] = 1; parent[m] = n; fr.push(m); } }
+      else if (A === "dfs") { parent[m] = n; R.state[m] = 1; fr.push(m); }
+      else if (A === "greedy") { if (R.state[m] === 0) { R.state[m] = 1; parent[m] = n; fr.push(m, h(m)); } }
+      else { const ng = gc[n] + cost(m); if (ng < gc[m]) { gc[m] = ng; parent[m] = n; R.state[m] = 1; fr.push(m, A === "astar" ? ng + h(m) * 1.001 : ng); } }   // tie-break toward the goal
+    }
+    R.maxFrontier = Math.max(R.maxFrontier, fr.size);
+    R.line = "push"; yield;
+  }
+  R.line = "fail"; R.done = true; R.failed = true;
+}
+function optimalCost() {   // plain Dijkstra, for grading
+  const N = G.cells.length, d = new Float64Array(N).fill(Infinity), H = new Heap(); d[G.start] = 0; H.push(G.start, 0);
+  while (H.size) { const n = H.pop(); if (n === G.goal) return d[n]; for (const m of nbrs(n)) { const nd = d[n] + cost(m); if (nd < d[m]) { d[m] = nd; H.push(m, nd); } } }
+  return Infinity;
+}
+function shortestSteps() {
+  const seen = reachableFrom(G.start), dist = new Int32Array(G.cells.length).fill(-1), q = [G.start]; dist[G.start] = 0;
+  for (let h = 0; h < q.length; h++) for (const j of nbrs(q[h])) if (dist[j] < 0) { dist[j] = dist[q[h]] + 1; q.push(j); }
+  return dist[G.goal];
+}
+
+// ===================================================================
+//  tab 2: one agent, unknown map (it only senses the four cells around it)
+// ===================================================================
+const EXPLORERS = {
+  random: { name: "random walk", short: "random",
+    text: "No memory at all: at every step pick a random open neighbour. It does find the exit eventually, but the expected number of steps grows much faster than the maze. A useful baseline for how much memory is worth." },
+  wall: { name: "wall follower", short: "right hand",
+    text: "Keep your right hand on the wall and walk. No memory beyond your heading. In a perfect maze (no loops) it always reaches the exit, because the walls form one connected piece. Once there are loops, an exit inside an island of walls can be circled forever: try 'maze with loops'." },
+  tremaux: { name: "Trémaux", short: "Trémaux",
+    text: "A 19th-century method with chalk: mark every passage you walk. Never enter a passage marked twice. If a fresh passage leads you to a junction you've already visited, turn around. It is guaranteed to find the exit in any maze and walks each passage at most twice. It is depth-first search, done with your feet." },
+  dfsmem: { name: "DFS with memory", short: "DFS",
+    text: "Remember which cells you've visited. Go to an unvisited neighbour if there is one, otherwise walk back the way you came. Systematic, never gets stuck in loops, but it doesn't know which direction the exit is." },
+  optastar: { name: "optimistic A* (replanning)", short: "opt. A*",
+    text: "Knows where the exit is (think GPS) but not the walls. It plans with A* as if every unknown cell were open, walks the plan, and replans whenever it bumps into a wall. This 'freespace assumption' is the core idea of D* Lite (Koenig & Likhachev, 2002), and D*-family planners have driven real robots and planetary rovers." },
+};
+function newExplorer(strat, opts = {}) {
+  const N = G.cells.length;
+  const a = { strat, pos: G.start, know: opts.sharedKnow || new Int8Array(N).fill(-1), visits: new Uint16Array(N), trail: [G.start], steps: 0, done: false, found: false, gaveUp: false,
+    dir: 0, stack: [], mine: new Uint8Array(N), marks: new Map(), came: -1, plan: [], replans: 0, color: opts.color || "#e0b35a", idle: false, target: -1 };
+  a.visits[G.start] = 1; a.mine[G.start] = 1;
+  return a;
+}
+function sense(a, seenGlobal) {
+  const x = a.pos % G.cols, y = (a.pos / G.cols) | 0;
+  const mark = (i) => { a.know[i] = G.cells[i] === WALL ? 1 : 0; if (seenGlobal && !seenGlobal.s[i]) { seenGlobal.s[i] = 1; if (G.cells[i] !== WALL) seenGlobal.n++; } };
+  mark(a.pos);
+  for (let d = 0; d < 4; d++) { const nx = x + DX[d], ny = y + DY[d]; if (nx >= 0 && ny >= 0 && nx < G.cols && ny < G.rows) mark(ny * G.cols + nx); }
+}
+const knownFree = (a, i) => a.know[i] === 0;
+function openNbrs(a, i) { return nbrs(i).filter((j) => knownFree(a, j)); }   // nbrs() never returns walls; know check keeps it honest
+const edgeKey = (u, v) => (u < v ? u * 100000 + v : v * 100000 + u);
+function chooseNext(a, goalKnown) {
+  const p = a.pos, x = p % G.cols, y = (p / G.cols) | 0;
+  switch (a.strat) {
+    case "random": { const o = openNbrs(a, p); return o[rint(o.length)]; }
+    case "wall": {
+      for (const turn of [1, 0, 3, 2]) {   // right, straight, left, back (y grows downward)
+        const d = (a.dir + turn) % 4, nx = x + DX[d], ny = y + DY[d];
+        if (nx >= 0 && ny >= 0 && nx < G.cols && ny < G.rows && knownFree(a, ny * G.cols + nx)) { a.dir = d; return ny * G.cols + nx; }
+      }
+      return p;
+    }
+    case "tremaux": {
+      // marks are added when a passage is walked (moveAgent); here we only read them
+      const o = openNbrs(a, p), mk = (j) => a.marks.get(edgeKey(p, j)) || 0, back = a.came;
+      const firstVisit = a.visits[p] <= 1;
+      if (!firstVisit && back >= 0 && mk(back) === 1) return back;          // old junction reached by a fresh passage: turn around
+      const zero = o.filter((j) => mk(j) === 0 && j !== back);
+      if (zero.length) return zero[rint(zero.length)];                        // prefer unmarked passages
+      const one = o.filter((j) => mk(j) === 1);
+      if (one.length) return one.includes(back) && one.length > 1 ? shuffle(one.filter((j) => j !== back))[0] : one[0];
+      a.idle = true; return p;                                                // every passage marked twice: the maze has no exit
+    }
+    case "dfsmem": {
+      const un = shuffle(openNbrs(a, p).filter((j) => !a.mine[j]));
+      if (un.length) { a.stack.push(p); return un[0]; }
+      if (a.stack.length) return a.stack.pop();
+      a.idle = true; return p;
+    }
+    case "optastar": {
+      if (!a.plan.length || a.know[a.plan[0]] === 1) { a.plan = planOptimistic(a, p, G.goal); a.replans++; }
+      return a.plan.length ? a.plan.shift() : p;
+    }
+  }
+  return p;
+}
+function planOptimistic(a, s, g) {   // A* where unknown counts as open
+  const N = G.cells.length, gc = new Float64Array(N).fill(Infinity), par = new Int32Array(N).fill(-1), H = new Heap(), closed = new Uint8Array(N);
+  gc[s] = 0; H.push(s, manhattan(s, g));
+  while (H.size) {
+    const n = H.pop(); if (closed[n]) continue; closed[n] = 1;
+    if (n === g) { const path = []; for (let v = g; v !== s; v = par[v]) path.push(v); return path.reverse(); }
+    const x = n % G.cols, y = (n / G.cols) | 0;
+    for (let d = 0; d < 4; d++) {
+      const nx = x + DX[d], ny = y + DY[d]; if (nx < 0 || ny < 0 || nx >= G.cols || ny >= G.rows) continue;
+      const m = ny * G.cols + nx; if (a.know[m] === 1) continue;
+      const ng = gc[n] + 1; if (ng < gc[m]) { gc[m] = ng; par[m] = n; H.push(m, ng + manhattan(m, g)); }
+    }
+  }
+  return [];
+}
+function moveAgent(a, next, seenGlobal) {
+  if (next === a.pos) return;
+  a.marks.set(edgeKey(a.pos, next), (a.marks.get(edgeKey(a.pos, next)) || 0) + 1);
+  a.came = a.pos; a.pos = next; a.steps++; a.visits[next]++; a.mine[next] = 1;
+  a.trail.push(next); if (a.trail.length > 4000) a.trail.shift();
+  sense(a, seenGlobal);
+}
+function newSolo(strat) {
+  const a = newExplorer(strat); sense(a);
+  const free = reachableFrom(G.start).reduce((s, v) => s + v, 0);
+  return { kind: "solo", strat, a, cap: Math.max(2000, free * 25), done: false, optimal: shortestSteps() };
+}
+function stepSolo(R) {
+  if (R.done) return;
+  const a = R.a;
+  moveAgent(a, chooseNext(a), null);
+  if (a.pos === G.goal) { a.found = true; R.done = true; }
+  else if (a.idle) { R.done = true; a.gaveUp = true; }
+  else if (a.steps >= R.cap) { R.done = true; a.gaveUp = true; }
+}
+
+// ===================================================================
+//  tab 3: teams exploring the whole maze
+// ===================================================================
+const TEAMS = {
+  random: { name: "random walks", shared: false, color: "#9aa0a8",
+    text: "Each agent wanders randomly with no memory and no communication. Adding agents helps a little, simply because there are more random walkers." },
+  dfs: { name: "independent DFS", shared: false, color: "#ff8a5a",
+    text: "Each agent explores systematically with its own memory, but they don't talk. They all start in the same place and largely repeat each other's work, so extra agents barely help." },
+  nearest: { name: "nearest frontier (shared map)", shared: true, color: "#25b8ff",
+    text: "Everyone writes into one shared map. Each agent walks to the closest frontier: a known open cell next to unknown territory (Yamauchi, 1997). Simple and effective, but agents that are close together chase the same frontier." },
+  coord: { name: "coordinated frontiers", shared: true, color: "#7ee08a",
+    text: "Shared map plus coordination: agent–frontier pairs are assigned greedily by distance, and once a frontier is claimed, frontiers near it become less attractive to everyone else, so the team fans out (in the spirit of Burgard et al., 2005)." },
+};
+const AGENT_COLORS = ["#e0b35a", "#25b8ff", "#ff6b9a", "#7ee08a", "#b98aff", "#ff9a3c", "#4fe0d0", "#f0f0f0"];
+function newTeam(strat, k) {
+  const N = G.cells.length, reach = reachableFrom(G.start);
+  const T = { kind: "team", strat, k, t: 0, done: false, agents: [], seen: { s: new Uint8Array(N), n: 0 }, total: reach.reduce((s, v) => s + v, 0), history: [], cap: 0 };
+  const shared = TEAMS[strat].shared ? new Int8Array(N).fill(-1) : null;
+  for (let i = 0; i < k; i++) { const a = newExplorer(strat === "dfs" ? "dfsmem" : strat, { sharedKnow: shared, color: AGENT_COLORS[i % 8] }); T.agents.push(a); sense(a, T.seen); }
+  T.shared = shared; T.cap = Math.max(3000, T.total * 30);
+  T.history.push(T.seen.n / T.total);
+  return T;
+}
+function isFrontier(know, i) {
+  if (know[i] !== 0) return false;
+  const x = i % G.cols, y = (i / G.cols) | 0;
+  for (let d = 0; d < 4; d++) { const nx = x + DX[d], ny = y + DY[d]; if (nx >= 0 && ny >= 0 && nx < G.cols && ny < G.rows && know[ny * G.cols + nx] === -1) return true; }
+  return false;
+}
+function bfsKnown(know, s) {   // distances + parents over known-open cells
+  const N = know.length, dist = new Int32Array(N).fill(-1), par = new Int32Array(N).fill(-1), q = [s]; dist[s] = 0;
+  for (let h = 0; h < q.length; h++) {
+    const n = q[h], x = n % G.cols, y = (n / G.cols) | 0;
+    for (let d = 0; d < 4; d++) { const nx = x + DX[d], ny = y + DY[d]; if (nx < 0 || ny < 0 || nx >= G.cols || ny >= G.rows) continue; const m = ny * G.cols + nx; if (know[m] !== 0 || dist[m] >= 0) continue; dist[m] = dist[n] + 1; par[m] = n; q.push(m); }
+  }
+  return { dist, par, order: q };
+}
+function firstStep(par, from, to) { let v = to; while (par[v] !== from && par[v] !== -1) v = par[v]; return par[v] === from ? v : from; }
+function stepTeam(T) {
+  if (T.done) return;
+  const strat = T.strat;
+  if (strat === "random" || strat === "dfs") {
+    for (const a of T.agents) { const nx = chooseNext(a); moveAgent(a, nx, T.seen); }
+  } else if (strat === "nearest") {
+    for (const a of T.agents) {
+      const B = bfsKnown(T.shared, a.pos); let tgt = -1;
+      for (const n of B.order) if (n !== a.pos && isFrontier(T.shared, n)) { tgt = n; break; }
+      if (tgt < 0 && isFrontier(T.shared, a.pos)) tgt = a.pos;
+      a.target = tgt;
+      if (tgt >= 0 && tgt !== a.pos) moveAgent(a, firstStep(B.par, a.pos, tgt), T.seen);
+    }
+  } else if (strat === "coord") {
+    const F = []; for (let i = 0; i < T.shared.length; i++) if (isFrontier(T.shared, i)) F.push(i);
+    const Bs = T.agents.map((a) => bfsKnown(T.shared, a.pos));
+    const claimed = [], assigned = new Array(T.agents.length).fill(-1), R = 6;
+    for (let round = 0; round < T.agents.length && F.length; round++) {
+      let best = Infinity, ba = -1, bf = -1;
+      for (let ai = 0; ai < T.agents.length; ai++) {
+        if (assigned[ai] >= 0) continue;
+        for (const f of F) {
+          const d = Bs[ai].dist[f]; if (d < 0) continue;
+          let pen = 0; for (const c of claimed) { const md = manhattan(c, f); if (md < R) pen += (R - md) * 6; }
+          if (d + pen < best) { best = d + pen; ba = ai; bf = f; }
+        }
+      }
+      if (ba < 0) break;
+      assigned[ba] = bf; claimed.push(bf);
+    }
+    T.agents.forEach((a, ai) => { a.target = assigned[ai]; if (assigned[ai] >= 0 && assigned[ai] !== a.pos) moveAgent(a, firstStep(Bs[ai].par, a.pos, assigned[ai]), T.seen); });
+  }
+  T.t++;
+  T.history.push(T.seen.n / T.total);
+  if (T.seen.n >= T.total || T.t >= T.cap) T.done = true;
+}
+function runTeamHeadless(strat, k, cap) {
+  const T = newTeam(strat, k); T.cap = cap || T.cap;
+  while (!T.done) stepTeam(T);
+  return T.seen.n >= T.total ? T.t : Infinity;
+}
+
+// ===================================================================
+//  UI state
+// ===================================================================
+let tab = "known", alg = "astar", explorer = "tremaux", teamStrat = "coord", teamK = 4, compare = false, playing = true;
+let runs = [];           // one per board
+let mudOn = false;
+
+const $ = (id) => document.getElementById(id);
+const boardsEl = $("boards");
+
+function labelFor(R) {
+  if (R.kind === "search") return ALGOS[R.alg].name;
+  if (R.kind === "solo") return EXPLORERS[R.strat].name;
+  return TEAMS[R.strat].name + " · " + R.k + " agent" + (R.k > 1 ? "s" : "");
+}
+function makeRuns() {
+  if (tab === "known") runs = (compare ? Object.keys(ALGOS) : [alg]).map(newSearch);
+  else if (tab === "unknown") runs = (compare ? Object.keys(EXPLORERS) : [explorer]).map(newSolo);
+  else runs = (compare ? Object.keys(TEAMS) : [teamStrat]).map((s) => newTeam(s, teamK));
+  buildBoards(); renderExplain(); renderSummary();
+}
+function buildBoards() {
+  boardsEl.className = runs.length > 1 ? "multi" : "";
+  boardsEl.innerHTML = runs.map((R, i) => `<div class="board"><div class="cap"><b>${labelFor(R)}</b><span id="cap${i}"></span></div><canvas id="cv${i}"></canvas><div class="stats" id="st${i}"></div></div>`).join("");
+  runs.forEach((R, i) => { R.cv = $("cv" + i); R.ctx = R.cv.getContext("2d"); });
+  sizeBoards(); requestAnimationFrame(sizeBoards);
+  $("chartBox").classList.toggle("on", tab === "team");
+  if (runs.length === 1) attachEditing(runs[0].cv);
+}
+function sizeBoards() {
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  for (const R of runs) {
+    const w = R.cv.clientWidth; let h = w * G.rows / G.cols;
+    if (runs.length === 1) { const maxH = innerHeight - (tab === "team" ? 330 : 120); if (h > maxH && innerWidth > 900) { h = maxH; R.cv.style.width = (h * G.cols / G.rows) + "px"; } else R.cv.style.width = "100%"; }
+    R.cv.style.height = h + "px";
+    R.cv.width = Math.round(R.cv.clientWidth * dpr); R.cv.height = Math.round(h * dpr);
+  }
+  const ch = $("chart"); ch.width = ch.clientWidth * dpr; ch.height = ch.clientHeight * dpr;
+  drawAll();
+}
+
+// ===================================================================
+//  drawing
+// ===================================================================
+const COL = { free: "#ece8df", wall: "#23262c", mud: "#9a7444", fog: "#3a3f48", frontier: "#f05fc8", start: "#3fbf6a", goal: "#e0485a", path: "#ffb020", cur: "#ffffff" };
+function lerpCol(a, b, t) { return `rgb(${Math.round(a[0] + (b[0] - a[0]) * t)},${Math.round(a[1] + (b[1] - a[1]) * t)},${Math.round(a[2] + (b[2] - a[2]) * t)})`; }
+function drawRun(R) {
+  const g = R.ctx, W = R.cv.width, H = R.cv.height, cs = Math.min(W / G.cols, H / G.rows), ox = (W - cs * G.cols) / 2, oy = (H - cs * G.rows) / 2;
+  R.cs = cs; R.ox = ox; R.oy = oy;
+  g.fillStyle = "#15171b"; g.fillRect(0, 0, W, H);
+  const N = G.cells.length;
+  const know = R.kind === "solo" ? R.a.know : R.kind === "team" ? (R.shared || null) : null;
+  const seen = R.kind === "team" ? R.seen.s : null;
+  const maxOrder = R.kind === "search" ? Math.max(1, R.expanded) : 1;
+  for (let i = 0; i < N; i++) {
+    const x = i % G.cols, y = (i / G.cols) | 0, c = G.cells[i];
+    let fill;
+    const unknown = R.kind === "solo" ? know[i] === -1 : R.kind === "team" ? !seen[i] : false;
+    if (unknown) fill = COL.fog;
+    else if (c === WALL) fill = COL.wall;
+    else {
+      fill = c === MUD ? COL.mud : COL.free;
+      if (R.kind === "search") {
+        if (R.state[i] === 2) { const t = R.order[i] / maxOrder; fill = c === MUD ? lerpCol([150, 175, 160], [70, 110, 150], t) : lerpCol([170, 220, 250], [60, 120, 200], t); }
+        else if (R.state[i] === 1) fill = COL.frontier;
+      } else if (R.kind === "solo") {
+        const v = R.a.visits[i];
+        if (v) fill = v === 1 ? "#cfe3f0" : v === 2 ? "#9cc3e0" : "#6a9bc8";
+      }
+    }
+    g.fillStyle = fill; g.fillRect(ox + x * cs, oy + y * cs, Math.ceil(cs), Math.ceil(cs));
+  }
+  const cx = (i) => ox + (i % G.cols + 0.5) * cs, cy = (i) => oy + (((i / G.cols) | 0) + 0.5) * cs;
+  // path / trails / plans
+  if (R.kind === "search" && R.path) {
+    g.strokeStyle = COL.path; g.lineWidth = Math.max(2, cs * 0.28); g.lineJoin = "round"; g.lineCap = "round";
+    g.beginPath(); R.path.forEach((v, k) => (k ? g.lineTo(cx(v), cy(v)) : g.moveTo(cx(v), cy(v)))); g.stroke();
+  }
+  if (R.kind === "search" && R.current >= 0 && !R.done) { g.strokeStyle = COL.cur; g.lineWidth = Math.max(1.5, cs * 0.15); g.strokeRect(ox + (R.current % G.cols) * cs + 1, oy + ((R.current / G.cols) | 0) * cs + 1, cs - 2, cs - 2); }
+  if (R.kind === "solo" && R.a.strat === "optastar" && R.a.plan.length && !R.done) {
+    g.strokeStyle = "rgba(255,79,106,.85)"; g.setLineDash([cs * 0.4, cs * 0.3]); g.lineWidth = Math.max(1.5, cs * 0.16);
+    g.beginPath(); g.moveTo(cx(R.a.pos), cy(R.a.pos)); for (const v of R.a.plan) g.lineTo(cx(v), cy(v)); g.stroke(); g.setLineDash([]);
+  }
+  const agents = R.kind === "solo" ? [R.a] : R.kind === "team" ? R.agents : [];
+  for (const a of agents) {
+    const tr = a.trail, n = Math.min(tr.length, R.kind === "team" ? 40 : 60);
+    if (n > 1) {
+      g.strokeStyle = a.color; g.globalAlpha = 0.5; g.lineWidth = Math.max(1.5, cs * 0.18); g.lineJoin = "round";
+      g.beginPath(); for (let k = tr.length - n; k < tr.length; k++) (k === tr.length - n ? g.moveTo(cx(tr[k]), cy(tr[k])) : g.lineTo(cx(tr[k]), cy(tr[k]))); g.stroke(); g.globalAlpha = 1;
+    }
+    if (R.kind === "team" && a.target >= 0) { g.strokeStyle = a.color; g.lineWidth = 1.2; g.strokeRect(ox + (a.target % G.cols) * cs + cs * 0.2, oy + ((a.target / G.cols) | 0) * cs + cs * 0.2, cs * 0.6, cs * 0.6); }
+  }
+  // start / goal
+  const mark = (i, c, label) => { g.fillStyle = c; g.beginPath(); g.arc(cx(i), cy(i), cs * 0.42, 0, 7); g.fill(); if (cs > 12) { g.fillStyle = "#fff"; g.font = `500 ${Math.round(cs * 0.5)}px JetBrains Mono, monospace`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(label, cx(i), cy(i) + 1); } };
+  mark(G.start, COL.start, "S"); if (R.kind !== "team") mark(G.goal, COL.goal, "G");
+  for (const a of agents) { g.fillStyle = a.color; g.strokeStyle = "#111"; g.lineWidth = 1.5; g.beginPath(); g.arc(cx(a.pos), cy(a.pos), cs * 0.36, 0, 7); g.fill(); g.stroke(); }
+}
+function drawChart() {
+  if (tab !== "team") return;
+  const cv = $("chart"), g = cv.getContext("2d"), W = cv.width, H = cv.height, dpr = W / Math.max(1, cv.clientWidth);
+  g.fillStyle = "#121418"; g.fillRect(0, 0, W, H);
+  const pad = { l: 40 * dpr, r: 12 * dpr, t: 10 * dpr, b: 24 * dpr };
+  const maxT = Math.max(50, ...runs.map((R) => R.history.length));
+  g.strokeStyle = "rgba(255,255,255,.12)"; g.lineWidth = 1; g.font = `${10 * dpr}px JetBrains Mono, monospace`; g.fillStyle = "#9a9ea6";
+  for (const p of [0, 0.25, 0.5, 0.75, 1]) { const y = pad.t + (1 - p) * (H - pad.t - pad.b); g.beginPath(); g.moveTo(pad.l, y); g.lineTo(W - pad.r, y); g.stroke(); g.textAlign = "right"; g.fillText(Math.round(p * 100) + "%", pad.l - 6 * dpr, y + 3 * dpr); }
+  g.textAlign = "center"; g.fillText("time steps → " + maxT, (W + pad.l) / 2, H - 6 * dpr);
+  for (const R of runs) {
+    g.strokeStyle = TEAMS[R.strat].color; g.lineWidth = 2 * dpr; g.beginPath();
+    R.history.forEach((v, t) => { const x = pad.l + t / maxT * (W - pad.l - pad.r), y = pad.t + (1 - v) * (H - pad.t - pad.b); t ? g.lineTo(x, y) : g.moveTo(x, y); });
+    g.stroke();
+  }
+}
+function drawAll() { for (const R of runs) drawRun(R); drawChart(); renderStats(); }
+
+function renderStats() {
+  runs.forEach((R, i) => {
+    const el = $("st" + i), cap = $("cap" + i); if (!el) return;
+    if (R.kind === "search") {
+      cap.textContent = R.done ? (R.failed ? "no path" : "done") : "running";
+      if (R.done && !R.failed) {
+        const opt = optCache, ok = Math.abs(R.cost - opt) < 1e-9;
+        el.innerHTML = `expanded <b>${R.expanded}</b> · path ${R.path.length - 1} steps · cost <b>${R.cost}</b> <span class="${ok ? "ok" : "bad"}">${ok ? "✓ optimal" : "✗ optimal is " + opt}</span>`;
+      } else el.innerHTML = `expanded <b>${R.expanded}</b> · frontier ${R.maxFrontier ? "≤ " + R.maxFrontier : "-"}`;
+    } else if (R.kind === "solo") {
+      const a = R.a;
+      cap.textContent = a.found ? "found the exit" : a.gaveUp ? (a.idle ? "explored everything, no exit" : a.strat === "wall" ? "stuck circling an island" : "gave up after " + a.steps + " steps") : "walking";
+      const ratio = a.found ? (a.steps / Math.max(1, R.optimal)).toFixed(1) + "× the shortest path" : "";
+      el.innerHTML = `steps walked <b>${a.steps}</b> · shortest possible ${R.optimal}${ratio ? ` · <span class="${a.steps / R.optimal < 2 ? "ok" : "bad"}">${ratio}</span>` : ""}${a.strat === "optastar" ? " · replans " + a.replans : ""}`;
+    } else {
+      cap.textContent = R.done ? (R.seen.n >= R.total ? `fully explored in ${R.t} steps` : "gave up") : `${Math.round(R.seen.n / R.total * 100)}% explored`;
+      const moves = R.agents.reduce((s, a) => s + a.steps, 0);
+      el.innerHTML = `time <b>${R.t}</b> · total moves ${moves} · discovered ${R.seen.n}/${R.total}`;
+    }
+  });
+  if (runs.length && runs.every((R) => R.done)) renderSummary();
+}
+
+// ===================================================================
+//  explanation + summary panels
+// ===================================================================
+function renderExplain() {
+  const ex = $("explain");
+  $("editRow").style.display = tab === "known" ? "" : "none";
+  let html = "";
+  if (tab === "known") {
+    html += `<h2>algorithm</h2><div class="algos">${Object.entries(ALGOS).map(([k, a]) => `<button data-alg="${k}" class="${k === alg ? "on" : ""}">${a.name}</button>`).join("")}</div>`;
+    const A = ALGOS[alg];
+    html += `<h2>${A.full}</h2><p>${A.text}</p>
+      <div class="props"><span>frontier</span><span>${A.ds}</span><span>finds a path?</span><span>${A.complete}</span><span>shortest path?</span><span>${A.optimal}</span><span>heuristic</span><span>${A.heur}</span></div>
+      <pre class="code" id="code">${CODE.map(([id, t]) => `<span class="ln" data-l="${id}">${t.replace("POP", A.pop)}</span>`).join("")}</pre>
+      <div class="legend"><span><i style="background:${COL.frontier}"></i>frontier</span><span><i style="background:#6fb0e8"></i>expanded (light = early)</span><span><i style="background:${COL.path}"></i>final path</span><span><i style="background:${COL.mud}"></i>mud, cost 5</span></div>
+      <p class="small">All five use the same loop. Only the rule for which node to take out of the frontier changes, and that one choice decides everything. Tip: "sprinkle mud", then compare BFS with Dijkstra.</p>`;
+  } else if (tab === "unknown") {
+    html += `<h2>strategy</h2><div class="algos">${Object.entries(EXPLORERS).map(([k, a]) => `<button data-exp="${k}" class="${k === explorer ? "on" : ""}">${a.short}</button>`).join("")}</div>`;
+    html += `<h2>${EXPLORERS[explorer].name}</h2><p>${EXPLORERS[explorer].text}</p>
+      <div class="legend"><span><i style="background:${COL.fog}"></i>not seen yet</span><span><i style="background:#cfe3f0"></i>walked once</span><span><i style="background:#9cc3e0"></i>twice</span><span><i style="background:#6a9bc8"></i>3+ times</span></div>
+      <p class="small">Without a map, "searching" means walking, so the cost is the number of steps actually taken, not nodes expanded. The best you could ever hope for is the shortest path, shown for comparison.</p>`;
+  } else {
+    html += `<h2>team strategy</h2><div class="algos">${Object.entries(TEAMS).map(([k, a]) => `<button data-team="${k}" class="${k === teamStrat ? "on" : ""}">${a.name.replace(" (shared map)", "")}</button>`).join("")}</div>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:10px;color:var(--ink)">agents <input type="range" id="kSlider" min="1" max="8" value="${teamK}" style="flex:1"><b id="kVal">${teamK}</b></label>`;
+    html += `<h2>${TEAMS[teamStrat].name}</h2><p>${TEAMS[teamStrat].text}</p>
+      <p class="small">Every agent sees only its four neighbours. The goal is to discover every reachable cell; time is measured in rounds where every agent takes one step. Small squares show where each agent is heading.</p>
+      <h2>how much do more agents help?</h2>
+      <p class="small">Runs each strategy with 1 to 8 agents on this maze and plots the time to explore everything.</p>
+      <button id="speedupBtn">run the speedup experiment</button><canvas id="speedup" style="width:100%;height:190px;display:none;margin-top:8px"></canvas><p class="small" id="speedupNote"></p>`;
+  }
+  ex.innerHTML = html;
+  ex.querySelectorAll("[data-alg]").forEach((b) => b.onclick = () => { alg = b.dataset.alg; compare = false; $("compare").checked = false; makeRuns(); });
+  ex.querySelectorAll("[data-exp]").forEach((b) => b.onclick = () => { explorer = b.dataset.exp; compare = false; $("compare").checked = false; makeRuns(); });
+  ex.querySelectorAll("[data-team]").forEach((b) => b.onclick = () => { teamStrat = b.dataset.team; compare = false; $("compare").checked = false; makeRuns(); });
+  const ks = $("kSlider"); if (ks) ks.oninput = () => { teamK = +ks.value; $("kVal").textContent = teamK; makeRuns(); };
+  const sb = $("speedupBtn"); if (sb) sb.onclick = speedupExperiment;
+  highlightCode();
+}
+function highlightCode() {
+  const R = runs[0]; if (!R || R.kind !== "search" || runs.length > 1) { document.querySelectorAll("#code .ln").forEach((l) => l.classList.remove("hl")); return; }
+  document.querySelectorAll("#code .ln").forEach((l) => l.classList.toggle("hl", l.dataset.l === R.line));
+}
+function renderSummary() {
+  const el = $("summary");
+  if (runs.length < 2 || !runs.every((R) => R.done)) { el.innerHTML = ""; return; }
+  let html = "<h2>results</h2>";
+  if (tab === "known") {
+    const opt = optCache;
+    html += `<table class="sum"><tr><th>algorithm</th><th>expanded</th><th>cost</th><th>optimal?</th></tr>` +
+      runs.map((R) => `<tr><td>${ALGOS[R.alg].name}</td><td>${R.expanded}</td><td>${R.failed ? "-" : R.cost}</td><td>${R.failed ? "-" : Math.abs(R.cost - opt) < 1e-9 ? "✓" : "✗"}</td></tr>`).join("") + "</table>";
+    const a = runs.find((R) => R.alg === "astar"), d = runs.find((R) => R.alg === "dijkstra"), gr = runs.find((R) => R.alg === "greedy"), b = runs.find((R) => R.alg === "bfs");
+    const notes = [];
+    if (a && d) notes.push(`A* and Dijkstra both found cost ${a.cost}, but A* expanded ${a.expanded} nodes against Dijkstra's ${d.expanded} (${Math.round(100 - a.expanded / d.expanded * 100)}% fewer). That is the value of a good heuristic.`);
+    if (gr && gr.cost > opt) notes.push(`Greedy expanded only ${gr.expanded} nodes but its path costs ${gr.cost} instead of ${opt}: fast, not optimal.`);
+    if (b && b.cost > opt) notes.push(`BFS found the fewest steps, but it can't see mud, so its path costs ${b.cost}.`);
+    html += notes.map((n) => `<div class="takeaway">${n}</div>`).join("");
+  } else if (tab === "unknown") {
+    html += `<table class="sum"><tr><th>strategy</th><th>steps</th><th>vs shortest</th></tr>` +
+      runs.map((R) => `<tr><td>${EXPLORERS[R.strat].name}</td><td>${R.a.found ? R.a.steps : "—"}</td><td>${R.a.found ? (R.a.steps / R.optimal).toFixed(1) + "×" : R.a.gaveUp ? "failed" : "—"}</td></tr>`).join("") + "</table>";
+    const best = runs.filter((R) => R.a.found).sort((x, y) => x.a.steps - y.a.steps)[0];
+    if (best) html += `<div class="takeaway">Fastest here: ${EXPLORERS[best.strat].name} (${best.a.steps} steps; the shortest path is ${best.optimal}). Knowing where the goal is helps optimistic A* a lot; the others are blind to direction.</div>`;
+    const wall = runs.find((R) => R.strat === "wall");
+    if (wall && wall.a.gaveUp) html += `<div class="takeaway">The wall follower never got there: the exit is on an island of walls it can only circle around. That's why loops break the right-hand rule.</div>`;
+  } else {
+    html += `<table class="sum"><tr><th>strategy</th><th>time</th><th>total moves</th></tr>` +
+      runs.map((R) => `<tr><td>${TEAMS[R.strat].name}</td><td>${R.seen.n >= R.total ? R.t : "—"}</td><td>${R.agents.reduce((s, a) => s + a.steps, 0)}</td></tr>`).join("") + "</table>";
+    const c = runs.find((R) => R.strat === "coord"), n = runs.find((R) => R.strat === "nearest"), d = runs.find((R) => R.strat === "dfs");
+    if (c && n && d) html += `<div class="takeaway">Sharing the map is what matters most: independent DFS took ${d.t} steps against ${n.t} for nearest-frontier. Coordinating who goes where took ${c.t}.</div>`;
+  }
+  el.innerHTML = html;
+}
+
+async function speedupExperiment() {
+  const btn = $("speedupBtn"), cv = $("speedup"), note = $("speedupNote"); btn.disabled = true; cv.style.display = "block";
+  const strats = ["dfs", "nearest", "coord"], K = 8, res = {};
+  for (const s of strats) res[s] = [];
+  for (let k = 1; k <= K; k++) {
+    for (const s of strats) {
+      note.textContent = `simulating ${TEAMS[s].name} with ${k} agent${k > 1 ? "s" : ""}…`;
+      await new Promise((r) => setTimeout(r, 0));
+      res[s].push(runTeamHeadless(s, k));
+    }
+    drawSpeedup(cv, res, K);
+  }
+  const t1 = res.coord[0], t8 = res.coord[K - 1];
+  note.textContent = `Coordinated frontiers: ${t1} steps with one agent, ${t8} with eight, a ${(t1 / t8).toFixed(1)}× speedup for 8× the agents. The dashed line is the perfect 1/k speedup. Corridors can't be split, so returns diminish.`;
+  btn.disabled = false;
+}
+function drawSpeedup(cv, res, K) {
+  const dpr = Math.min(devicePixelRatio || 1, 2); cv.width = cv.clientWidth * dpr; cv.height = cv.clientHeight * dpr;
+  const g = cv.getContext("2d"), W = cv.width, H = cv.height, pad = { l: 40 * dpr, r: 8 * dpr, t: 8 * dpr, b: 22 * dpr };
+  const all = Object.values(res).flat().filter(Number.isFinite), maxY = Math.max(10, ...all);
+  g.fillStyle = "#121418"; g.fillRect(0, 0, W, H);
+  g.font = `${10 * dpr}px JetBrains Mono, monospace`; g.fillStyle = "#9a9ea6"; g.strokeStyle = "rgba(255,255,255,.12)";
+  for (let k = 1; k <= K; k++) { const x = pad.l + (k - 1) / (K - 1) * (W - pad.l - pad.r); g.textAlign = "center"; g.fillText(k, x, H - 6 * dpr); }
+  for (const p of [0, 0.5, 1]) { const y = pad.t + (1 - p) * (H - pad.t - pad.b); g.beginPath(); g.moveTo(pad.l, y); g.lineTo(W - pad.r, y); g.stroke(); g.textAlign = "right"; g.fillText(Math.round(p * maxY), pad.l - 5 * dpr, y + 3 * dpr); }
+  const X = (k) => pad.l + (k - 1) / (K - 1) * (W - pad.l - pad.r), Yv = (v) => pad.t + (1 - v / maxY) * (H - pad.t - pad.b);
+  if (res.coord.length) { g.setLineDash([4 * dpr, 4 * dpr]); g.strokeStyle = "rgba(126,224,138,.6)"; g.lineWidth = 1.2 * dpr; g.beginPath(); for (let k = 1; k <= K; k++) { const v = res.coord[0] / k; k === 1 ? g.moveTo(X(k), Yv(v)) : g.lineTo(X(k), Yv(v)); } g.stroke(); g.setLineDash([]); }
+  for (const [s, arr] of Object.entries(res)) {
+    g.strokeStyle = TEAMS[s].color; g.fillStyle = TEAMS[s].color; g.lineWidth = 2 * dpr; g.beginPath();
+    arr.forEach((v, i) => { if (!Number.isFinite(v)) return; i ? g.lineTo(X(i + 1), Yv(v)) : g.moveTo(X(i + 1), Yv(v)); }); g.stroke();
+    arr.forEach((v, i) => { if (Number.isFinite(v)) { g.beginPath(); g.arc(X(i + 1), Yv(v), 2.5 * dpr, 0, 7); g.fill(); } });
+  }
+}
+
+// ===================================================================
+//  editing: paint walls / mud, drag start & goal (single board, not while running)
+// ===================================================================
+function attachEditing(cv) {
+  let mode = null;
+  const cellAt = (e) => {
+    const R = runs[0], r = cv.getBoundingClientRect(), dpr = cv.width / r.width;
+    const x = Math.floor(((e.clientX - r.left) * dpr - R.ox) / R.cs), y = Math.floor(((e.clientY - r.top) * dpr - R.oy) / R.cs);
+    return x > 0 && y > 0 && x < G.cols - 1 && y < G.rows - 1 ? idx(x, y) : -1;
+  };
+  cv.onpointerdown = (e) => {
+    const i = cellAt(e); if (i < 0) return;
+    cv.setPointerCapture(e.pointerId);
+    if (i === G.start) mode = "start"; else if (i === G.goal && tab !== "team") mode = "goal";
+    else { mode = "paint"; paintCell(i); }
+  };
+  cv.onpointermove = (e) => {
+    if (!mode) return; const i = cellAt(e); if (i < 0) return;
+    if (mode === "paint") paintCell(i);
+    else if (G.cells[i] !== WALL && i !== G.start && i !== G.goal) { if (mode === "start") G.start = i; else G.goal = i; resetRuns(); }
+  };
+  cv.onpointerup = () => { if (mode) { mode = null; resetRuns(); } };
+}
+function paintCell(i) {
+  if (i === G.start || i === G.goal) return;
+  const m = $("paint").value, v = tab !== "known" ? (m === "erase" ? FREE : WALL) : m === "wall" ? WALL : m === "mud" ? MUD : FREE;
+  if (G.cells[i] === v) return;
+  G.cells[i] = v; playing = false; syncPlay(); resetRuns(true);
+}
+
+// ===================================================================
+//  loop + controls
+// ===================================================================
+let optCache = 0;
+function resetRuns(keepPaused) { optCache = optimalCost(); makeRuns(); if (!keepPaused) { playing = true; syncPlay(); } }
+function newMaze() {
+  const [c, r] = $("mazeSize").value.split("x").map(Number); G.cols = c; G.rows = r;
+  rng = Math.random; genMaze($("mazeType").value);
+  if (mudOn && tab === "known") sprinkleMud();
+  resetRuns();
+}
+function syncPlay() { $("play").textContent = playing ? "⏸ pause" : "▶ play"; $("play").classList.toggle("on", !playing); }
+const stepsPerSec = () => { const v = +$("speed").value / 100; return Math.round(2 * Math.pow(600, v)); };
+function stepRun(R) {
+  if (R.done) return;
+  if (R.kind === "search") { const r = R.gen.next(); if (r.done) R.done = true; }
+  else if (R.kind === "solo") stepSolo(R);
+  else stepTeam(R);
+}
+let acc = 0, last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (playing && runs.some((R) => !R.done)) {
+    acc += dt * stepsPerSec();
+    let n = Math.floor(acc); acc -= n; n = Math.min(n, 4000);
+    for (let k = 0; k < n; k++) for (const R of runs) stepRun(R);
+    if (n) { drawAll(); highlightCode(); }
+    if (runs.every((R) => R.done)) { playing = false; syncPlay(); renderSummary(); }
+  }
   requestAnimationFrame(frame);
 }
 
-const $ = id => document.getElementById(id);
-function toggleMap() { showMap = !showMap; $("map").classList.toggle("on", showMap); }
-$("map").onclick = toggleMap;
-$("new").onclick = newMaze;
-$("size").onchange = newMaze;
-$("speed").oninput = e => speed = +e.target.value;
-$("theme").onchange = e => { themeMode = e.target.value; if (themeMode !== "cycle") { themeIdx = +themeMode; T = THEMES[themeIdx]; } };
+$("tabs").querySelectorAll("button").forEach((b) => b.onclick = () => {
+  tab = b.dataset.tab; $("tabs").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+  if (tab !== "known") for (let i = 0; i < G.cells.length; i++) if (G.cells[i] === MUD) G.cells[i] = FREE;
+  resetRuns();
+});
+$("newMaze").onclick = newMaze;
+$("mazeType").onchange = newMaze;
+$("mazeSize").onchange = newMaze;
+$("mudBtn").onclick = () => { mudOn = true; sprinkleMud(); resetRuns(); };
+$("play").onclick = () => { if (runs.every((R) => R.done)) resetRuns(); else { playing = !playing; syncPlay(); } };
+$("stepBtn").onclick = () => { playing = false; syncPlay(); for (const R of runs) stepRun(R); drawAll(); highlightCode(); };
+$("reset").onclick = () => resetRuns();
+$("compare").onchange = (e) => { compare = e.target.checked; resetRuns(); };
+let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(sizeBoards, 100); });
 
-// panel fades away when the mouse is idle (screensaver manners)
-let idle;
-function wake() {
-  document.body.classList.add("awake"); $("panel").classList.remove("hidden");
-  clearTimeout(idle); idle = setTimeout(() => { if (!$("panel").matches(":hover")) { $("panel").classList.add("hidden"); document.body.classList.remove("awake"); } }, 4000);
-}
-addEventListener("pointermove", wake); addEventListener("pointerdown", wake);
-addEventListener("resize", resize);
-
-resize();
-themeIdx = -1; newMaze();
-wake();
+if (innerWidth < 600) $("mazeSize").value = "21x13";
+newMaze();
+syncPlay();
 requestAnimationFrame(frame);
 </script>
 </body>
