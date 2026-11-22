@@ -42,6 +42,10 @@
   .birdlist .sw { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .22); }
   .birdlist .nm { font-weight: 500; white-space: nowrap; }
   .birdlist .st { color: var(--soft); font-size: 12px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .panel .visiting { margin: -4px 0 10px; font-size: 12px; color: var(--soft); }
+  .panel .visiting[hidden] { display: none; }
+  .areas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0 0 8px; }
+  .areas button { font-size: 12px; padding: 5px 6px; }
   .birdlabel { position: fixed; left: 0; top: 0; z-index: 4; pointer-events: none; background: var(--panel); border: 1px solid var(--rule);
     border-radius: 999px; padding: 3px 10px; font-size: 12px; white-space: nowrap; opacity: 0; transition: opacity .25s; will-change: transform; }
   .birdlabel.on { opacity: 1; }
@@ -63,6 +67,8 @@
   <h1>Chickens</h1>
   <p class="sub">The chicken run from when I was little: Heinrich, five hens, and the little tree I planted. Click the grass to throw some feed.</p>
   <ul class="birdlist" id="birdList"></ul>
+  <p class="visiting" id="visiting" hidden></p>
+  <div class="areas" id="areas" role="group" aria-label="Go to"><button data-a="run">Chicken run</button><button data-a="passage">Hen passage</button><button data-a="coop">Coop</button></div>
   <div class="row"><button id="cinemaBtn">Cinema mode</button><button id="resetBtn">Reset view</button></div>
   <p class="hint">Drag to look around, right-drag or shift-drag to move (two fingers on touch), scroll or pinch to zoom. Hover or click a bird to see its name. <kbd>R</kbd> resets the view, <kbd>H</kbd> hides this panel, <kbd>V</kbd> starts cinema mode (<kbd>V</kbd> or <kbd>Esc</kbd> to leave).</p>
 </div>
@@ -224,7 +230,9 @@ const SHRUBS = [[-3.0, 0.45, 0.5], [2.95, 2.45, 0.48], [3.0, -1.45, 0.45]].map((
 const HOLLOWS = [[-1.0, 1.5], [0.95, -1.45], [-2.3, -1.55], [1.35, 1.85]].map(([x, z]) => ({ x, z, r: 0.3, user: null }));
 const LEAF = { x0: 2.08, x1: 2.18, z0: -4.2, z1: FACE };                // the fence door leaf, swung open into the passage
 const BED = { x: 6.5, z: -8.7, w: 1.25, d: 0.85, h: 0.42 };            // the raised bed of hydrangeas with its figurines
-const PARK = { x0: 0.6, x1: 6.4, z0: -13.0, z1: -10.4 };                 // paved parking behind the coop
+const PAD = { x0: 0.6, x1: 6.6, z0: -12.95, z1: -10.45 };               // small paved parking pad behind the coop, with a kerb
+const ROAD = { z0: -12.85, z1: -10.55 };                                  // asphalt road coming in from the island's edge to the pad
+const VAN = { x: 3.65, z: -11.7 };                                        // the white high-roof delivery van, nose towards the road
 const PLANE = { x: 5.6, z: -9.65 };                                       // the plane tree, between the parking and the flower bed
 const BENCH = { x0: 2.12, x1: 2.43, z0: -6.35, z1: -5.0, h: 0.4 };       // little bench in the passage (on the right going to the coop)
 const PERCH = { y: 0.55, z: -8.72, front: -8.28 };                        // the roosting bar in the coop
@@ -270,22 +278,45 @@ function groundY(x, z) {
 const pathY = (z) => -PATH.drop * clamp((z - PATH.top) / PATH.len, 0, 1);
 const turnY = () => -PATH.drop;   // after the end of the run the path runs level, also after its left turn
 const PATH_END = PATH.top + PATH.len;
-// beyond the far end of the run (and past the end of the garage) the lawn slopes down to the path's level over about a metre
+const sm3 = (k) => { k = clamp(k, 0, 1); return k * k * (3 - 2 * k); };
+const sm5 = (k) => { k = clamp(k, 0, 1); return k * k * k * (k * (k * 6 - 15) + 10); };
+// beyond the far end of the run (and past the end of the garage) the lawn rolls down to the path's level: where the bank
+// starts and how long it takes wander along its length, the shoulders are rounded, and the bank itself is a little lumpy
 function southY(x, z) {
-  const sm = (k) => { k = clamp(k, 0, 1); return k * k * (3 - 2 * k); };
-  if (x >= -3.3) return -PATH.drop * sm((z - RUN.z1 - 0.1) / 1.0);
-  if (z <= GAR.z1 + 0.3) return 0;   // under the garage and its footing
-  return -PATH.drop * Math.max(sm((z - GAR.z1 - 0.3) / 1.0), sm((x + 4.3) / 1.0));   // past the garage's end, easing in from the side too
+  const s0 = vnoise(x * 0.42 + 3.1, 1.7), s1 = vnoise(x * 0.33 + 8.4, 5.2);
+  let k;
+  if (x >= -3.3) k = sm5((z - (RUN.z1 + 0.15 + s0 * 0.55)) / (0.9 + s1 * 1.0));
+  else if (z <= GAR.z1 + 0.3) return 0;   // under the garage and its footing
+  else k = Math.max(sm5((z - (GAR.z1 + 0.3 + s0 * 0.4)) / (0.9 + s1 * 0.8)), sm3((x + 4.3) / 1.0));   // easing in from the side too
+  k = clamp(k + (vnoise(x * 1.4 + 2.2, z * 1.4 + 6.1) - 0.5) * 0.22 * Math.sin(Math.PI * k), 0, 1);
+  return -PATH.drop * k;
+}
+// the same gentle unevenness as in the run, over all the lawn; flat where things are built or laid
+let FLAT_RECTS = null;   // filled in once the things on the island are placed
+function lawnBumps(x, z) {
+  if (!FLAT_RECTS) return 0;
+  let d = 9;
+  for (const q of FLAT_RECTS) { const dx = Math.max(q[0] - x, 0, x - q[1]), dz = Math.max(q[2] - z, 0, z - q[3]); d = Math.min(d, Math.hypot(dx, dz)); if (d === 0) return 0; }
+  const f = sm3(d / 0.9);
+  return 0.15 * clamp((fbm(x * 0.32 + 1.7, z * 0.32 + 4.1) - 0.32) / 0.36, 0, 1) ** 1.4 * f;
 }
 function terrainY(x, z) {
+  let y;
   if (x >= PATH.x0 - 0.18 && z >= PATH.top) {   // (the drop starts under the retaining wall, so its slope is hidden)
-    if (x <= PATH.x1 || z >= PATH.z0) return z < PATH_END ? pathY(z) : -PATH.drop;   // the path, and from the end of the run on, level ground round it
-    // lawn below the brick edging beside the slope, rising to meet the path where it levels off
-    return pathY(z) - 0.12 * clamp((z - PATH.top) / 1.0, 0, 1) * clamp((PATH_END - 0.25 - z) / 0.9, 0, 1);
-  }
-  if (z > RUN.z1 + 0.1) return southY(x, z);
-  return groundY(x, z);
+    if (x <= PATH.x1 || z >= PATH.z0) y = z < PATH_END ? pathY(z) : -PATH.drop;   // the path, and from the end of the run on, level ground round it
+    else y = pathY(z) - 0.12 * clamp((z - PATH.top) / 1.0, 0, 1) * clamp((PATH_END - 0.25 - z) / 0.9, 0, 1);   // lawn below the edging
+  } else if (z > RUN.z1 + 0.1) y = southY(x, z);
+  else y = groundY(x, z);
+  return y + lawnBumps(x, z);
 }
+FLAT_RECTS = [
+  [-3.62, 3.62, -3.62, 3.62],                                                          // the run and its fences (it has its own relief)
+  [GAR.x0 - 0.4, GAR.x1 + 0.6, GAR.z0 - 0.4, GAR.z1 + 0.6], [BLOCK.x0 - 0.3, BLOCK.x1 + 0.1, BLOCK.z0 - 0.4, BLOCK.z1 + 0.1],
+  [CONN.x0, CONN.x1 + 0.4, CONN.z0, CONN.z1 + 0.1], [COOP.x0 - 0.4, COOP.x1 + 0.4, COOP.z0 - 0.4, COOP.z1 + 0.2],
+  [3.4, PATH.x1 + 0.3, PATH.top - 1.2, 60], [3.4, 60, PATH.z0 - 0.3, PATH.z1 + 0.3],  // path, landing, retaining wall, edging
+  [PAD.x0 - 0.4, PAD.x1 + 0.1, PAD.z0 - 0.4, PAD.z1 + 0.4], [PAD.x1, 60, ROAD.z0 - 0.35, ROAD.z1 + 0.35],
+  [BED.x - 1.1, BED.x + 1.1, BED.z - 0.8, BED.z + 0.85], [PLANE.x - 0.5, PLANE.x + 0.5, PLANE.z - 0.5, PLANE.z + 0.5], [-6.6, -5.8, -11.4, -10.6],
+];
 function zoneClamp(o, m, rects) {
   let bx = o.x, bz = o.z, bd = 1e9;
   for (const q of rects) {
@@ -788,19 +819,34 @@ const treeTop = (() => {
 
 // round the edges of the island: the flower bed and its figurines, the parking with the van, the stone path
 // down beside the run, a couple of hedges, the plane tree and one more tree
+const CRACKS = [];   // [x, y, z, lean] spots for little plants in the path's cracks and the wall's joints
 const OUT_RECTS = [[-3.62, 3.62, -3.62, 3.62], [GAR.x0 - 0.3, GAR.x1 + 0.05, GAR.z0 - 0.3, GAR.z1 + 0.3], [BLOCK.x0, BLOCK.x1, BLOCK.z0, BLOCK.z1 + 0.05], [CONN.x0, CONN.x1 + 0.1, CONN.z0, CONN.z1 + 0.05],
-  [COOP.x0 - 0.05, COOP.x1 + 0.08, COOP.z0 - 0.05, COOP.z1 + 0.05], [BED.x - 1.05, BED.x + 1.05, BED.z - 0.75, BED.z + 0.8], [PARK.x0 - 0.15, PARK.x1 + 0.15, PARK.z0 - 0.15, PARK.z1 + 0.15],
+  [COOP.x0 - 0.05, COOP.x1 + 0.08, COOP.z0 - 0.05, COOP.z1 + 0.05], [BED.x - 1.05, BED.x + 1.05, BED.z - 0.75, BED.z + 0.8], [PAD.x0 - 0.2, PAD.x1 + 0.2, PAD.z0 - 0.2, PAD.z1 + 0.2], [PAD.x1, 30, ROAD.z0 - 0.2, ROAD.z1 + 0.2],
   [3.55, PATH.x1 + 0.2, -9.05, PATH.z1 + 0.2], [3.55, 12, PATH.z0 - 0.2, PATH.z1 + 0.2], [PLANE.x - 0.4, PLANE.x + 0.4, PLANE.z - 0.4, PLANE.z + 0.4]];
 const outsideFree = (x, z) => onIsland(x, z, 0.35) && !OUT_RECTS.some((q) => x > q[0] && x < q[1] && z > q[2] && z < q[3]);
 const ISLE_TREES = [[-6.2, -11.0, 1.05]];
+// little shrubs dotted about the lawn, singly and irregularly
+const SHRUBLETS = [];
+for (let i = 0; i < 600 && SHRUBLETS.length < 16; i++) {
+  const x = rand(-11, 9.5), z = rand(-14.5, 7.5);
+  if (!outsideFree(x, z) || !onIsland(x, z, 0.9) || Math.hypot(x - PLANE.x, z - PLANE.z) < 2.3 || Math.hypot(x - ISLE_TREES[0][0], z - ISLE_TREES[0][1]) < 1.6) continue;
+  if ((Math.abs(x - 7.4) < 0.9 && z > -3.8 && z < 3.9) || (Math.abs(z - 5.6) < 0.9 && x > 4.2 && x < 7.2)) continue;   // not in the hedges
+  if (SHRUBLETS.some(([a, b]) => Math.hypot(a - x, b - z) < 2.1)) continue;
+  SHRUBLETS.push([x, z, rand(0.22, 0.38)]);
+}
 {
+  for (const [x, z, r] of SHRUBLETS) {
+    const y = terrainY(x, z), n = 2 + Math.floor(rand(0, 3));
+    for (let k = 0; k < n; k++) { const a = rand(0, 6.28), d = k ? rand(0.08, r * 0.7) : 0, rr = r * rand(0.6, 0.95); W.add(blob(rr, 0, 0.2), pick(COL.shrub), mat4(x + Math.cos(a) * d, y + rr * 0.72, z + Math.sin(a) * d, rand(0, 3), rand(0, 3), 0, 1, 0.85, 1), 0.06); }
+    if (Math.random() < 0.45) { const fc = pick([0xf2c2d2, 0xfdf9f0, 0xf6dc78, 0xd9c8f0]); for (let k = 0; k < 6; k++) { const a = rand(0, 6.28), d = rand(0, r * 0.7); W.add(new THREE.IcosahedronGeometry(0.03, 0), fc, mat4(x + Math.cos(a) * d, y + r * rand(1.05, 1.3), z + Math.sin(a) * d), 0.02); } }
+  }
   const hedge = (x0, z0, x1, z1) => {
     const len = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(len / 0.55);
     for (let i = 0; i <= n; i++) { const t = i / n, x = lerp(x0, x1, t), z = lerp(z0, z1, t), r = rand(0.36, 0.45); W.add(blob(r, 0, 0.2), pick([0x7fae58, 0x86b45e, 0x79a753]), mat4(x, terrainY(x, z) + r * 0.85, z, rand(0, 3), rand(0, 3), 0, 1, rand(1.15, 1.35), 1), 0.06); }
   };
   hedge(7.4, -3.2, 7.4, 3.3); hedge(4.8, 5.6, 6.6, 5.6);
   for (const [x, z, s] of ISLE_TREES) {
-    W.add(new THREE.CylinderGeometry(0.1 * s, 0.16 * s, 1.9 * s, 6).translate(0, 0.95 * s, 0), COL.bark, mat4(x, 0, z), 0.08);
+    W.add(new THREE.CylinderGeometry(0.1 * s, 0.16 * s, 1.9 * s, 6).translate(0, 0.95 * s - 0.1, 0), COL.bark, mat4(x, 0, z), 0.08);
     for (let i = 0; i < 5; i++) W.add(blob(rand(0.6, 0.8) * s, 0, 0.16), pick(COL.leaf), mat4(x + rand(-0.5, 0.5) * s, (2.1 + rand(0, 0.8)) * s, z + rand(-0.5, 0.5) * s, rand(0, 3), rand(0, 3)), 0.06);
   }
 
@@ -889,22 +935,77 @@ const ISLE_TREES = [[-6.2, -11.0, 1.05]];
     }
   }
 
-  // the parking behind the coop, paved, with a van parked on it
+  // a small paved parking pad with a kerb, an asphalt road coming in from the island's edge, and the white van
   {
-    const P = PARK, cx = (P.x0 + P.x1) / 2, cz = (P.z0 + P.z1) / 2;
-    W.box(0xb9b3a7, P.x1 - P.x0 + 0.2, 0.05, P.z1 - P.z0 + 0.2, cx, 0.012, cz, 0, 0, 0, null, 0.03);
-    for (let x = P.x0 + 0.29; x < P.x1; x += 0.58) for (let z = P.z0 + 0.29; z < P.z1; z += 0.58) W.box(pick([0xdcd6cb, 0xd3ccbf, 0xe1dbd0]), 0.54, 0.03, 0.54, x, 0.045, z, 0, 0, 0, null, 0.03);
-    const M = mat4(cx - 0.1, 0.06, cz, 0, Math.PI / 2, 0), v = (g, c, m, j = 0.03) => W.add(g, c, M.clone().multiply(m), j), vb = (c, w, h, d, x, y, z, rx = 0) => v(new THREE.BoxGeometry(w, h, d), c, mat4(x, y, z, rx));
-    vb(0x6e7a88, 1.78, 0.95, 4.3, 0, 0.75, -0.05);           // body
-    vb(0x6e7a88, 1.72, 0.7, 3.25, 0, 1.55, -0.55);            // high roof at the back
-    vb(0x6e7a88, 1.7, 0.62, 0.9, 0, 1.4, 1.2, -0.55);         // sloping front over the cab
-    vb(0x40505e, 1.6, 0.5, 0.05, 0, 1.5, 1.63, -0.55);        // windscreen
-    for (const s of [-1, 1]) { vb(0x40505e, 0.04, 0.42, 0.8, s * 0.89, 1.42, 1.05); vb(0x40505e, 0.04, 0.38, 1.6, s * 0.87, 1.6, -0.7); }
-    vb(0x9aa2ab, 1.84, 0.2, 0.12, 0, 0.36, 2.12); vb(0x9aa2ab, 1.84, 0.2, 0.12, 0, 0.36, -2.22);   // bumpers
-    for (const s of [-1, 1]) { vb(0xfaf4d8, 0.3, 0.12, 0.04, s * 0.62, 0.85, 2.11); vb(0xd8504a, 0.16, 0.22, 0.04, s * 0.76, 0.85, -2.21); }
-    for (const [x, z] of [[-0.82, 1.35], [0.82, 1.35], [-0.82, -1.45], [0.82, -1.45]]) {
-      v(new THREE.CylinderGeometry(0.33, 0.33, 0.24, 10), 0x45474b, mat4(x, 0.33 - 0.06, z, 0, 0, Math.PI / 2));
-      v(new THREE.CylinderGeometry(0.15, 0.15, 0.25, 8), 0xb9bec4, mat4(x, 0.33 - 0.06, z, 0, 0, Math.PI / 2));
+    const P = PAD, cx = (P.x0 + P.x1) / 2, cz = (P.z0 + P.z1) / 2;
+    W.box(0xb9b3a7, P.x1 - P.x0, 0.05, P.z1 - P.z0, cx, 0.012, cz, 0, 0, 0, null, 0.03);
+    for (let x = P.x0 + 0.27; x < P.x1 - 0.1; x += 0.5) for (let z = P.z0 + 0.27; z < P.z1 - 0.1; z += 0.5) W.box(pick([0xdcd6cb, 0xd3ccbf, 0xe1dbd0]), 0.46, 0.03, 0.46, x, 0.045, z, 0, rand(-0.02, 0.02), 0, null, 0.03);
+    const kerb = 0xcbc6ba;   // the kerb round three sides; the road side is open
+    W.box(kerb, P.x1 - P.x0 + 0.24, 0.14, 0.12, cx, 0.07, P.z0 - 0.06, 0, 0, 0, null, 0.03); W.box(kerb, P.x1 - P.x0 + 0.24, 0.14, 0.12, cx, 0.07, P.z1 + 0.06, 0, 0, 0, null, 0.03);
+    W.box(kerb, 0.12, 0.14, P.z1 - P.z0, P.x0 - 0.06, 0.07, cz, 0, 0, 0, null, 0.03);
+    // the road: asphalt from the pad out to the island's edge, with faded edge lines
+    let xr = P.x1; while (onIsland(xr + 0.35, (ROAD.z0 + ROAD.z1) / 2, 0.05) && xr < 14) xr += 0.3;
+    const rz = (ROAD.z0 + ROAD.z1) / 2, rw = ROAD.z1 - ROAD.z0;
+    for (let x = P.x1; x < xr; x += 0.6) { const L = Math.min(0.6, xr - x); W.box(pick([0x5f6267, 0x63666b, 0x5a5d62]), L, 0.05, rw, x + L / 2, 0.018, rz, 0, 0, 0, null, 0.02); }
+    for (const z of [ROAD.z0 + 0.12, ROAD.z1 - 0.12]) W.box(0xd9d6cc, xr - P.x1 - 0.2, 0.006, 0.07, (P.x1 + xr) / 2 + 0.1, 0.046, z, 0, 0, 0, null, 0.02);
+    // the white high-roof panel van (an Iveco Daily kind of van, no badges): tall boxy load body, the cab roof sweeping up
+    // to the high roof, short sloped bonnet under a raked windscreen in a black surround, a black band all round the bottom
+    // (bumpers, rubbing strips, wheel arches), hex-mesh grilles, swept-back headlamps, steel wheels, a roof aerial
+    const M = mat4(VAN.x, 0.0, VAN.z, 0, Math.PI / 2, 0), v = (g, c, m, j = 0.02) => W.add(g, c, M.clone().multiply(m), j), vb = (c, w, h, d, x, y, z, rx = 0, ry = 0, rz = 0) => v(new THREE.BoxGeometry(w, h, d), c, mat4(x, y, z, rx, ry, rz));
+    const WHITE = 0xf3f3ef, BLACK = 0x2c2e31, GLASS = 0x3c4854, SEAM = 0xcfcfca;
+    vb(WHITE, 2.0, 2.27, 3.34, 0, 1.485, -1.05);                     // load body with the high roof (z -2.72 .. 0.62)
+    const cab = new THREE.Shape();
+    cab.moveTo(0.6, 0.35); cab.lineTo(2.6, 0.35); cab.lineTo(2.66, 0.85); cab.lineTo(2.62, 1.2); cab.lineTo(2.1, 1.42); cab.lineTo(1.45, 2.15); cab.lineTo(0.85, 2.62); cab.lineTo(0.6, 2.62); cab.closePath();
+    v(new THREE.ExtrudeGeometry(cab, { depth: 1.98, bevelEnabled: false }).rotateY(-Math.PI / 2).translate(0.99, 0, 0), WHITE, mat4(), 0.02);
+    // windscreen in its black surround (on the raked slope from z 2.1, y 1.42 up to z 1.45, y 2.15)
+    const ws = (c, w, h, off) => vb(c, w, h, 0.02, 0, 1.785 + 0.656 * off, 1.775 + 0.757 * off, -0.715);
+    ws(BLACK, 1.99, 1.0, 0.012); ws(GLASS, 1.7, 0.86, 0.022);
+    for (const sd of [-1, 1]) {
+      vb(BLACK, 0.025, 0.6, 0.26, sd * 0.993, 1.74, 1.84, -0.72);     // black A-pillar panel beside the windscreen
+      vb(GLASS, 0.03, 0.62, 0.6, sd * 1.0, 1.75, 1.25);                // cab door window
+      vb(BLACK, 0.1, 0.42, 0.24, sd * 1.22, 1.62, 1.72);               // big door mirrors on short arms
+      vb(BLACK, 0.22, 0.05, 0.05, sd * 1.1, 1.62, 1.72);
+      for (const z of [0.62, 1.62, -0.95]) vb(SEAM, 0.02, 1.3, 0.02, sd * 1.005, 1.55, z);   // cab door and sliding door seams
+      vb(SEAM, 0.022, 0.035, 1.55, sd * 1.006, 2.02, -0.17);          // the sliding door's track
+      vb(SEAM, 0.018, 0.02, 3.2, sd * 1.004, 1.92, -1.1);              // gentle crease along the load body
+      vb(SEAM, 0.018, 0.02, 2.1, sd * 1.004, 1.08, -1.6);
+      vb(BLACK, 0.05, 0.12, 0.05, sd * 1.02, 1.32, 0.42);              // door handles
+      vb(BLACK, 0.05, 0.12, 0.05, sd * 1.02, 1.32, 1.5);
+      vb(BLACK, 0.03, 0.5, 4.7, sd * 1.005, 0.6, -0.2);               // side rubbing strip, the lower band
+      for (const z of [1.95, -1.75]) vb(BLACK, 0.035, 0.14, 1.0, sd * 1.008, 0.9, z);   // wheel arch lips
+      vb(0xdde4e8, 0.4, 0.14, 0.3, sd * 0.76, 1.2, 2.47, 0.2, sd * 0.55, 0);           // swept-back headlamps
+      vb(0xf7f4e4, 0.2, 0.08, 0.05, sd * 0.68, 1.2, 2.6);
+      vb(0xd9574b, 0.05, 0.55, 0.04, sd * 0.95, 1.15, -2.74);         // tall rear lamps
+    }
+    vb(BLACK, 2.06, 0.52, 0.26, 0, 0.6, 2.6);                        // front bumper
+    vb(0xfafaf6, 0.5, 0.11, 0.02, 0.25, 0.55, 2.735);                // a blank plate
+    for (const sd of [-1, 1]) vb(0xe9ecee, 0.22, 0.06, 0.03, sd * 0.68, 0.74, 2.73);   // daytime lamps in the bumper
+    vb(BLACK, 2.06, 0.5, 0.18, 0, 0.6, -2.76);                       // rear bumper
+    vb(SEAM, 0.02, 2.05, 0.02, 0, 1.5, -2.725);                      // the rear doors' seam
+    for (const sd of [-1, 1]) vb(BLACK, 0.12, 0.05, 0.03, sd * 0.12, 1.3, -2.74);
+    // hex-mesh grilles: a wide one under the bonnet edge and a slim one above it, plus one low in the bumper
+    {
+      const c = document.createElement("canvas"); c.width = c.height = 64; const g = c.getContext("2d");
+      g.fillStyle = "#1d1f22"; g.fillRect(0, 0, 64, 64); g.strokeStyle = "#45494e"; g.lineWidth = 2.2;
+      const R = 9, hx = R * Math.sqrt(3);
+      for (let row = -1; row < 6; row++) for (let col = -1; col < 6; col++) {
+        const cx = col * hx + (row % 2 ? hx / 2 : 0), cy = row * R * 1.5;
+        g.beginPath(); for (let k = 0; k <= 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; g.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R); } g.stroke();
+      }
+      const tex = new THREE.CanvasTexture(c); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(6, 1.4); tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      const gm = new THREE.MeshPhongMaterial({ map: tex, shininess: 20, specular: 0x222222 });
+      for (const [w, h, y, z] of [[1.5, 0.2, 1.02, 2.651], [1.0, 0.05, 1.17, 2.633], [1.3, 0.16, 0.52, 2.732]]) {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), gm); m.applyMatrix4(M.clone().multiply(mat4(0, y, z))); scene.add(m);
+      }
+    }
+    v(new THREE.CylinderGeometry(0.006, 0.01, 0.5, 4).translate(0, 0.25, 0), BLACK, mat4(0, 2.62, 0.75, -0.35, 0, 0), 0.01);   // roof aerial
+    // steel wheels: dark tyres, light grey rims with a ring of holes suggested by a darker band, black centres
+    for (const [x, z] of [[-0.88, 1.95], [0.88, 1.95], [-0.88, -1.75], [0.88, -1.75]]) {
+      const o = Math.sign(x) * 0.005;
+      v(new THREE.CylinderGeometry(0.37, 0.37, 0.26, 14), 0x303236, mat4(x, 0.37, z, 0, 0, Math.PI / 2));
+      v(new THREE.CylinderGeometry(0.23, 0.23, 0.27, 12), 0xc4c8cb, mat4(x + o, 0.37, z, 0, 0, Math.PI / 2));
+      v(new THREE.CylinderGeometry(0.16, 0.16, 0.275, 10), 0x9a9fa3, mat4(x + o, 0.37, z, 0, 0, Math.PI / 2));
+      v(new THREE.CylinderGeometry(0.1, 0.1, 0.28, 8), 0x26282b, mat4(x + o * 2, 0.37, z, 0, 0, Math.PI / 2));
     }
   }
 
@@ -913,15 +1014,26 @@ const ISLE_TREES = [[-6.2, -11.0, 1.05]];
   // between the level run and the path
   {
     const P = PATH, stone = [0xcfc8ba, 0xc5beb0, 0xd7d0c3, 0xbdb6a8], sl = Math.atan(P.drop / P.len), bricks = [0x9e9c97, 0xaaa8a3, 0x918f8b];
+    // a tiny plant in a crack: a tuft (added with the grass later), sometimes a couple of little leaves here
+    const crack = (x, y, z, rz = 0) => { CRACKS.push([x, y, z, rz]); if (!rz && Math.random() < 0.35) W.add(blob(rand(0.022, 0.035), 0, 0.3), pick([0x7fb24e, 0x8fc05a, 0x6da046]), mat4(x + rand(-0.03, 0.03), y + 0.008, z + rand(-0.03, 0.03), rand(0, 3), rand(0, 3), 0, 1, 0.45, 1), 0.02); };
     for (let x = COOP.x1 + 0.22; x < P.x1 - 0.05; x += 0.43) for (let z = -8.92; z < P.top - 0.05; z += 0.43) W.box(pick(stone), 0.39, 0.05, 0.39, x, 0.012, z + 0.2, 0, rand(-0.04, 0.04), 0, null, 0.04);
     for (let z = P.top; z < P.z0 - 0.05; z += 0.42) {
       const zc = z + 0.21, y = pathY(zc), rx = zc < P.top + P.len ? sl : 0;
       for (const x of [P.x0 + 0.22, P.x0 + 0.67]) W.box(pick(stone), 0.41, 0.05, 0.39, x, y + 0.012, zc, rx, rand(-0.03, 0.03), 0, null, 0.04);
     }
+    for (let z = P.top + 0.42; z < P.z0; z += 0.42) for (let q = 0; q < 2; q++) if (Math.random() < 0.6) crack(rand(P.x0 + 0.08, P.x1 - 0.08), pathY(z) + 0.036, z);
+    for (let z = P.top; z < P.z0 - 0.3; z += 0.3) if (Math.random() < 0.55) { const zz = z + rand(0, 0.3); crack(P.x0 + 0.445, pathY(zz) + 0.036, zz); }
+    for (let x = COOP.x1 + 0.435; x < P.x1 - 0.1; x += 0.43) if (Math.random() < 0.5) crack(x, 0.036, rand(-8.9, P.top - 0.1));
     let xe = P.x1; while (onIsland(xe + 0.6, (P.z0 + P.z1) / 2, 0.3)) xe += 0.43;
+    for (let x = P.x0 + 0.43; x < xe; x += 0.43) if (Math.random() < 0.5) crack(x, turnY() + 0.036, rand(P.z0 + 0.08, P.z1 - 0.08));
+    for (let x = P.x0; x < xe - 0.3; x += 0.6) if (Math.random() < 0.35) crack(x + rand(0, 0.5), turnY() + 0.036, P.z0 + 0.445);
     for (let x = P.x0; x < xe; x += 0.43) { const xc = x + 0.21; for (const z of [P.z0 + 0.22, P.z0 + 0.67]) W.box(pick(stone), 0.39, 0.05, 0.41, xc, turnY() + 0.012, z, 0, rand(-0.03, 0.03), 0, null, 0.04); }
     // edging: grey bricks two courses high on the lawn side, top roughly level with the path
-    for (let z = P.top + 0.35; z < P.z0 - 0.1; z += 0.25) for (let k = 0; k < 2; k++) { const zz = z + k * 0.125, y0 = terrainY(P.x1 + 0.25, zz); if (pathY(zz) - y0 < 0.03) continue; W.box(pick(bricks), 0.11, 0.065, 0.24, P.x1 + 0.065, y0 + 0.033 + k * 0.067, zz, 0, 0, 0, null, 0.04); }
+    for (let z = P.top + 0.35; z < P.z0 - 0.1; z += 0.25) for (let k = 0; k < 2; k++) {
+      const zz = z + k * 0.125, y0 = terrainY(P.x1 + 0.25, zz); if (pathY(zz) - y0 < 0.03) continue;
+      W.box(pick(bricks), 0.11, 0.065, 0.24, P.x1 + 0.065, y0 + 0.033 + k * 0.067, zz, 0, 0, 0, null, 0.04);
+      if (k === 1 && Math.random() < 0.16) crack(P.x1 + 0.065, y0 + 0.135, zz);
+    }
     // retaining wall: stone blocks from the level ground down to the path and the lawn below it
     let ze = P.top; while (ze < RUN.z1 + 1.3 && onIsland(3.78, ze + 0.5, 0.25)) ze += 0.45;
     for (let z = P.top; z < ze; z += 0.45) {
@@ -929,6 +1041,8 @@ const ISLE_TREES = [[-6.2, -11.0, 1.05]];
       const top = Math.max(terrainY(3.56, z), terrainY(3.56, Math.min(z + 0.45, ze))) + 0.03 + rand(-0.01, 0.015);   // follows the lawn sloping down past the run
       if (top - base < 0.06) continue;
       W.box(pick([0xb5b0a6, 0xaaa59b, 0xbdb8ae, 0xa49f95]), 0.4, top - base, 0.44, 3.77, (top + base) / 2, zc, 0, 0, 0, null, 0.04);
+      if (Math.random() < 0.65) crack(rand(3.62, 3.92), top, zc + rand(-0.15, 0.15));                                        // on top of the wall
+      for (let q = 0; q < 2; q++) if (top - base > 0.3 && Math.random() < 0.6) crack(3.975, rand(base + 0.12, top - 0.06), z + (q ? 0.225 : 0), -rand(0.9, 1.3));          // out of a joint, leaning out
     }
   }
 }
@@ -992,9 +1106,10 @@ function swaying(mat, amp) {
     if (!outsideFree(x, z)) continue;
     spots.push([x, terrainY(x, z), z, rand(0.07, 0.13)]);
   }
+  for (const [x, y, z, lean] of CRACKS) spots.push([x, y, z, rand(0.05, 0.09), lean]);
   const im = new THREE.InstancedMesh(g, swaying(new THREE.MeshLambertMaterial(), 0.28), spots.length), c = new THREE.Color();
-  spots.forEach(([x, y, z, s], i) => {
-    _o.position.set(x, y, z); _o.rotation.set(0, rand(0, 6.3), 0); _o.scale.set(s, s * rand(0.8, 1.3), s); _o.updateMatrix(); im.setMatrixAt(i, _o.matrix);
+  spots.forEach(([x, y, z, s, lean], i) => {
+    _o.position.set(x, y, z); if (lean) _o.rotation.set(0, 0, lean); else _o.rotation.set(0, rand(0, 6.3), 0); _o.scale.set(s, s * rand(0.8, 1.3), s); _o.updateMatrix(); im.setMatrixAt(i, _o.matrix);
     c.set(pick([0x9cc764, 0xa3cc6b, 0x95c15e])); im.setColorAt(i, c);
   });
   im.receiveShadow = true; scene.add(im);
@@ -1005,10 +1120,11 @@ function swaying(mat, amp) {
     if (outsideFree(x, z)) fl.push([x, z]);
   }
   for (let i = 0; i < 60 && fl.length < 195; i++) { const x = rand(-3.3, 3.3), z = rand(-3.3, 3.3); if (dirt(x, z) < 0.1 && isFree(x, z, 0.05)) fl.push([x, z]); }
+  for (const [x, y, z, lean] of CRACKS) if (!lean && Math.random() < 0.4) fl.push([x + rand(-0.03, 0.03), z + rand(-0.03, 0.03), y - 0.008, 0.55]);   // a few tiny flowers in the cracks
   const stems = new THREE.InstancedMesh(new THREE.BoxGeometry(0.007, 0.1, 0.007).translate(0, 0.05, 0), swaying(new THREE.MeshLambertMaterial({ color: 0x8dbb5c }), 0.22), fl.length);
   const heads = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.022, 0).scale(1, 0.6, 1).translate(0, 0.1, 0), swaying(new THREE.MeshPhongMaterial({ flatShading: true, shininess: 5 }), 0.22), fl.length);
-  fl.forEach(([x, z], i) => {
-    const s = rand(0.8, 1.3); _o.position.set(x, terrainY(x, z), z); _o.rotation.set(0, rand(0, 6.3), 0); _o.scale.set(1, s, 1); _o.updateMatrix();
+  fl.forEach(([x, z, y, sc = 1], i) => {
+    const s = rand(0.8, 1.3) * sc; _o.position.set(x, y ?? terrainY(x, z), z); _o.rotation.set(0, rand(0, 6.3), 0); _o.scale.set(sc, s, sc); _o.updateMatrix();
     stems.setMatrixAt(i, _o.matrix); heads.setMatrixAt(i, _o.matrix); c.set(pick([0xfdf9f0, 0xfdf9f0, 0xf6dc78, 0xf2c2d2, 0xd9c8f0])); heads.setColorAt(i, c);
   });
   scene.add(stems, heads);
@@ -1315,6 +1431,296 @@ function updateMice(dt) {
       setState(b, "chasem", { mouse: m }); m.flee = true; break;
     }
   }
+}
+
+// ===================================================================
+//  cat visitors: every few minutes one of the cats (now and then two)
+//  wanders in from the edge of the island, potters about outside the
+//  run (sniffing, sitting, grooming, lying in the sun, watching the
+//  hens through the wire) and leaves again. A compact version of the
+//  cats from the cats page, with the same coats.
+// ===================================================================
+const smoothC = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const hash3 = (x, y, z) => { const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return s - Math.floor(s); };
+function vnoise3(x, y, z) {
+  const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z), fx = x - ix, fy = y - iy, fz = z - iz;
+  const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy), w = fz * fz * (3 - 2 * fz);
+  let r = 0;
+  for (let dz = 0; dz < 2; dz++) for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++)
+    r += hash3(ix + dx, iy + dy, iz + dz) * (dx ? u : 1 - u) * (dy ? v : 1 - v) * (dz ? w : 1 - w);
+  return r;
+}
+// coats, painted once per triangle in the rest pose (as on the cats page)
+const cA = new THREE.Color(), cB = new THREE.Color(), cT = new THREE.Color();
+const CAT_PAT = {
+  grey(o, q) {   // Lenny I: grey with a white belly
+    const n = vnoise3(q.pc.x * 22, q.pc.y * 22, q.pc.z * 22);
+    o.set(0x5f656d).multiplyScalar(0.94 + n * 0.12);
+    let w = 0;
+    if (q.part === "body") { w = smoothC(0.05, -0.25, q.nc.y + (n - 0.5) * 0.3); if (q.pc.z > 0.08) w = Math.max(w, smoothC(0.0, 0.35, q.nc.z) * smoothC(0.3, 0.23, q.pc.y)); }
+    if (q.part === "neck") w = smoothC(0.0, 0.4, q.nc.z) * smoothC(0.35, -0.1, q.nc.y);
+    if (q.part === "head") w = smoothC(0.022, 0.008, q.pl.y) * smoothC(0.0, 0.4, q.nl.z);
+    if (q.part === "muzzle" || q.part === "paw") w = 1;
+    if (q.part === "leg") w = smoothC(-0.13, -0.16, q.pl.y);
+    if (q.part === "tail" && Math.sin(q.ex * 30) > 0.4) o.multiplyScalar(0.86);
+    if (q.part === "ear") o.multiplyScalar(0.9);
+    o.lerp(cA.set(0xf1efe9), w);
+  },
+  tabby(o, q) {   // Lenny II: a brown-silver tabby, narrow dark stripes, peachy muzzle
+    const n = vnoise3(q.pc.x * 18, q.pc.y * 18, q.pc.z * 18);
+    o.set(0x968f84).lerp(cA.set(0xa89c8a), n);
+    const dark = cB.set(0x2f2a26);
+    if (q.part === "body" || q.part === "neck") {
+      const under = smoothC(-0.25, -0.65, q.nc.y), s = Math.sin(q.pc.z * 72 + n * 1.2);
+      let d = (s > 0.45 ? 1 : 0) * (1 - under) * smoothC(-0.5, -0.15, q.nc.y);
+      if (q.nc.y > 0.86) d = Math.max(d, 0.9);
+      o.lerp(dark, d * 0.88); o.lerp(cA.set(0xc4bcae), under * 0.8);
+    } else if (q.part === "head") {
+      const fore = (q.pl.y > 0.066 && q.nl.z < 0.85) ? (Math.sin(q.pl.x * 170) > 0.35 ? 1 : 0) : 0;
+      const cheek = (Math.abs(q.nl.x) > 0.55 && Math.abs(q.pl.y - 0.035 + (q.pl.z - 0.07) * 0.35) < 0.008) ? 1 : 0;
+      o.lerp(dark, Math.max(fore, cheek) * 0.85);
+      o.lerp(cA.set(0xd9a77f), smoothC(0.034, 0.012, q.pl.y) * smoothC(0.25, 0.6, q.nl.z));
+      o.lerp(cA.set(0xe8e2d8), smoothC(0.0, -0.02, q.pl.y) * smoothC(0.1, 0.5, q.nl.z) * 0.6);
+    } else if (q.part === "muzzle") o.copy(cA.set(0xdcae88)).lerp(cT.set(0xeee6da), q.pl.y < -0.004 ? 0.7 : 0.2);
+    else if (q.part === "leg") { if (Math.sin(q.pl.y * 80) > 0.55) o.lerp(dark, 0.8); }
+    else if (q.part === "paw") o.lerp(cA.set(0xc9bfae), 0.5);
+    else if (q.part === "tail") { if (Math.sin(q.ex * Math.PI * 10) > 0.3 || q.ex > 0.84) o.lerp(dark, 0.92); }
+    else if (q.part === "ear") o.lerp(dark, 0.35);
+  },
+  edna(o, q) {   // Edna: brown-grey tabby, white blaze, chest, belly and front paws
+    const n = vnoise3(q.pc.x * 18, q.pc.y * 18, q.pc.z * 18);
+    const white = cA.set(0xf4f2ed), base = cT.set(0x6a5f53).lerp(cB.set(0x7a6d5e), n).clone(), dark = cB.set(0x2b241e);
+    let wh = 0, stripe = 0, back = 0;
+    if (q.part === "body") {
+      wh = smoothC(-0.2, -0.5, q.nc.y + (n - 0.5) * 0.3);
+      if (q.pc.z > 0.1) wh = Math.max(wh, smoothC(0.0, 0.4, q.nc.z) * smoothC(0.3, 0.2, q.pc.y));
+      stripe = Math.sin(q.pc.z * 50 + n * 1.5) > 0.2 ? 1 : 0; back = smoothC(0.45, 0.9, q.nc.y);
+    } else if (q.part === "neck") { wh = smoothC(-0.1, 0.35, q.nc.z) * smoothC(0.45, 0.0, q.nc.y); stripe = Math.sin(q.pc.z * 50 + n * 1.5) > 0.3 ? 1 : 0; back = smoothC(0.5, 0.9, q.nc.y); }
+    else if (q.part === "head") {
+      wh = (q.pl.y < 0.024 && q.nl.z > 0.2) ? 1 : 0;
+      if (q.nl.z > 0.25 && q.pl.x < 0.006 && q.pl.x > -0.05 + q.pl.y * 0.25 && q.pl.y < 0.085) wh = 1;
+      stripe = (q.pl.y > 0.064 && Math.sin(q.pl.x * 150) > 0.3) ? 1 : 0;
+      if (Math.abs(q.nl.x) > 0.55 && Math.abs(q.pl.y - 0.038 + (q.pl.z - 0.07) * 0.35) < 0.007) stripe = 1;
+      if (wh) stripe = 0;
+    } else if (q.part === "muzzle") wh = 1;
+    else if (q.part === "tail") { stripe = (Math.sin(q.ex * Math.PI * 9) > 0.1 || q.ex > 0.86) ? 1 : 0; back = 0.3; }
+    else if (q.part === "leg") { stripe = Math.sin(q.pl.y * 60) > 0.4 ? 1 : 0; if (q.ex) wh = smoothC(-0.13, -0.15, q.pl.y); }
+    else if (q.part === "paw") wh = q.ex ? 1 : 0;
+    else if (q.part === "ear") back = 0.4;
+    o.copy(base).lerp(dark, Math.max(stripe * 0.85, back * 0.55)).lerp(white, wh);
+  },
+};
+const CAT_DEFS = [
+  { name: "Lenny I", scale: 1.0, head: 1.0, eye: 0xe0bb45, nose: 0x8a7276, inner: 0xd4a6a6, pat: "grey", sw: "#5f656d" },
+  { name: "Lenny II", scale: 1.05, head: 1.0, eye: 0xb4c45a, nose: 0xd98c78, inner: 0xe0aea4, pat: "tabby", sw: "#968f84" },
+  { name: "Edna", scale: 0.94, head: 0.97, eye: 0xc9b45a, nose: 0xf0a3ad, inner: 0xe8b4ac, pat: "edna", sw: "#6a5f53" },
+];
+function buildCat(def) {
+  const fur = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 4, specular: 0x111111 });
+  const regs = [], root = new THREE.Group(), ph = (c) => new THREE.MeshPhongMaterial({ color: c, flatShading: true, shininess: 10 });
+  const ell = (ws, hs, alongZ) => { const g = new THREE.SphereGeometry(1, ws, hs); if (alongZ) g.rotateX(Math.PI / 2); return g; };
+  const part = (geo, parent, owner, name, ex, x, y, z, sx, sy, sz) => { const m = new THREE.Mesh(geo, fur); m.position.set(x, y, z); if (sx) m.scale.set(sx, sy, sz); m.castShadow = true; parent.add(m); regs.push({ m, owner, part: name, ex }); return m; };
+  const spine = new THREE.Group(); spine.position.set(0, 0.185, -0.09); root.add(spine);
+  const front = new THREE.Group(); front.position.set(0, 0, 0.1); spine.add(front);
+  const rear = new THREE.Group(); rear.position.set(0, 0, 0.1); spine.add(rear);
+  part(ell(10, 8, true), front, root, "body", 0, 0, 0.01, 0.07, 0.1, 0.095, 0.135);
+  part(ell(10, 8, true), front, root, "body", 0, 0, -0.012, -0.04, 0.09, 0.085, 0.13);
+  part(ell(10, 8, true), rear, root, "body", 0, 0, 0, -0.1, 0.102, 0.098, 0.125);
+  const neck = part(ell(8, 6, true), front, root, "neck", 0, 0, 0.065, 0.14, 0.064, 0.072, 0.08); neck.rotation.x = -0.6;
+  const headPivot = new THREE.Group(); headPivot.position.set(0, 0.09, 0.17); headPivot.rotation.order = "YXZ"; front.add(headPivot);
+  const head = new THREE.Group(); head.scale.setScalar(def.head); headPivot.add(head);
+  part(ell(9, 7), head, head, "head", 0, 0, 0.04, 0.045, 0.066, 0.062, 0.066);
+  part(ell(9, 6), head, head, "head", 0, 0, 0.014, 0.058, 0.074, 0.046, 0.058);
+  for (const sx of [-1, 1]) part(ell(6, 5), head, head, "muzzle", 0, sx * 0.016, 0.006, 0.105, 0.022, 0.018, 0.02);
+  part(ell(6, 5), head, head, "muzzle", 0, 0, -0.011, 0.097, 0.019, 0.014, 0.018);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.0105, 6, 4), ph(def.nose)); nose.position.set(0, 0.022, 0.121); nose.scale.set(1.3, 0.7, 0.9); head.add(nose);
+  const irisM = new THREE.MeshPhongMaterial({ color: def.eye, emissive: def.eye, emissiveIntensity: 0.25, flatShading: true, shininess: 60 }), pupM = ph(0x0b0a0c);
+  for (const sx of [-1, 1]) {
+    const e = new THREE.Group(); e.position.set(sx * 0.031, 0.046, 0.098); e.rotation.set(-0.05, sx * 0.32, 0); head.add(e);
+    const iris = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 6), irisM); iris.scale.set(1, 0.88, 0.6); e.add(iris);
+    const pup = new THREE.Mesh(new THREE.SphereGeometry(0.0203, 6, 5), pupM); pup.position.z = 0.0025; pup.scale.set(0.3, 0.84, 0.6); e.add(pup);
+    const hl = new THREE.Mesh(new THREE.SphereGeometry(0.0042, 4, 3), new THREE.MeshBasicMaterial({ color: 0xffffff })); hl.position.set(sx * 0.006, 0.007, 0.012); e.add(hl);
+  }
+  const innerM = ph(def.inner);
+  for (const sx of [-1, 1]) {
+    const eg = new THREE.Group(); eg.position.set(sx * 0.039, 0.088, 0.03); eg.rotation.set(-0.12, sx * 0.3, -sx * 0.32); head.add(eg);
+    part(new THREE.ConeGeometry(0.033, 0.068, 4, 1).rotateY(Math.PI / 4).translate(0, 0.034, 0), eg, head, "ear", 0, 0, 0, 0, 1, 1, 0.45);
+    const inner = new THREE.Mesh(new THREE.ConeGeometry(0.022, 0.048, 4, 1).rotateY(Math.PI / 4).translate(0, 0.024, 0), innerM); inner.position.set(0, 0.004, 0.008); inner.scale.z = 0.3; eg.add(inner);
+  }
+  // legs: one tapered piece from hip to paw each, swung from the hip
+  const legs = [];
+  for (const [par, x, y, z, L, ra, rb, isF, phs] of [[front, -0.05, -0.035, 0.12, 0.152, 0.032, 0.02, 1, 0.25], [front, 0.05, -0.035, 0.12, 0.152, 0.032, 0.02, 1, 0.75], [rear, -0.055, -0.015, -0.115, 0.172, 0.045, 0.021, 0, 0.0], [rear, 0.055, -0.015, -0.115, 0.172, 0.045, 0.021, 0, 0.5]]) {
+    const hip = new THREE.Group(); hip.position.set(x, y, z); par.add(hip);
+    part(new THREE.CylinderGeometry(ra, rb, L, 7, 3).translate(0, -L / 2, 0), hip, hip, "leg", isF, 0, 0, 0);
+    part(ell(6, 5), hip, hip, "leg", isF, 0, 0, 0, ra, ra, ra);
+    part(ell(6, 5), hip, hip, "paw", isF, 0, -L + 0.002, 0.008, rb * 1.3, rb * 0.85, rb * 1.6);
+    legs.push({ hip, front: !!isF, ph: phs });
+  }
+  // tail: a short chain
+  const tail = [], tailRoot = new THREE.Group(); tailRoot.position.set(0, 0.04, -0.205); rear.add(tailRoot);
+  let par = tailRoot; const N = 7, segL = 0.044;
+  for (let i = 0; i < N; i++) {
+    const sg = new THREE.Group(); if (i > 0) sg.position.z = -segL; par.add(sg);
+    const r0 = 0.021 - 0.008 * i / N, r1 = 0.021 - 0.008 * (i + 1) / N;
+    part(new THREE.CylinderGeometry(r1, r0, segL, 6, 1).rotateX(-Math.PI / 2).translate(0, 0, -segL / 2), sg, root, "tail", (i + 0.5) / N, 0, 0, 0);
+    part(ell(6, 4), sg, root, "tail", i / N, 0, 0, 0, r0, r0, r0);
+    if (i === N - 1) part(ell(5, 4), sg, root, "tail", 1, 0, 0, -segL, r1, r1, r1);
+    tail.push(sg); par = sg;
+  }
+  // paint the coat
+  root.updateMatrixWorld(true);
+  const Mc = new THREE.Matrix4(), Mo = new THREE.Matrix4(), Nc = new THREE.Matrix3(), No = new THREE.Matrix3(), inv = new THREE.Matrix4();
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), d = new THREE.Vector3(), cen = new THREE.Vector3(), nrm = new THREE.Vector3(), e1 = new THREE.Vector3(), e2 = new THREE.Vector3();
+  const q = { pc: new THREE.Vector3(), nc: new THREE.Vector3(), pl: new THREE.Vector3(), nl: new THREE.Vector3(), part: "", ex: 0 }, col = new THREE.Color();
+  for (const r of regs) {
+    let geo = r.m.geometry; if (geo.index) { geo = geo.toNonIndexed(); r.m.geometry = geo; }
+    Mc.copy(r.m.matrixWorld); Mo.multiplyMatrices(inv.copy(r.owner.matrixWorld).invert(), r.m.matrixWorld); Nc.getNormalMatrix(Mc); No.getNormalMatrix(Mo);
+    const p = geo.attributes.position, colors = new Float32Array(p.count * 3);
+    for (let i = 0; i < p.count; i += 3) {
+      a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); d.fromBufferAttribute(p, i + 2);
+      cen.copy(a).add(b).add(d).multiplyScalar(1 / 3); e1.subVectors(b, a); e2.subVectors(d, a); nrm.crossVectors(e1, e2).normalize();
+      q.pc.copy(cen).applyMatrix4(Mc); q.nc.copy(nrm).applyMatrix3(Nc).normalize(); q.pl.copy(cen).applyMatrix4(Mo); q.nl.copy(nrm).applyMatrix3(No).normalize();
+      q.part = r.part; q.ex = r.ex; CAT_PAT[def.pat](col, q);
+      for (let k = 0; k < 3; k++) { colors[(i + k) * 3] = col.r; colors[(i + k) * 3 + 1] = col.g; colors[(i + k) * 3 + 2] = col.b; }
+    }
+    geo.setAttribute("color", new THREE.BufferAttribute(colors, 3)); geo.computeVertexNormals();
+  }
+  root.scale.setScalar(def.scale); root.visible = false; scene.add(root);
+  const c = { def, name: def.name, s: def.scale, root, spine, front, headPivot, legs, tail, on: false, x: 0, z: 0, y: 0, yaw: 0, speed: 0, phase: 0, labelT: 0,
+    P: { spineY: 0.185, pitch: 0, hx: 0, hy: 0, tail: 0.6, sit: 0, lie: 0, walk: 0 }, T: {} };
+  c.label = document.createElement("div"); c.label.className = "birdlabel"; c.label.textContent = def.name; document.body.appendChild(c.label);
+  return c;
+}
+const CATS = CAT_DEFS.map(buildCat);
+
+// where the cats may go: anywhere on the lawn and paths, but never into the run, the passage, the coop or the buildings
+const CAT_BLOCKS = [[-3.72, 3.72, -3.72, 3.72], [GAR.x0, GAR.x1, GAR.z0, GAR.z1 + 0.45], [BLOCK.x0, BLOCK.x1, BLOCK.z0, BLOCK.z1], [CONN.x0 - 0.05, CONN.x1 + 0.15, CONN.z0, CONN.z1 + 0.1],
+  [COOP.x0 - 0.12, COOP.x1 + 0.12, COOP.z0 - 0.12, COOP.z1 + 0.05], [3.5, 4.02, PATH.top, RUN.z1 + 1.3], [BED.x - 0.95, BED.x + 0.95, BED.z - 0.65, BED.z + 0.75],
+  [VAN.x - 2.8, VAN.x + 2.8, VAN.z - 1.15, VAN.z + 1.15], [7.0, 7.8, -3.6, 3.7], [4.4, 7.0, 5.15, 6.05], [PLANE.x - 0.35, PLANE.x + 0.35, PLANE.z - 0.35, PLANE.z + 0.35], [-6.5, -5.9, -11.3, -10.7]];
+function catFree(x, z, m = 0.18) {
+  if (!onIsland(x, z, 0.7)) return false;
+  for (const q of CAT_BLOCKS) if (x > q[0] - m && x < q[1] + m && z > q[2] - m && z < q[3] + m) return false;
+  for (const [sx, sz, r] of SHRUBLETS) if (Math.hypot(x - sx, z - sz) < r + m) return false;
+  return true;
+}
+function catSeg(ax, az, bx, bz) { const L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(L / 0.15)); for (let i = 1; i <= n; i++) if (!catFree(ax + (bx - ax) * i / n, az + (bz - az) * i / n)) return false; return true; }
+// a coarse grid of way points over the island (plus a line down the path), linked where a cat can walk straight between them
+const CAT_NAV = [];
+{
+  for (let x = -11; x <= 10; x += 0.9) for (let z = -15; z <= 8; z += 0.9) if (catFree(x, z, 0.25)) CAT_NAV.push({ x, z, nb: [] });
+  for (let z = -8.5; z <= 4.3; z += 0.8) if (catFree(4.41, z, 0.2)) CAT_NAV.push({ x: 4.41, z, nb: [] });
+  for (let x = 5.2; x <= 9.5; x += 0.8) if (catFree(x, 4.38, 0.2)) CAT_NAV.push({ x, z: 4.38, nb: [] });
+  for (let i = 0; i < CAT_NAV.length; i++) for (let j = i + 1; j < CAT_NAV.length; j++) {
+    const a = CAT_NAV[i], b = CAT_NAV[j], dd = Math.hypot(a.x - b.x, a.z - b.z);
+    if (dd < 1.35 && catSeg(a.x, a.z, b.x, b.z)) { a.nb.push([j, dd]); b.nb.push([i, dd]); }
+  }
+}
+function catRoute(ax, az, bx, bz) {
+  if (catSeg(ax, az, bx, bz)) return [{ x: bx, z: bz }];
+  const near = (x, z) => { let best = -1, bd = 1e9; CAT_NAV.forEach((n, i) => { const d = Math.hypot(n.x - x, n.z - z); if (d < bd && d < 2.5 && catSeg(x, z, n.x, n.z)) { bd = d; best = i; } }); return best; };
+  const s = near(ax, az), e = near(bx, bz); if (s < 0 || e < 0) return null;
+  const N = CAT_NAV.length, dist = new Float32Array(N).fill(1e9), prev = new Int32Array(N).fill(-1), done = new Uint8Array(N); dist[s] = 0;
+  for (let it = 0; it < N; it++) {
+    let u = -1, ud = 1e9; for (let i = 0; i < N; i++) if (!done[i] && dist[i] < ud) { ud = dist[i]; u = i; }
+    if (u < 0 || u === e) break; done[u] = 1;
+    for (const [v, w] of CAT_NAV[u].nb) if (ud + w < dist[v]) { dist[v] = ud + w; prev[v] = u; }
+  }
+  if (dist[e] >= 1e9) return null;
+  const pts = [{ x: bx, z: bz }]; for (let u = e; u >= 0; u = prev[u]) pts.unshift({ x: CAT_NAV[u].x, z: CAT_NAV[u].z });
+  // pull the string: skip way points that can be seen past
+  const out = []; let cx = ax, cz = az, i = 0;
+  while (i < pts.length) { let j = pts.length - 1; while (j > i && !catSeg(cx, cz, pts[j].x, pts[j].z)) j--; out.push(pts[j]); cx = pts[j].x; cz = pts[j].z; i = j + 1; }
+  return out;
+}
+function catSpot(test, tries = 60) { for (let i = 0; i < tries; i++) { const p = test(); if (p && catFree(p.x, p.z, 0.22)) return p; } return null; }
+const edgeSpot = () => catSpot(() => { const a = rand(0, 6.28), r = isleR(a) - rand(0.75, 1.0); return { x: Math.cos(a) * r, z: Math.sin(a) * r }; });
+const watchSpot = () => Math.random() < 0.8 ? { x: rand(-2.9, 3.0), z: rand(3.98, 4.15) } : { x: rand(2.82, 3.28), z: -3.95 };
+const sunSpot = () => Math.random() < 0.5 ? (Math.random() < 0.7 ? { x: rand(4.2, 4.62), z: rand(-7.5, 3.3) } : { x: rand(5.2, 8.0), z: rand(4.1, 4.65) }) : { x: rand(-10, 9), z: rand(-14, 7) };
+let catT = rand(35, 60), visitors = [];
+const CAT_ACTS = [["sniff", 3], ["sit", 2], ["groom", 2], ["lie", 2.5], ["watch", 3.5], ["wander", 2]];
+function catGo(c, p, then) {
+  const r = p && catRoute(c.x, c.z, p.x, p.z);
+  if (!r) {   // nowhere suitable this time: try something else (a few times), without it counting as one of the visit's doings
+    c.path = null; c.fails = (c.fails || 0) + 1;
+    if (then === "gone" || c.fails > 8) { c.act = then; c.actT = 0.2; } else { c.left++; c.act = "idle"; c.actT = 0.4; }
+    return;
+  }
+  c.fails = 0; c.path = r; c.then = then; c.act = "walk";
+}
+function catNext(c) {
+  if (c.left <= 0) { c.leaving = true; catGo(c, edgeSpot(), "gone"); return; }
+  c.left--;
+  let k = CAT_ACTS[0][0], x = Math.random() * CAT_ACTS.reduce((s, a) => s + a[1], 0); for (const [n, w] of CAT_ACTS) { x -= w; if (x <= 0) { k = n; break; } }
+  const t = { sniff: rand(3, 6), sit: rand(6, 12), groom: rand(7, 12), lie: rand(16, 32), watch: rand(12, 22), wander: 0.1 }[k];
+  const p = k === "watch" ? catSpot(watchSpot) : k === "lie" ? catSpot(sunSpot) : catSpot(() => ({ x: c.x + rand(-3.5, 3.5), z: c.z + rand(-3.5, 3.5) }));
+  c.actLen = t; catGo(c, p, k);
+}
+function startVisit() {
+  const n = Math.random() < 0.28 ? 2 : 1, who = CATS.slice().sort(() => Math.random() - 0.5).slice(0, n);
+  const e0 = edgeSpot(); if (!e0) return;
+  for (const c of who) {
+    const e = c === who[0] ? e0 : catSpot(() => ({ x: e0.x + rand(-1.5, 1.5), z: e0.z + rand(-1.5, 1.5) })) || e0;
+    Object.assign(c, { on: true, x: e.x, z: e.z, yaw: Math.atan2(-e.x, -e.z), speed: 0, left: 3 + Math.floor(rand(0, 3)), leaving: false, act: "idle", actT: 0.5, path: null });
+    c.root.visible = true; c.P.sit = 0; c.P.lie = 0;
+  }
+  visitors = who; updateVisiting();
+}
+function updateCats(dt) {
+  if (!visitors.length && (catT -= dt) < 0) { startVisit(); catT = rand(150, 330); }
+  for (const c of CATS) {
+    if (!c.on) continue;
+    const T = { spineY: 0.185, pitch: 0, hx: 0.05, hy: 0, tail: 0.5, sit: 0, lie: 0, walk: 0 };
+    c.t = (c.t || 0) + dt;
+    if (c.act === "walk") {
+      const w = c.path[0], dx = w.x - c.x, dz = w.z - c.z, d = Math.hypot(dx, dz);
+      if (d < 0.12) { c.path.shift(); if (!c.path.length) { c.act = c.then; c.actT = c.actLen || 3; if (c.act === "gone") { c.on = false; c.root.visible = false; visitors = visitors.filter((q) => q !== c); updateVisiting(); continue; } } }
+      else { const da = angDiff(c.yaw, Math.atan2(dx, dz)); c.yaw += clamp(da, -dt * 3.5, dt * 3.5); c.speed = damp(c.speed, 0.42 * clamp(Math.cos(da), 0.15, 1), 4, dt); }
+      T.walk = 1; T.tail = 0.95; T.hx = 0.08;
+    } else {
+      c.speed = damp(c.speed, 0, 6, dt);
+      if (c.act === "watch") {   // sit facing the run, head following the nearest hen
+        c.yaw += clamp(angDiff(c.yaw, Math.atan2(-c.x * 0.2, (c.z > 0 ? -1 : 1))), -dt * 2, dt * 2);
+        let nb = null, nd = 9; for (const b of birds) { const dd = Math.hypot(b.x - c.x, b.z - c.z); if (dd < nd && b.state !== "lay") { nd = dd; nb = b; } }
+        T.sit = 1; T.spineY = 0.13; T.pitch = 0.55; T.tail = -0.5;
+        if (nb) T.hy = clamp(angDiff(c.yaw, Math.atan2(nb.x - c.x, nb.z - c.z)), -0.9, 0.9);
+        T.hx = -0.15 + Math.sin(c.t * 0.7) * 0.05;
+      } else if (c.act === "sit") { T.sit = 1; T.spineY = 0.13; T.pitch = 0.55; T.tail = -0.5; T.hy = Math.sin(c.t * 0.4) * 0.6; T.hx = -0.05; }
+      else if (c.act === "groom") { T.sit = 1; T.spineY = 0.13; T.pitch = 0.55; T.tail = -0.5; const g = (c.t % 3) < 1.7; T.hx = g ? 0.75 + Math.sin(c.t * 9) * 0.12 : 0.1; T.hy = g ? (Math.floor(c.t / 3) % 2 ? 0.8 : -0.8) : 0; }
+      else if (c.act === "lie") { T.lie = 1; T.spineY = 0.09; T.pitch = 0.04; T.tail = -0.3; T.hx = 0.25 + Math.sin(c.t * 0.3) * 0.1; T.hy = 0.3; }
+      else if (c.act === "sniff") { T.hx = 0.85 + Math.sin(c.t * 7) * 0.06; T.tail = 0.6; T.spineY = 0.175; T.pitch = -0.08; }
+      if (c.act === "gone") { c.on = false; c.root.visible = false; visitors = visitors.filter((q) => q !== c); updateVisiting(); continue; }
+      if ((c.actT -= dt) < 0) catNext(c);
+    }
+    // move along the ground (the route keeps them out of everything; this keeps them honest)
+    const nx = c.x + Math.sin(c.yaw) * c.speed * dt, nz = c.z + Math.cos(c.yaw) * c.speed * dt;
+    if (catFree(nx, nz, 0.1)) { c.x = nx; c.z = nz; } else if (c.act === "walk") c.path = catRoute(c.x, c.z, c.path[c.path.length - 1].x, c.path[c.path.length - 1].z) || [{ x: c.x, z: c.z }];
+    c.y = terrainY(c.x, c.z);
+    // pose
+    const P = c.P; for (const k in T) P[k] = damp(P[k], T[k], k === "walk" ? 8 : 3, dt);
+    c.phase += dt * (1.5 + c.speed * 11);
+    c.root.position.set(c.x, c.y, c.z); c.root.rotation.y = c.yaw;
+    c.spine.position.y = P.spineY; c.spine.rotation.x = -P.pitch;
+    c.headPivot.rotation.set(P.hx - P.pitch * 0.8, P.hy, 0);
+    for (const L of c.legs) {
+      const sw = Math.sin(c.phase + L.ph * Math.PI * 2) * 0.55 * P.walk;
+      let rx = sw + P.pitch, sy = 1;
+      if (!L.front) { rx -= P.sit * 1.25; sy = 1 - 0.35 * P.sit; }
+      rx -= P.lie * 1.35; sy *= 1 - 0.55 * P.lie;
+      L.hip.rotation.x = rx; L.hip.scale.y = sy;
+    }
+    c.tail.forEach((sg, i) => { sg.rotation.x = (i ? 0.18 : 0.7) * P.tail; sg.rotation.y = Math.sin(c.t * 1.6 + i * 0.5) * (0.08 + 0.1 * (1 - P.walk)); });
+    // hens near the wire notice: a glance, or they wander off a little
+    for (const b of birds) {
+      if (b.state === "lay" || !NOTICE[b.state] || Math.hypot(b.x - c.x, b.z - c.z) > 1.5 || Math.random() > dt * 0.3) continue;
+      if (Math.random() < 0.55) { b.lookYaw = clamp(angDiff(b.yaw, Math.atan2(c.x - b.x, c.z - b.z)), -1.2, 1.2); b.lookT = 2.5; }
+      else { const ax = b.x - c.x, az = b.z - c.z, L = Math.hypot(ax, az) || 1, tx = b.x + ax / L * 1.2, tz = b.z + az / L * 1.2; if (isFree(tx, tz, 0.16)) { setState(b, "wander"); setGoal(b, tx, tz, 0.4); } }
+    }
+  }
+}
+function updateVisiting() {
+  const el = document.getElementById("visiting"); if (!el) return;
+  const ns = visitors.map((c) => (c.name === "Edna" ? "Edna the cat" : c.name));
+  el.hidden = !ns.length; el.textContent = ns.length ? `${ns.join(" and ")} ${ns.length > 1 ? "are" : "is"} visiting` : "";
 }
 
 // ===================================================================
@@ -1806,13 +2212,15 @@ function panBy(dx, dy) {   // screen pixels -> move the look-at goal across the 
   keepGoal(); cam.follow = null; cam.ease = null; cam.idle = 0;
 }
 // the look-at goal stays in the chicken area (so never in the garage or the outbuilding) and off the mixer and the tree trunk
-function keepGoal() {
-  const g = cam.goal, m = 0.3, inArea = ([x, z]) => PAN_AREA.some((q) => x >= q[0] && x <= q[1] && z >= q[2] && z <= q[3]);
-  zoneClamp(g, 0, PAN_AREA);
-  for (const q of [SOLIDS[4], SOLIDS[6]]) {
+function keepGoal() {   // anywhere on the island, out of the garage, the outbuilding, the mixer, the tree trunk, the van and the flower bed
+  const g = cam.goal, m = 0.3, blocks = [SOLIDS[0], SOLIDS[1], SOLIDS[4], SOLIDS[6], [VAN.x - 2.85, VAN.x + 2.85, 0, 3, VAN.z - 1.2, VAN.z + 1.2], [BED.x - 1.0, BED.x + 1.0, 0, 1, BED.z - 0.75, BED.z + 0.75]];
+  const inB = (x, z, skip) => blocks.some((q) => q !== skip && x > q[0] - m && x < q[1] + m && z > q[4] - m && z < q[5] + m);
+  if (!onIsland(g.x, g.z, 1.0)) { const a = Math.atan2(g.z, g.x), R = Math.max(0, isleR(a) - 1.0); g.x = Math.cos(a) * R; g.z = Math.sin(a) * R; }
+  for (let it = 0; it < 2; it++) for (const q of blocks) {
     if (g.x < q[0] - m || g.x > q[1] + m || g.z < q[4] - m || g.z > q[5] + m) continue;
-    const c = [[q[0] - m, g.z], [q[1] + m, g.z], [g.x, q[4] - m], [g.x, q[5] + m]].filter(inArea).sort((a, b) => Math.hypot(a[0] - g.x, a[1] - g.z) - Math.hypot(b[0] - g.x, b[1] - g.z));
-    if (c.length) { g.x = c[0][0]; g.z = c[0][1]; }   // out by the nearest side that stays in the chicken area
+    const c = [[q[0] - m, g.z], [q[1] + m, g.z], [g.x, q[4] - m], [g.x, q[5] + m]].filter(([x, z]) => onIsland(x, z, 0.9) && !inB(x, z, q))
+      .sort((a, b) => Math.hypot(a[0] - g.x, a[1] - g.z) - Math.hypot(b[0] - g.x, b[1] - g.z));
+    if (c.length) { g.x = c[0][0]; g.z = c[0][1]; }
   }
 }
 function resetView() {
@@ -1857,7 +2265,7 @@ const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
 const _w = new THREE.Vector3();
 function birdAt(e) {
   let best = null, bd = 26;
-  for (const b of birds) {
+  for (const b of [...birds, ...CATS.filter((c) => c.on)]) {
     _w.set(b.x, b.y + 0.3 * b.s, b.z).project(camera); if (_w.z > 1) continue;
     const d = Math.hypot((_w.x * 0.5 + 0.5) * innerWidth - e.clientX, (-_w.y * 0.5 + 0.5) * innerHeight - e.clientY);
     if (d < bd) { bd = d; best = b; }
@@ -1940,7 +2348,8 @@ for (const b of birds) {
 }
 let listT = 0;
 function updateLabels(dt) {
-  for (const b of birds) {
+  for (const c of CATS) if (!c.on) { c.labelT = 0; c.label.classList.remove("on"); }
+  for (const b of [...birds, ...CATS.filter((c) => c.on)]) {
     b.labelT = Math.max(0, b.labelT - dt);
     const on = !cinema && (b.labelT > 0 || hoverBird === b);
     b.label.classList.toggle("on", on);
@@ -1971,7 +2380,8 @@ const SOLIDS = [
   [TREE.x - 0.12, TREE.x + 0.2, 0, 1.05, TREE.z - 0.12, TREE.z + 0.15], [TREE.x - 0.65, TREE.x + 0.65, 1.0, 2.15, TREE.z - 0.65, TREE.z + 0.65],
   ...SHRUBS.map((s) => [s.x - s.r, s.x + s.r, 0, 0.95, s.z - s.r, s.z + s.r]),
   ...ISLE_TREES.map(([x, z, s]) => [x - 1.0 * s, x + 1.0 * s, 0, 3.4 * s, z - 1.0 * s, z + 1.0 * s]),
-  [BED.x - 1.0, BED.x + 1.0, 0, 1.05, BED.z - 0.75, BED.z + 0.75], [PARK.x0 + 0.5, PARK.x1 - 0.5, 0, 2.15, PARK.z0 + 0.3, PARK.z1 - 0.3],
+  [BED.x - 1.0, BED.x + 1.0, 0, 1.05, BED.z - 0.75, BED.z + 0.75], [VAN.x - 2.85, VAN.x + 2.85, 0, 3.2, VAN.z - 1.3, VAN.z + 1.3],
+  ...SHRUBLETS.map(([x, z, r]) => { const y = terrainY(x, z); return [x - r - 0.05, x + r + 0.05, y - 0.3, y + r * 1.7, z - r - 0.05, z + r + 0.05]; }),
   [PLANE.x - 0.35, PLANE.x + 0.35, 0, 3.4, PLANE.z - 0.35, PLANE.z + 0.35], [PLANE.x - 2.2, PLANE.x + 2.2, 3.1, 5.6, PLANE.z - 2.2, PLANE.z + 2.2],
   [BENCH.x0 - 0.02, BENCH.x1 + 0.05, 0, BENCH.h + 0.05, BENCH.z0, BENCH.z1], [3.55, 3.99, -1.4, 0.06, PATH.top, RUN.z1 + 1.3],
   [GAR.x1 - 0.1, GAR.x1 + 0.45, -1.4, 0.05, RUN.z1 + 0.05, GAR.z1 + 0.45], [GAR.x0 - 0.15, GAR.x1 + 0.45, -1.4, 0.05, GAR.z1 - 0.1, GAR.z1 + 0.45],
@@ -2035,6 +2445,14 @@ const SHOTS = {
     }, done: () => !inRun(b) };
   },
   ednis() { return SHOTS.follow(EDNIS); },   // Ednis and her crooked comb, often with someone after her
+  cat() {   // a slow arc round a visiting cat
+    const c = pick(CATS.filter((q) => q.on)); if (!c) return null;
+    const R = 1.5, dir = Math.random() < 0.5 ? -1 : 1, look = () => new THREE.Vector3(c.x, c.y + 0.18, c.z);
+    let a0 = null;
+    for (let i = 0; i < 20 && a0 === null; i++) { const a = rand(0, 6.28), p = new THREE.Vector3(c.x + Math.sin(a) * R, c.y + 0.55, c.z + Math.cos(a) * R); if (free(p) && sees(p, look())) a0 = a; }
+    if (a0 === null) return null;
+    return { len: rand(10, 14), eval(t) { const a = a0 + dir * 0.06 * t; return { pos: new THREE.Vector3(c.x + Math.sin(a) * R, c.y + 0.55, c.z + Math.cos(a) * R), look: look(), fov: 36 }; }, done: () => !c.on };
+  },
   rooster() {   // a slow orbit round Heinrich
     const b = HEINRICH; if (!inRun(b)) return null;
     const dir = Math.random() < 0.5 ? -1 : 1, R = 1.7, len = rand(11, 15), sweep = 0.09 * len;
@@ -2090,7 +2508,7 @@ const SHOTS = {
       return { pos: new THREE.Vector3(tg.x + r * Math.sin(ph) * Math.sin(th), tg.y + r * Math.cos(ph), tg.z + r * Math.sin(ph) * Math.cos(th)), look: tg, fov: 40 }; } };
   },
 };
-const SHOT_W = { follow: 2.5, ednis: 1.5, rooster: 2, close: 3, mesh: 2, tree: 1.2, coop: 4, wide: 1.5 };
+const SHOT_W = { follow: 2.5, ednis: 1.5, rooster: 2, close: 3, mesh: 2, tree: 1.2, coop: 4, wide: 1.5, cat: 3.5 };
 function nextShot(first) {
   let s = null, kind = "wide";
   if (!first) {
@@ -2162,6 +2580,15 @@ function setCinema(on) {
   viewOff = -1;
 }
 $("cinemaBtn").onclick = () => setCinema(true);
+// the area buttons glide the camera over; at the passage and the coop the walls in the way drop and the roof fades
+const AREAS = { run: { x: 0.2, z: 0.0, r: 9.5, ph: 0.95, th: 0.78 }, passage: { x: 1.85, z: -5.3, r: 4.3, ph: 0.85, th: 1.15 }, coop: { x: 2.1, z: -8.15, r: 4.6, ph: 0.8, th: 0.6 } };
+function goArea(k) {
+  const A = AREAS[k]; if (!A || cinema) return;
+  cam.follow = null; cam.idle = 0; cam.goal.set(A.x, 0, A.z);
+  cam.ease = { r: A.r * (portrait ? 1.4 : 1), ph: A.ph, th: cam.th + angDiff(cam.th, A.th) };
+  if (innerWidth < 760) setPanel(false);
+}
+document.querySelectorAll("#areas button").forEach((b) => (b.onclick = () => { goArea(b.dataset.a); b.blur(); }));
 $("resetBtn").onclick = resetView;
 cinemaExitBtn.onclick = () => setCinema(false);
 document.addEventListener("mousemove", () => { if (cinema) showCinemaExit(2); });
@@ -2186,6 +2613,7 @@ function step(dt) {
   updateEggs(dt);
   updateDust(dt);
   updateMice(dt);
+  updateCats(dt);
   // nobody has fed them for ages and they're properly hungry: a modest handful turns up, as if someone threw it over the fence
   let hunger = 0; for (const b of birds) { hunger += b.full ? 0 : 1 - b.crop; b.hungryT = !b.full && b.crop < 0.02 ? b.hungryT + dt : 0; }
   if ((hunger / birds.length > 0.9 || birds.some((b) => b.hungryT > 120)) && simT - lastFed > 180 && simT - lastAuto > 150) {
@@ -2211,7 +2639,7 @@ function render(dt) {
     if (cam.follow && cam.followT > 0) { cam.goal.x = cam.follow.x; cam.goal.z = cam.follow.z; keepGoal(); }
     // the look-at point eases after its goal, so panning glides and stops softly at the edge of the chicken area
     cam.target.x = damp(cam.target.x, cam.goal.x, 6, dt); cam.target.z = damp(cam.target.z, cam.goal.z, 6, dt);
-    cam.target.y = lerp(0.28, 0.45, clamp((cam.r - 1) / 4, 0, 1));   // close up, look at a hen's head height
+    cam.target.y = terrainY(cam.target.x, cam.target.z) + lerp(0.28, 0.45, clamp((cam.r - 1) / 4, 0, 1));   // close up, look at a hen's head height
     // don't let a wall, the coop or the mixer get between camera and look-at point: shorten the arm, and if that
     // would leave the camera squashed against something, look down from a little higher instead
     const dirAt = (ph) => _w.set(Math.sin(ph) * Math.sin(cam.th), Math.cos(ph), Math.sin(ph) * Math.cos(cam.th));
