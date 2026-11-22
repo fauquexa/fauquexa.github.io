@@ -3,295 +3,286 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Stereogram Studio</title>
+<title>Stereogram Generator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/toy.css?v=20261122k">
 <style>
-/* Control rail on the left, large viewing stage on the right; stacks on phones.
-   Dark palette shared with the rest of the playground. */
+/* Settings column on the left, large viewing area on the right; stacks on phones.
+   Panel chrome follows the shared playground style in toy.css. */
 :root {
-  --bg: #07080a;
-  --panel: #111317;
-  --ink: #e9e6df;
-  --muted: #9a9ea6;
-  --line: #24272e;
-  --accent: #8fb4ec;
-  --accent-ink: #0c1524;
-  --stage: #000;
   --red: rgba(255, 98, 90, .55);
   --cyan: rgba(70, 214, 230, .55);
   --check-a: #1d2026;
   --check-b: #15171b;
-  --serif: "Newsreader", Georgia, serif;
-  --mono: "Public Sans", "Helvetica Neue", Arial, system-ui, sans-serif;
   color-scheme: dark;
 }
-* { box-sizing: border-box; }
+html, body { height: auto; }
+body { overflow: auto; line-height: 1.5; }
 [hidden] { display: none !important; }
-body {
-  margin: 0; background: var(--bg); color: var(--ink); font-family: var(--mono); font-size: 14px; line-height: 1.55;
-  padding: 24px 16px 40px;
+
+.wrap {
+  max-width: 1440px; margin: 0 auto; padding: 14px 16px 32px;
+  display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 16px; align-items: start;
 }
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
-.app { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
-.top { display: flex; flex-direction: column; gap: 6px; }
-.back { color: var(--muted); font-size: 11.5px; }
+header.top { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; }
+header.top .back { color: var(--soft); font-size: 11.5px; }
+header.top .back:hover { color: var(--ink); text-decoration: none; }
 h1 {
   font-family: var(--serif); font-weight: 600; font-size: clamp(28px, 4vw, 40px); line-height: 1.05;
   margin: 0; letter-spacing: -.01em; text-shadow: -3px 0 var(--red), 3px 0 var(--cyan);
 }
-.lede { margin: 0; color: var(--muted); max-width: 70ch; }
-.grid { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 20px; align-items: start; }
-@media (max-width: 920px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.lede { margin: 0; color: var(--soft); max-width: 70ch; }
 
-.rail { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column; }
-.group { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--line); }
-.group:first-child { border-top: 0; }
-.group h2 {
-  margin: 0; font-family: var(--serif); font-weight: 500; font-size: 18px; letter-spacing: 0;
-  color: var(--ink); display: flex; gap: 8px; align-items: baseline;
+/* settings column */
+.side {
+  background: var(--panel); border: 1px solid var(--rule); border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .35);
+  padding: 16px 16px 18px; position: sticky; top: 14px;
+  max-height: calc(100vh - 28px); overflow-y: auto;
+  scrollbar-width: none;
 }
-.group h2 b { font-family: var(--mono); font-weight: 500; font-size: 13px; color: var(--muted); }
+.side::-webkit-scrollbar { display: none; }
+.side h2 { font-family: var(--serif); font-size: 18px; font-weight: 500; margin: 0; color: var(--ink); }
+.side section { padding: 16px 0 0; margin-top: 16px; border-top: 1px solid var(--rule); }
+.side section:first-child { padding-top: 0; margin-top: 0; border-top: 0; }
+.side label, .side .lbl {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+  color: var(--soft); font-size: 12.5px; font-weight: 500; margin: 14px 0 6px;
+}
+.side output { color: var(--ink); font-weight: 400; font-size: 12px; font-variant-numeric: tabular-nums; }
+.side label.check { justify-content: flex-start; align-items: center; color: var(--ink); font-weight: 400; font-size: 13px; cursor: pointer; }
+.side label.check input { accent-color: var(--accent); margin: 0; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+.wh { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; gap: 6px; align-items: center; margin-top: 6px; color: var(--soft); font-size: 12.5px; }
+input[type=number] {
+  font: inherit; font-size: 13px; color: var(--ink); width: 100%; min-width: 0;
+  background: rgba(255, 255, 255, .06); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 8px;
+  font-variant-numeric: tabular-nums;
+}
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.primary:hover { background: #a6c4f0; }
+button.small { font-size: 12px; padding: 4px 9px; }
 
 .drop {
   position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  border: 1.5px dashed var(--line); border-radius: 10px; padding: 16px 12px; text-align: center; cursor: pointer;
-  transition: border-color .15s, background .15s;
+  border: 1px dashed rgba(255, 255, 255, .22); border-radius: 6px; padding: 12px; text-align: center; cursor: pointer;
+  margin-top: 10px; transition: border-color .15s, background .15s;
 }
 .drop:hover, .drop.over, .drop:focus-within { border-color: var(--accent); background: rgba(143, 180, 236, .06); }
-.drop strong { font-weight: 500; }
-.drop span { color: var(--muted); font-size: 11.5px; }
+.drop strong { font-weight: 500; font-size: 13px; }
+.drop span { color: var(--soft); font-size: 12px; }
 .drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
 
-.previews { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.previews { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
 .previews figure { margin: 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .previews .box {
-  aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; border: 1px solid var(--line);
+  aspect-ratio: 16 / 9; border-radius: 6px; overflow: hidden; border: 1px solid var(--rule);
   display: flex; align-items: center; justify-content: center; max-width: 100%;
   background: repeating-conic-gradient(var(--check-a) 0 25%, var(--check-b) 0 50%) 0 0 / 14px 14px;
 }
+.previews .box.light { background: repeating-conic-gradient(#e6e6e3 0 25%, #d2d2cf 0 50%) 0 0 / 14px 14px; }
 .previews .box img, .previews .box canvas { max-width: 100%; max-height: 100%; display: block; }
-.previews figcaption { font-size: 11px; color: var(--muted); }
-.note { font-size: 11.5px; color: var(--muted); margin: 0; }
+.previews figcaption { font-size: 11.5px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.capline { display: flex; justify-content: space-between; align-items: center; gap: 6px; min-width: 0; }
+.note { font-size: 12px; margin: 8px 0 0; }
+.note:empty { display: none; }
+.error { color: #ff8a80; }
 
-.field { display: flex; flex-direction: column; gap: 6px; }
-.field label, .field .lbl { display: flex; justify-content: space-between; gap: 8px; }
-.field output { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.field small { color: var(--muted); font-size: 11.5px; }
-select, input[type="range"], input[type="text"] { width: 100%; accent-color: var(--accent); }
-select, input[type="text"] {
-  font: inherit; color: var(--ink); background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px;
-}
-select option { background: #15171b; }
-.check { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
-.check input { accent-color: var(--accent); margin-top: 3px; }
-.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
 .seg input { position: absolute; opacity: 0; pointer-events: none; }
-.seg label { padding: 7px 8px; text-align: center; cursor: pointer; font-size: 12px; justify-content: center; }
-.seg input + label ~ label { border-left: 1px solid var(--line); }
-.seg input:checked + label { background: var(--accent); color: var(--accent-ink); }
+.side .seg label { margin: 0; padding: 6px 8px; justify-content: center; cursor: pointer; color: var(--ink); font-weight: 400; font-size: 12.5px; background: rgba(255, 255, 255, .04); }
+.side .seg input + label ~ label { border-left: 1px solid var(--rule); }
+.side .seg input:checked + label { background: var(--accent); color: var(--accent-ink); }
 .seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -3px; }
 
-.stage { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+/* viewing area */
+.view { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
-.status { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.actions { display: flex; flex-wrap: wrap; gap: 8px; }
-button {
-  font: inherit; font-size: 12px; border-radius: 8px; padding: 7px 12px; cursor: pointer;
-  border: 1px solid var(--line); background: rgba(255,255,255,.04); color: var(--ink);
-}
-button:hover { border-color: var(--accent); }
-button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-button.on { border-color: var(--accent); color: var(--accent); }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.status { font-size: 12px; color: var(--soft); font-variant-numeric: tabular-nums; }
 .viewer {
-  background: var(--stage); border: 1px solid var(--line); border-radius: 12px; padding: 12px;
+  background: #000; border: 1px solid var(--rule); border-radius: 10px; padding: 12px;
   display: flex; justify-content: center; align-items: center; overflow: hidden; min-height: 240px;
 }
 .viewer img { display: block; max-width: 100%; height: auto; border-radius: 4px; cursor: zoom-in; }
 .viewer:fullscreen { padding: 0; border: 0; border-radius: 0; }
 .viewer:fullscreen img { max-height: 100%; width: auto; border-radius: 0; cursor: zoom-out; }
-.hint { font-size: 11.5px; color: var(--muted); margin: 0; }
 
-.howto { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px 28px; }
-.howto h3 { margin: 0 0 6px; font-family: var(--serif); font-weight: 600; font-size: 17px; }
-.howto ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; max-width: 62ch; }
-.howto p { margin: 0; max-width: 62ch; }
-.error { color: #ff8a80; }
-.drop span::first-letter, .note::first-letter, .field small::first-letter { text-transform: uppercase; }
+.howto {
+  background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 16px 18px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px 28px;
+}
+.howto h3 { margin: 0 0 6px; font-family: var(--serif); font-weight: 500; font-size: 18px; }
+.howto ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; max-width: 62ch; color: #cfd2d6; font-size: 13px; line-height: 1.55; }
+
+@media (max-width: 920px) {
+  .wrap { grid-template-columns: minmax(0, 1fr); }
+  .side { position: static; max-height: none; overflow: visible; }
+  .viewer { min-height: 0; padding: 8px; }
+}
 </style>
 </head>
 <body>
-<div class="app">
+<div class="wrap">
   <header class="top">
     <a class="back" href="../index.html">← Home</a>
-    <h1>Stereogram Studio</h1>
-    <p class="lede">Hide a logo, a word or a shape in a random-dot 3D picture. Relax your eyes, look through the screen, and it floats out of the pattern.</p>
+    <h1>Stereogram Generator</h1>
+    <p class="lede">Hide a logo in a random-dot 3D picture. Relax your eyes, look through the screen, and it floats out of the pattern.</p>
   </header>
 
-  <main class="grid">
-    <aside class="rail" aria-label="Settings">
-      <section class="group">
-        <h2><b>1</b> What to hide</h2>
-        <div class="field">
-          <label for="source">Source</label>
-          <select id="source">
-            <option value="text">Text</option>
-            <option value="image">Logo or image</option>
-            <option value="sphere">Sphere</option>
-            <option value="torus">Torus</option>
-            <option value="ripple">Ripples</option>
-            <option value="stairs">Staircase pyramid</option>
-            <option value="julia">Today's Julia set</option>
-          </select>
-        </div>
-        <div class="field" id="textField">
-          <label for="text">Text</label>
-          <input type="text" id="text" value="hello" maxlength="24" aria-label="Text to hide">
-        </div>
-        <div class="drop" id="drop" hidden>
-          <strong>Drop a logo here</strong>
-          <span>or click to choose · you can also paste</span>
-          <input type="file" id="logoInput" accept="image/*" aria-label="Choose a logo image">
-        </div>
-        <div class="previews">
-          <figure><div class="box"><img id="logoThumb" alt="Source preview"></div><figcaption id="logoName">Text</figcaption></figure>
-          <figure><div class="box"><canvas id="depthThumb" aria-label="Depth map preview"></canvas></div><figcaption>Depth map · white is closer</figcaption></figure>
-        </div>
-        <p class="note" id="detectNote"></p>
-        <div id="cutoutFields" style="display:contents">
-          <div class="field">
-            <label for="mode">Shape</label>
-            <select id="mode">
-              <option value="round">Rounded, like a pillow</option>
-              <option value="flat">Flat cut-out</option>
-              <option value="bright">Brightness sets height</option>
-            </select>
-          </div>
-          <div class="field" id="thickField">
-            <label for="thick">Line thickness <output id="thickOut"></output></label>
-            <input type="range" id="thick" min="0" max="30" step="1" value="0">
-            <small>Turn this up for outline or line-art logos so thin strokes stay visible.</small>
-          </div>
-        </div>
-        <label class="check"><input type="checkbox" id="invert"> <span>Invert depth<br><small style="color:var(--muted)">Use this if the background pops out instead of the shape.</small></span></label>
-        <div class="field">
-          <label for="soft">Edge softness <output id="softOut"></output></label>
-          <input type="range" id="soft" min="0" max="12" step="1" value="0">
-        </div>
-      </section>
-
-      <section class="group">
-        <h2><b>2</b> Depth and viewing</h2>
-        <div class="field">
-          <span class="lbl">Viewing method</span>
-          <div class="seg" role="radiogroup" aria-label="Viewing method">
-            <input type="radio" name="view" id="viewParallel" value="parallel" checked><label for="viewParallel">Look through</label>
-            <input type="radio" name="view" id="viewCross" value="cross"><label for="viewCross">Cross-eyed</label>
-          </div>
-        </div>
-        <div class="field">
-          <label for="depth">Depth <output id="depthOut"></output></label>
-          <input type="range" id="depth" min="0.2" max="1" step="0.05" value="0.8">
-        </div>
-        <div class="field">
-          <label for="repeat">Pattern repeat <output id="repeatOut"></output></label>
-          <input type="range" id="repeat" min="70" max="360" step="2" value="120">
-          <small>Smaller is easier to fuse on a small screen; larger gives more depth on a big one. For A4 print, about 300 px (2.5 cm).</small>
-        </div>
-      </section>
-
-      <section class="group">
-        <h2><b>3</b> Pattern</h2>
-        <div class="field">
-          <label for="pattern">Texture</label>
-          <select id="pattern">
-            <option value="noise">Soft color noise</option>
-            <option value="color">Color dots</option>
-            <option value="mono">Black and white dots</option>
-            <option value="custom">My own image</option>
-          </select>
-        </div>
-        <div class="drop" id="texDrop" hidden>
-          <strong>Choose a texture image</strong>
-          <span>busy photos and patterns work best</span>
-          <input type="file" id="texInput" accept="image/*" aria-label="Choose a texture image">
-        </div>
-        <div class="field" id="grainField">
-          <label for="grain">Grain size <output id="grainOut"></output></label>
-          <input type="range" id="grain" min="1" max="6" step="1" value="2">
-        </div>
-      </section>
-
-      <section class="group">
-        <h2><b>4</b> Output</h2>
-        <div class="field">
-          <label for="size">Image size</label>
-          <select id="size">
-            <option value="1280x720">1280 × 720</option>
-            <option value="1600x900" selected>1600 × 900</option>
-            <option value="1920x1080">1920 × 1080</option>
-            <option value="2560x1440">2560 × 1440</option>
-            <option value="1200x1200">1200 × 1200 square</option>
-            <option value="2480x3508">A4 portrait, 300 dpi (2480 × 3508)</option>
-          </select>
-        </div>
-        <label class="check"><input type="checkbox" id="dots"> <span>Focus dots at the top</span></label>
-      </section>
-    </aside>
-
-    <section class="stage" aria-label="Stereogram">
-      <div class="toolbar">
-        <div class="actions">
-          <button type="button" id="dotsBtn" aria-pressed="false" title="Two dots at the top that help you lock your eyes in">Focus dots: off</button>
-          <button type="button" id="reseed">New pattern</button>
-          <button type="button" id="fs">Fullscreen</button>
-          <button type="button" id="exportHtml" title="Save a single .html file with the stereogram inside">Export HTML</button>
-          <button type="button" class="primary" id="download">Download PNG</button>
+  <aside class="side" aria-label="Settings">
+    <section>
+      <h2>What to hide</h2>
+      <label for="source">Source</label>
+      <select id="source">
+        <option value="logo">Logo</option>
+        <option value="julia">Today's Julia set</option>
+      </select>
+      <div class="drop" id="drop">
+        <strong>Use your own logo</strong>
+        <span>Drop, paste or click to choose</span>
+        <input type="file" id="logoInput" accept="image/*" aria-label="Choose a logo image">
+      </div>
+      <div class="previews">
+        <figure>
+          <div class="box light" id="srcBox"><img id="logoThumb" alt="Source preview"></div>
+          <div class="capline"><figcaption id="logoName">Salemi group mouse</figcaption><button type="button" class="small" id="resetLogo" title="Back to the Salemi group mouse" hidden>Reset</button></div>
+        </figure>
+        <figure><div class="box"><canvas id="depthThumb" aria-label="Depth map preview"></canvas></div><figcaption>Depth map</figcaption></figure>
+      </div>
+      <p class="note" id="note"></p>
+      <div id="cutoutFields">
+        <label for="mode">Shape</label>
+        <select id="mode">
+          <option value="round">Rounded, like a pillow</option>
+          <option value="flat">Flat cut-out</option>
+          <option value="bright">Brightness sets height</option>
+        </select>
+        <div id="thickField">
+          <label for="thick">Line thickness <output id="thickOut"></output></label>
+          <input type="range" id="thick" min="0" max="30" step="1" value="0">
         </div>
       </div>
-      <span class="status" id="status">Rendering…</span>
-      <div class="viewer" id="viewer">
-        <img id="out" alt="Stereogram with a hidden shape">
-      </div>
-      <p class="hint">Double-click the image to go fullscreen. You can also drop or paste a logo straight onto it. Export HTML saves a single file with the stereogram inside that opens in any browser.</p>
+      <label for="soft">Edge softness <output id="softOut"></output></label>
+      <input type="range" id="soft" min="0" max="12" step="1" value="0">
+      <label class="check"><input type="checkbox" id="invert"> Invert depth</label>
+    </section>
 
-      <div class="howto">
-        <div>
-          <h3>Look through (default)</h3>
-          <ol>
-            <li>Go fullscreen, or make the image big.</li>
-            <li>Put your nose near the screen so everything is blurry, and stare as if looking at something far behind it.</li>
-            <li>Lean back slowly without refocusing. The two focus dots split into four; when the middle two merge into three, hold still.</li>
-            <li>The shape surfaces out of the pattern. Once it locks in, you can look around it.</li>
-          </ol>
-        </div>
-        <div>
-          <h3>Cross-eyed</h3>
-          <ol>
-            <li>Switch "Viewing method" to Cross-eyed.</li>
-            <li>Hold a fingertip halfway between your eyes and the screen and focus on it.</li>
-            <li>Move the finger until the focus dots behind it look like three, then shift your attention to the image while keeping that crossing.</li>
-          </ol>
-        </div>
-        <div>
-          <h3>What works best</h3>
-          <p>Bold, chunky shapes with clear edges. Thin lettering and fine lines tend to vanish. A logo on a transparent or plain background gives the cleanest cut-out; for gradients or shaded logos, try "Brightness sets height". The smooth shapes (sphere, ripples, Julia set) show off real depth rather than flat layers.</p>
-        </div>
+    <section>
+      <h2>Depth and viewing</h2>
+      <span class="lbl">Viewing method</span>
+      <div class="seg" role="radiogroup" aria-label="Viewing method">
+        <input type="radio" name="view" id="viewParallel" value="parallel" checked><label for="viewParallel">Look through</label>
+        <input type="radio" name="view" id="viewCross" value="cross"><label for="viewCross">Cross-eyed</label>
+      </div>
+      <label for="depth">Depth <output id="depthOut"></output></label>
+      <input type="range" id="depth" min="0.2" max="1" step="0.05" value="0.8">
+      <label for="repeat">Pattern repeat <output id="repeatOut"></output></label>
+      <input type="range" id="repeat" min="70" max="360" step="2" value="120">
+    </section>
+
+    <section>
+      <h2>Background</h2>
+      <label for="pattern">Pattern</label>
+      <div class="row">
+        <select id="pattern">
+          <option value="noise">Soft colour noise</option>
+          <option value="color">Colour dots</option>
+          <option value="mono">Black and white dots</option>
+          <option value="marble">Marble</option>
+          <option value="waves">Waves</option>
+          <option value="foliage">Foliage</option>
+          <option value="pebbles">Pebbles</option>
+          <option value="terrazzo">Terrazzo</option>
+          <option value="random">Random</option>
+          <option value="custom">My own image</option>
+        </select>
+        <button type="button" id="randomBg" title="A new random background">Random</button>
+      </div>
+      <div class="drop" id="texDrop" hidden>
+        <strong>Choose a background image</strong>
+        <span>Drop or click to choose</span>
+        <input type="file" id="texInput" accept="image/*" aria-label="Choose a background image">
+      </div>
+      <div id="grainField">
+        <label for="grain">Grain size <output id="grainOut"></output></label>
+        <input type="range" id="grain" min="1" max="6" step="1" value="2">
       </div>
     </section>
-  </main>
+
+    <section>
+      <h2>Output</h2>
+      <label for="size">Image size</label>
+      <select id="size">
+        <option value="1280x720">1280 × 720</option>
+        <option value="1600x900" selected>1600 × 900</option>
+        <option value="1920x1080">1920 × 1080</option>
+        <option value="2560x1440">2560 × 1440</option>
+        <option value="1200x1200">1200 × 1200 square</option>
+        <option value="2480x3508">A4 portrait, 300 dpi (2480 × 3508)</option>
+        <option value="custom">Custom size</option>
+      </select>
+      <div class="wh" id="customSize" hidden>
+        <input type="number" id="customW" min="400" max="6000" step="10" value="1600" aria-label="Width in pixels">
+        <span>×</span>
+        <input type="number" id="customH" min="400" max="6000" step="10" value="900" aria-label="Height in pixels">
+        <span>px</span>
+      </div>
+      <label class="check"><input type="checkbox" id="dots"> Focus dots at the top</label>
+    </section>
+  </aside>
+
+  <section class="view" aria-label="Stereogram">
+    <div class="toolbar">
+      <span class="status" id="status">Rendering…</span>
+      <div class="actions">
+        <button type="button" id="dotsBtn" aria-pressed="false" title="Two dots at the top that help you lock your eyes in">Focus dots: off</button>
+        <button type="button" id="reseed">New pattern</button>
+        <button type="button" id="fs">Fullscreen</button>
+        <button type="button" id="exportHtml" title="Save a single .html file with the stereogram inside">Export HTML</button>
+        <button type="button" class="primary" id="download">Download PNG</button>
+      </div>
+    </div>
+    <div class="viewer" id="viewer">
+      <img id="out" alt="Stereogram with a hidden logo">
+    </div>
+
+    <div class="howto">
+      <div>
+        <h3>Look through (default)</h3>
+        <ol>
+          <li>Go fullscreen, or make the image big.</li>
+          <li>Put your nose near the screen so everything is blurry, and stare as if looking at something far behind it.</li>
+          <li>Lean back slowly without refocusing. The two focus dots split into four; when the middle two merge into three, hold still.</li>
+          <li>The shape surfaces out of the pattern. Once it locks in, you can look around it.</li>
+        </ol>
+      </div>
+      <div>
+        <h3>Cross-eyed</h3>
+        <ol>
+          <li>Switch "Viewing method" to Cross-eyed.</li>
+          <li>Hold a fingertip halfway between your eyes and the screen and focus on it.</li>
+          <li>Move the finger until the focus dots behind it look like three, then shift your attention to the image while keeping that crossing.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
 </div>
 
-<script src="../assets/julia-day.js?v=20261122i"></script>
+<script src="../assets/julia-day.js?v=20261122j"></script>
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
   const MU = 1 / 3; // depth of field as a fraction of viewing distance (Thimbleby, Inglis and Witten)
-  const state = { logo: null, logoInfo: null, upload: null, uploadName: '', texture: null, seed: 1, url: null, blob: null };
-  const PROCEDURAL = ['sphere', 'torus', 'ripple', 'stairs', 'julia'];
+  const MOUSE_URL = '../assets/salemi-mouse.svg';
+  const SIZE_MIN = 400, SIZE_MAX = 6000;
+  const state = {
+    logo: null, logoInfo: null, mouse: null, upload: null, uploadName: '',
+    texture: null, seed: 1, random: null, texCache: null, url: null, blob: null,
+  };
 
   // ---------- helpers ----------
   function mulberry32(a) {
@@ -331,44 +322,59 @@ button.on { border-color: var(--accent); color: var(--accent); }
   const blur3 = (a, W, H, r) => boxBlur(boxBlur(boxBlur(a, W, H, r), W, H, r), W, H, r);
   const dims = (img) => [img.naturalWidth || img.width || 512, img.naturalHeight || img.height || 512];
   const hex = (c) => '#' + c.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+  const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const clampSize = (v, fallback) => {
+    v = Math.round(+v);
+    return Number.isFinite(v) && v > 0 ? Math.min(SIZE_MAX, Math.max(SIZE_MIN, v)) : fallback;
+  };
+  function loadImg(src) {
+    return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+  }
 
-  // ---------- text source: black lettering on a transparent canvas ----------
-  function textImage(str) {
-    str = str.trim() || ' ';
-    const c = document.createElement('canvas'), g = c.getContext('2d');
-    const fs = 400, font = `900 ${fs}px "Arial Black", "Segoe UI Black", Impact, system-ui, sans-serif`;
-    g.font = font;
-    const w = Math.ceil(g.measureText(str).width) + 80;
-    c.width = Math.max(200, w); c.height = Math.round(fs * 1.3);
-    g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#111';
-    g.fillText(str, c.width / 2, c.height / 2 + fs * 0.04);
+  // ---------- default logo: the Salemi group mouse ----------
+  // The SVG is line art. To give it real body in 3D, a filled silhouette (each path closed and filled)
+  // sits at mid height and the original strokes stand on top of it.
+  async function loadMouse() {
+    const line = await loadImg(MOUSE_URL);
+    let filled = null;
+    try {
+      const txt = await (await fetch(MOUSE_URL)).text();
+      const doc = new DOMParser().parseFromString(txt, 'image/svg+xml');
+      doc.querySelectorAll('path').forEach((p) => { p.style.fill = '#000'; });
+      const u = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(doc)], { type: 'image/svg+xml' }));
+      try { filled = await loadImg(u); } finally { URL.revokeObjectURL(u); }
+    } catch (e) { filled = null; }
+    const [w0, h0] = dims(line), H = 900, W = Math.round(w0 * H / h0);
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    if (filled) { g.globalAlpha = 0.7; g.drawImage(filled, 0, 0, W, H); g.globalAlpha = 1; }
+    g.drawImage(line, 0, 0, W, H);
     return c;
   }
 
-  // ---------- procedural depth fields (0 = far, 1 = near) ----------
-  function proceduralDepth(kind, W, H) {
-    const z = new Float32Array(W * H), cx = W / 2, cy = H / 2, R = Math.min(W, H) * 0.36;
-    const js = kind === 'julia' ? JuliaDay.spec(JuliaDay.dateKey(new Date())) : null;
-    const jc = js && Math.cos(js.rot), jsn = js && Math.sin(js.rot);
+  // ---------- today's Julia set as a smooth height field (0 = far, 1 = near) ----------
+  const JULIA_R = 0.36, JULIA_SC = 1.5;
+  const juliaSpec = () => JuliaDay.spec(JuliaDay.dateKey(new Date()));
+  function juliaDepth(W, H) {
+    const z = new Float32Array(W * H), cx = W / 2, cy = H / 2, R = Math.min(W, H) * JULIA_R;
+    const js = juliaSpec(), jc = Math.cos(js.rot), jsn = Math.sin(js.rot);
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const dx = (x - cx) / R, dy = (y - cy) / R, r2 = dx * dx + dy * dy;
+      const dx = (x - cx) / R, dy = (y - cy) / R;
       let v = 0;
-      switch (kind) {
-        case 'sphere': v = r2 < 1 ? Math.sqrt(1 - r2) : 0; break;
-        case 'torus': { const a = Math.sqrt(r2) - 0.62, b = 0.3; v = Math.abs(a) < b ? Math.sqrt(b * b - a * a) / b : 0; break; }
-        case 'ripple': { const r = Math.sqrt(r2); v = 0.5 + 0.5 * Math.cos(r * 9) * Math.exp(-r * 1.1); break; }
-        case 'stairs': { const r = Math.max(Math.abs(dx), Math.abs(dy)); v = r < 1.15 ? Math.floor((1.15 - r) * 5) / 5 : 0; break; }
-        case 'julia': {
-          if (r2 > 2.6) break;
-          const sc = 1.5;
-          let zr = (dx * jc - dy * jsn) * sc, zi = (dx * jsn + dy * jc) * sc, n = 0;
-          for (; n < 80 && zr * zr + zi * zi < 16; n++) { const t = zr * zr - zi * zi + js.c[0]; zi = 2 * zr * zi + js.c[1]; zr = t; }
-          v = n >= 80 ? 1 : Math.pow(n / 80, 0.6); break;
-        }
+      if (dx * dx + dy * dy <= 2.6) {
+        let zr = (dx * jc - dy * jsn) * JULIA_SC, zi = (dx * jsn + dy * jc) * JULIA_SC, n = 0;
+        for (; n < 80 && zr * zr + zi * zi < 16; n++) { const t = zr * zr - zi * zi + js.c[0]; zi = 2 * zr * zi + js.c[1]; zr = t; }
+        v = n >= 80 ? 1 : Math.pow(n / 80, 0.6);
       }
       z[y * W + x] = v;
     }
     return z;
+  }
+  function juliaThumb(W, H) {
+    const c = document.createElement('canvas'), ph = 180, pw = Math.max(1, Math.round(ph * W / H));
+    c.width = pw; c.height = ph;
+    JuliaDay.renderCPU(c, juliaSpec(), { maxIt: 160, zoom: JULIA_SC / JULIA_R });
+    return c.toDataURL();
   }
 
   // ---------- logo analysis: transparency or background color ----------
@@ -392,11 +398,11 @@ button.on { border-color: var(--accent); color: var(--accent); }
 
   // ---------- depth map ----------
   function buildDepth(W, H) {
-    const source = $('source').value, invert = $('invert').checked, soft = +$('soft').value;
-    if (PROCEDURAL.includes(source)) {
-      let z = proceduralDepth(source, W, H);
+    const invert = $('invert').checked, soft = +$('soft').value;
+    const sScaled = Math.round(soft * W / 1600);
+    if ($('source').value === 'julia') {
+      const z = juliaDepth(W, H);
       if (invert) for (let i = 0; i < z.length; i++) z[i] = 1 - z[i];
-      const sScaled = Math.round(soft * W / 1600);
       return sScaled > 0 ? blur3(z, W, H, sScaled) : z;
     }
     const img = state.logo, info = state.logoInfo, mode = $('mode').value;
@@ -417,12 +423,10 @@ button.on { border-color: var(--accent); color: var(--accent); }
         let l = (0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2]) / 255;
         if (invert) l = 1 - l;
         v = info.useAlpha ? l * a : l;
-      } else {
-        if (info.useAlpha) v = a;
-        else {
-          const dr = d[p] - br, dg = d[p + 1] - bgc, db = d[p + 2] - bb;
-          v = Math.min(1, Math.max(0, (Math.sqrt(dr * dr + dg * dg + db * db) - 24) / 72));
-        }
+      } else if (info.useAlpha) v = a;
+      else {
+        const dr = d[p] - br, dg = d[p + 1] - bgc, db = d[p + 2] - bb;
+        v = Math.min(1, Math.max(0, (Math.sqrt(dr * dr + dg * dg + db * db) - 24) / 72));
       }
       m[i] = v;
     }
@@ -446,12 +450,52 @@ button.on { border-color: var(--accent); color: var(--accent); }
         z[i] = src[i] * (0.45 + 0.55 * Math.sqrt(t));
       }
     }
-    const sScaled = Math.round(soft * W / 1600);
     if (sScaled > 0) z = blur3(z, W, H, sScaled);
     return z;
   }
 
-  // ---------- texture sources ----------
+  // ---------- backgrounds ----------
+  const PALETTES = {
+    stone: ['#26252c', '#5f5a63', '#a59e95', '#dcd5c9', '#f5f1e8'],
+    ocean: ['#03203a', '#0b4f6c', '#1f8a9e', '#7fd1c7', '#e6f7f2'],
+    forest: ['#0b1a0f', '#1f4d22', '#3f7d2c', '#86b443', '#d6e68a'],
+    autumn: ['#2a1208', '#7a2e0e', '#c4561a', '#e8a33d', '#f6dc8a'],
+    sunset: ['#1d0f33', '#5b1f5e', '#b23a5a', '#f07a4a', '#ffd38a'],
+    berry: ['#1a0b1f', '#4a1747', '#8e2c6b', '#d95f8c', '#f7c1cf'],
+    sand: ['#3b2f25', '#7a634b', '#b89a72', '#dcc6a0', '#f3e8d2'],
+    slate: ['#101418', '#2b3640', '#4f6272', '#8aa0b0', '#d3dde4'],
+    mint: ['#0f2a2a', '#1f5f56', '#3fa38a', '#9fe0c0', '#effff6'],
+    candy: ['#2d3a4a', '#c0533b', '#e0a43a', '#5f8f7a', '#f1ebe0'],
+  };
+  const BG_NAMES = {
+    noise: 'Soft colour noise', color: 'Colour dots', mono: 'Black and white dots', marble: 'Marble',
+    waves: 'Waves', foliage: 'Foliage', pebbles: 'Pebbles', terrazzo: 'Terrazzo',
+  };
+  const DEFAULT_PAL = { marble: 'stone', waves: 'ocean', foliage: 'forest', pebbles: 'sand', terrazzo: 'candy' };
+  const RANDOM_KINDS = ['noise', 'color', 'marble', 'waves', 'foliage', 'pebbles', 'terrazzo'];
+
+  function randomRecipe() {
+    const prev = state.random;
+    let kind, pal;
+    do {
+      kind = RANDOM_KINDS[Math.floor(Math.random() * RANDOM_KINDS.length)];
+      const keys = Object.keys(PALETTES);
+      pal = keys[Math.floor(Math.random() * keys.length)];
+    } while (prev && prev.kind === kind && prev.pal === pal);
+    return { kind, pal, scale: 0.75 + Math.random() * 0.6, seed: 1 + Math.floor(Math.random() * 1e9) };
+  }
+  function currentRecipe() {
+    const kind = $('pattern').value;
+    if (kind === 'random') {
+      if (!state.random) state.random = randomRecipe();
+      return state.random;
+    }
+    const k = kind === 'custom' ? 'noise' : kind;
+    return { kind: k, pal: DEFAULT_PAL[k] || null, scale: 1, seed: state.seed };
+  }
+  const recipeName = (r) => BG_NAMES[r.kind] + (r.pal && !['noise', 'color', 'mono'].includes(r.kind) ? ', ' + r.pal : '');
+
+  // dot fields: noise, color dots, black and white dots
   function makeField(kind, W, H, grain, seed) {
     const rnd = mulberry32(seed * 7919 + kind.charCodeAt(0));
     const data = new Uint8ClampedArray(W * H * 4);
@@ -485,6 +529,158 @@ button.on { border-color: var(--accent); color: var(--accent); }
       }
     }
     return { w: W, h: H, data };
+  }
+
+  // value noise and a 256-step palette ramp for the generated textures
+  function valueNoise(seed) {
+    const rnd = mulberry32(seed * 977 + 13), tab = new Float32Array(65536);
+    for (let i = 0; i < tab.length; i++) tab[i] = rnd();
+    return (x, y) => {
+      const xi = Math.floor(x), yi = Math.floor(y);
+      let fx = x - xi, fy = y - yi;
+      fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+      const x0 = xi & 255, x1 = (xi + 1) & 255, y0 = (yi & 255) << 8, y1 = ((yi + 1) & 255) << 8;
+      const a = tab[x0 | y0], b = tab[x1 | y0], c = tab[x0 | y1], d = tab[x1 | y1];
+      return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+    };
+  }
+  function fbm(n, x, y, oct) {
+    let s = 0, amp = 0.5, f = 1, norm = 0;
+    for (let o = 0; o < oct; o++) { s += amp * n(x * f + o * 17.31, y * f - o * 9.17); norm += amp; amp *= 0.5; f *= 2.03; }
+    return s / norm;
+  }
+  function ramp(stops) {
+    const cols = stops.map(rgb), lut = new Uint8ClampedArray(256 * 3);
+    for (let i = 0; i < 256; i++) {
+      const t = i / 255 * (cols.length - 1), k = Math.min(cols.length - 2, Math.floor(t)), f = t - k;
+      for (let j = 0; j < 3; j++) lut[i * 3 + j] = cols[k][j] + (cols[k + 1][j] - cols[k][j]) * f;
+    }
+    return lut;
+  }
+  // evaluates fn on a grid every `step` px and interpolates in between (the fine grain is added later)
+  function fieldFromFn(W, H, lut, fn, step) {
+    const gw = Math.ceil(W / step) + 1, gh = Math.ceil(H / step) + 1, grid = new Float32Array(gw * gh);
+    for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) grid[j * gw + i] = fn(i * step, j * step);
+    const data = new Uint8ClampedArray(W * H * 4), inv = 1 / step;
+    for (let y = 0, p = 0; y < H; y++) {
+      const j = (y * inv) | 0, fy = y * inv - j, r0 = j * gw, r1 = r0 + gw;
+      for (let x = 0; x < W; x++, p += 4) {
+        const i = (x * inv) | 0, fx = x * inv - i;
+        const top = grid[r0 + i] + (grid[r0 + i + 1] - grid[r0 + i]) * fx;
+        const bot = grid[r1 + i] + (grid[r1 + i + 1] - grid[r1 + i]) * fx;
+        const k = Math.max(0, Math.min(255, ((top + (bot - top) * fy) * 255) | 0)) * 3;
+        data[p] = lut[k]; data[p + 1] = lut[k + 1]; data[p + 2] = lut[k + 2]; data[p + 3] = 255;
+      }
+    }
+    return data;
+  }
+  // fine per-pixel grain so every texture has detail the eyes can lock onto
+  function addGrain(data, W, H, amt, seed) {
+    const n = valueNoise(seed + 99), rnd = mulberry32(seed + 5);
+    for (let y = 0, p = 0; y < H; y++) for (let x = 0; x < W; x++, p += 4) {
+      const j = (n(x * 0.45, y * 0.45) - 0.5) * amt + (rnd() - 0.5) * amt * 0.6;
+      data[p] += j; data[p + 1] += j; data[p + 2] += j;
+    }
+  }
+  function canvasField(W, H, draw) {
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    draw(g);
+    return g.getImageData(0, 0, W, H).data;
+  }
+  const shade = (c, k) => hex(c.map((v) => Math.max(0, Math.min(255, v * k))));
+
+  function makeTexture(r, W, H, unit) {
+    const rnd = mulberry32(r.seed * 2654435761 + r.kind.length);
+    const pal = PALETTES[r.pal] || PALETTES.stone;
+    const cols = pal.map(rgb);
+    const u = Math.max(3, unit * r.scale);
+    let data;
+    if (r.kind === 'marble') {
+      const n = valueNoise(r.seed), s = u * 4, ang = (rnd() - 0.5) * 1.4, ca = Math.cos(ang), sa = Math.sin(ang);
+      const freq = 1 / u, turb = 4 + rnd() * 3, n2 = valueNoise(r.seed + 7), lut = ramp(pal);
+      data = fieldFromFn(W, H, lut, (x, y) => {
+        const t = fbm(n, x / s, y / s, 4);
+        const v = Math.pow(Math.abs(Math.sin((x * ca + y * sa) * freq + turb * t)), 0.6);
+        return v * 0.62 + fbm(n2, x / (u * 0.6), y / (u * 0.6), 2) * 0.38;
+      }, Math.max(1, Math.round(u / 8)));
+    } else if (r.kind === 'waves') {
+      const n = valueNoise(r.seed), lut = ramp(pal), waves = [];
+      for (let k = 0; k < 3; k++) {
+        const a = (rnd() - 0.5) * 2.4, lam = u * (1.3 + rnd() * 1.5);
+        waves.push([Math.cos(a) * 2 * Math.PI / lam, Math.sin(a) * 2 * Math.PI / lam, rnd() * 6.28]);
+      }
+      data = fieldFromFn(W, H, lut, (x, y) => {
+        const w = fbm(n, x / (u * 3), y / (u * 3), 3) * 5;
+        let s = 0;
+        for (let k = 0; k < 3; k++) s += Math.sin(x * waves[k][0] + y * waves[k][1] + waves[k][2] + w);
+        return 0.5 + s / 6;
+      }, Math.max(1, Math.round(u / 8)));
+    } else if (r.kind === 'foliage') {
+      data = canvasField(W, H, (g) => {
+        g.fillStyle = shade(cols[0], 0.7); g.fillRect(0, 0, W, H);
+        const L = u * 1.7, N = Math.ceil(W * H / (L * L) * 2.6);
+        for (let i = 0; i < N; i++) {
+          const len = L * (0.6 + 0.8 * rnd()), wid = len * (0.26 + 0.14 * rnd());
+          const c = cols[1 + Math.floor(rnd() * (cols.length - 1))], k = 0.7 + 0.45 * rnd();
+          g.setTransform(1, 0, 0, 1, rnd() * (W + L) - L / 2, rnd() * (H + L) - L / 2);
+          g.rotate(rnd() * Math.PI * 2);
+          g.beginPath(); g.moveTo(-len / 2, 0);
+          g.quadraticCurveTo(0, -wid, len / 2, 0); g.quadraticCurveTo(0, wid, -len / 2, 0);
+          g.fillStyle = shade(c, k); g.fill();
+          g.beginPath(); g.moveTo(-len / 2, 0); g.lineTo(len * 0.42, 0);
+          g.lineWidth = Math.max(1, len / 28); g.strokeStyle = shade(c, k * 0.6); g.stroke();
+        }
+      });
+    } else if (r.kind === 'pebbles') {
+      data = canvasField(W, H, (g) => {
+        g.fillStyle = shade(cols[0], 0.8); g.fillRect(0, 0, W, H);
+        const R0 = u * 0.75, N = Math.ceil(W * H / (R0 * R0) * 0.9);
+        for (let i = 0; i < N; i++) {
+          const rr = R0 * (0.35 + 0.9 * rnd() * rnd()), asp = 0.65 + 0.35 * rnd();
+          const c = cols[1 + Math.floor(rnd() * (cols.length - 1))], k = 0.75 + 0.35 * rnd();
+          g.setTransform(1, 0, 0, 1, rnd() * (W + rr * 2) - rr, rnd() * (H + rr * 2) - rr);
+          g.rotate(rnd() * Math.PI);
+          const gr = g.createRadialGradient(-rr * 0.35, -rr * 0.35 * asp, rr * 0.05, 0, 0, rr);
+          gr.addColorStop(0, shade(c, k * 1.3)); gr.addColorStop(0.55, shade(c, k)); gr.addColorStop(1, shade(c, k * 0.55));
+          g.beginPath(); g.ellipse(0, 0, rr, rr * asp, 0, 0, Math.PI * 2);
+          g.fillStyle = gr; g.fill();
+        }
+      });
+    } else { // terrazzo
+      data = canvasField(W, H, (g) => {
+        const base = cols[cols.length - 1];
+        g.fillStyle = hex(base); g.fillRect(0, 0, W, H);
+        const R0 = u * 0.55, N = Math.ceil(W * H / (R0 * R0) * 1.3);
+        for (let i = 0; i < N; i++) {
+          const big = rnd() < 0.35, rr = R0 * (big ? 0.6 + 0.7 * rnd() : 0.15 + 0.35 * rnd());
+          const c = cols[Math.floor(rnd() * (cols.length - 1))], sides = 3 + Math.floor(rnd() * 4);
+          g.setTransform(1, 0, 0, 1, rnd() * W, rnd() * H);
+          g.rotate(rnd() * Math.PI * 2);
+          g.beginPath();
+          for (let v = 0; v < sides; v++) {
+            const a = (v + rnd() * 0.6) / sides * Math.PI * 2, d = rr * (0.6 + 0.4 * rnd());
+            v ? g.lineTo(Math.cos(a) * d, Math.sin(a) * d) : g.moveTo(Math.cos(a) * d, Math.sin(a) * d);
+          }
+          g.closePath(); g.fillStyle = shade(c, 0.85 + 0.3 * rnd()); g.fill();
+        }
+      });
+    }
+    addGrain(data, W, H, 34, r.seed);
+    return { w: W, h: H, data };
+  }
+
+  function backgroundTexture(r, W, H, sBg) {
+    const grain = +$('grain').value, repeat = +$('repeat').value;
+    const dots = ['noise', 'color', 'mono'].includes(r.kind);
+    const key = [r.kind, r.pal, r.scale, r.seed, W, H, grain, dots ? 0 : repeat].join('|');
+    if (state.texCache && state.texCache.key === key) return state.texCache.tex;
+    state.texCache = null; // let the old one go before allocating a new one
+    const tex = dots
+      ? makeField(r.kind, W, H, grain, r.seed)
+      : makeTexture(r, W, H, repeat / 6 * grain / 2);
+    state.texCache = { key, tex };
+    return tex;
   }
   function makeTile(img, tw) {
     const [iw, ih] = dims(img), th = Math.max(1, Math.round(ih * tw / iw));
@@ -547,18 +743,23 @@ button.on { border-color: var(--accent); color: var(--accent); }
   }
 
   // ---------- main pipeline ----------
+  function getSize() {
+    if ($('size').value !== 'custom') return $('size').value.split('x').map(Number);
+    return [clampSize($('customW').value, 1600), clampSize($('customH').value, 900)];
+  }
+
   const canvas = document.createElement('canvas');
   function generate() {
     const t0 = performance.now();
-    const source = $('source').value;
-    if (!PROCEDURAL.includes(source) && !state.logo) { $('status').textContent = 'Choose a logo to start.'; return; }
-    const [W, H] = $('size').value.split('x').map(Number);
+    const julia = $('source').value === 'julia';
+    if (!julia && !state.logo) { $('status').textContent = 'Loading the logo…'; return; }
+    const [W, H] = getSize();
     const repeat = +$('repeat').value, E = repeat * 2, strength = +$('depth').value;
     const cross = $('viewCross').checked;
     const z = buildDepth(W, H);
 
     // depth preview (white = closer, before cross-eyed flip)
-    const dt = $('depthThumb'), pw = 320, ph = Math.round(320 * H / W);
+    const dt = $('depthThumb'), pw = 320, ph = Math.max(1, Math.round(320 * H / W));
     dt.width = pw; dt.height = ph;
     const pd = new ImageData(pw, ph);
     for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
@@ -566,15 +767,13 @@ button.on { border-color: var(--accent); color: var(--accent); }
       pd.data[p] = pd.data[p + 1] = pd.data[p + 2] = v; pd.data[p + 3] = 255;
     }
     dt.getContext('2d').putImageData(pd, 0, 0);
-    if (PROCEDURAL.includes(source)) $('logoThumb').src = dt.toDataURL();
+    if (julia) $('logoThumb').src = juliaThumb(W, H);
 
     for (let i = 0; i < z.length; i++) z[i] = (cross ? 1 - z[i] : z[i]) * strength;
     const zb = z[0], sBg = Math.round((1 - MU * zb) * E / (2 - MU * zb));
 
-    const kind = $('pattern').value;
-    const tex = (kind === 'custom' && state.texture)
-      ? makeTile(state.texture, sBg)
-      : makeField(kind === 'custom' ? 'noise' : kind, W, H, +$('grain').value, state.seed);
+    const kind = $('pattern').value, recipe = currentRecipe();
+    const tex = (kind === 'custom' && state.texture) ? makeTile(state.texture, sBg) : backgroundTexture(recipe, W, H, sBg);
 
     const img = stereogram(z, W, H, E, tex);
     canvas.width = W; canvas.height = H;
@@ -590,37 +789,40 @@ button.on { border-color: var(--accent); color: var(--accent); }
       $('out').src = state.url;
     }, 'image/png');
 
-    $('status').textContent = `${W} × ${H} px · repeat ${sBg} px · ${Math.round(performance.now() - t0)} ms`;
+    const bg = kind === 'random' ? ' · ' + recipeName(recipe) : '';
+    $('status').textContent = `${W} × ${H} px · repeat ${sBg} px${bg} · ${Math.round(performance.now() - t0)} ms`;
   }
 
   let timer = 0;
-  function schedule() {
+  function schedule(delay = 80) {
     clearTimeout(timer);
     $('status').textContent = 'Rendering…';
     timer = setTimeout(() => {
       try { generate(); }
       catch (e) { $('status').innerHTML = '<span class="error">Could not render: ' + (e && e.message ? e.message : e) + '</span>'; }
-    }, 80);
+    }, delay);
   }
 
   function syncLabels() {
-    const source = $('source').value, procedural = PROCEDURAL.includes(source);
+    const julia = $('source').value === 'julia';
     const dotsOn = $('dots').checked;
     $('dotsBtn').textContent = 'Focus dots: ' + (dotsOn ? 'on' : 'off');
     $('dotsBtn').setAttribute('aria-pressed', String(dotsOn));
     $('dotsBtn').classList.toggle('on', dotsOn);
-    $('softOut').textContent = $('soft').value + ' px';
+    $('softOut').textContent = $('soft').value === '0' ? 'off' : $('soft').value + ' px';
     $('thickOut').textContent = $('thick').value === '0' ? 'off' : '+' + $('thick').value + ' px';
-    $('textField').hidden = source !== 'text';
-    $('drop').hidden = source !== 'image';
-    $('cutoutFields').style.display = procedural ? 'none' : 'contents';
+    $('drop').hidden = julia;
+    $('cutoutFields').hidden = julia;
     $('thickField').hidden = $('mode').value === 'bright';
+    $('resetLogo').hidden = julia || !state.upload;
+    $('srcBox').classList.toggle('light', !julia);
     $('depthOut').textContent = Math.round(+$('depth').value * 100) + '%';
     $('repeatOut').textContent = $('repeat').value + ' px';
-    $('grainOut').textContent = $('grain').value + ' px';
     const custom = $('pattern').value === 'custom';
+    $('grainOut').textContent = $('grain').value;
     $('texDrop').hidden = !custom;
     $('grainField').hidden = custom && !!state.texture;
+    $('customSize').hidden = $('size').value !== 'custom';
   }
 
   function setLogo(img, name) {
@@ -628,45 +830,43 @@ button.on { border-color: var(--accent); color: var(--accent); }
     state.logoInfo = analyze(img);
     $('logoThumb').src = img instanceof HTMLCanvasElement ? img.toDataURL() : img.src;
     $('logoName').textContent = name;
-    $('detectNote').textContent = state.logoInfo.useAlpha
-      ? 'Using the transparency to cut out the shape.'
-      : 'Background color detected as ' + hex(state.logoInfo.bg) + '; everything that differs from it is raised.';
+    $('logoName').title = name;
     schedule();
   }
 
-  // switch what's hidden
-  const NAMES = { sphere: 'Sphere', torus: 'Torus', ripple: 'Ripples', stairs: 'Staircase pyramid' };
   function applySource() {
-    const source = $('source').value;
     syncLabels();
-    if (source === 'text') {
-      setLogo(textImage($('text').value), 'Text: “' + ($('text').value.trim() || ' ') + '”');
-    } else if (source === 'image') {
-      if (state.upload) setLogo(state.upload, state.uploadName);
-      else { state.logo = null; $('logoThumb').removeAttribute('src'); $('logoName').textContent = 'No logo yet'; $('detectNote').textContent = ''; schedule(); }
-    } else {
-      $('detectNote').textContent = source === 'julia'
-        ? 'Height follows how slowly each point escapes today’s Julia set.'
-        : 'A smooth surface, so you see real depth instead of flat layers.';
-      $('logoName').textContent = source === 'julia' ? 'Julia: “' + JuliaDay.spec(JuliaDay.dateKey(new Date())).name + '”' : NAMES[source];
+    $('note').textContent = '';
+    if ($('source').value === 'julia') {
+      const name = 'Julia: “' + juliaSpec().name + '”';
+      $('logoName').textContent = name; $('logoName').title = name;
       schedule();
+      return;
     }
+    const img = state.upload || state.mouse;
+    if (img) { setLogo(img, state.upload ? state.uploadName : 'Salemi group mouse'); return; }
+    state.logo = null;
+    $('logoThumb').removeAttribute('src');
+    $('logoName').textContent = 'Salemi group mouse';
+    schedule();
   }
 
   function loadImage(file, cb) {
-    if (!file || !/^image\//.test(file.type)) { $('detectNote').innerHTML = '<span class="error">That file isn’t an image. Try a PNG, JPG, SVG or WebP.</span>'; return; }
+    if (!file || !/^image\//.test(file.type)) { $('note').innerHTML = '<span class="error">That file isn’t an image. Try a PNG, JPG, SVG or WebP.</span>'; return; }
     const img = new Image(), reader = new FileReader();
-    img.onload = () => cb(img);
-    img.onerror = () => { $('detectNote').innerHTML = '<span class="error">Couldn’t read that image. Try saving it as PNG and uploading again.</span>'; };
+    img.onload = () => { $('note').textContent = ''; cb(img); };
+    img.onerror = () => { $('note').innerHTML = '<span class="error">Couldn’t read that image. Try saving it as PNG and uploading again.</span>'; };
     reader.onload = () => { img.src = reader.result; };
     reader.onerror = img.onerror;
     reader.readAsDataURL(file);
   }
   const takeLogo = (file) => loadImage(file, (img) => {
     state.upload = img; state.uploadName = file.name || 'Pasted image';
-    $('source').value = 'image'; applySource();
+    $('source').value = 'logo'; applySource();
   });
-  const takeTexture = (file) => loadImage(file, (img) => { state.texture = img; syncLabels(); schedule(); });
+  const takeTexture = (file) => loadImage(file, (img) => {
+    state.texture = img; $('pattern').value = 'custom'; syncLabels(); schedule();
+  });
 
   function wireDrop(el, input, handler) {
     input.addEventListener('change', () => { if (input.files[0]) handler(input.files[0]); input.value = ''; });
@@ -682,14 +882,48 @@ button.on { border-color: var(--accent); color: var(--accent); }
     const item = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith('image/'));
     if (item) takeLogo(item.getAsFile());
   });
+  $('resetLogo').addEventListener('click', () => { state.upload = null; state.uploadName = ''; applySource(); });
 
   $('source').addEventListener('input', applySource);
-  let tt = 0;
-  $('text').addEventListener('input', () => { clearTimeout(tt); tt = setTimeout(applySource, 150); });
-  ['mode', 'invert', 'thick', 'soft', 'depth', 'repeat', 'pattern', 'grain', 'size', 'dots', 'viewParallel', 'viewCross'].forEach((id) =>
+  ['mode', 'invert', 'thick', 'soft', 'depth', 'repeat', 'grain', 'dots', 'viewParallel', 'viewCross'].forEach((id) =>
     $(id).addEventListener('input', () => { syncLabels(); schedule(); }));
 
-  $('reseed').addEventListener('click', () => { state.seed++; schedule(); });
+  $('pattern').addEventListener('input', () => {
+    if ($('pattern').value === 'random') state.random = randomRecipe();
+    syncLabels(); schedule();
+  });
+  $('randomBg').addEventListener('click', () => {
+    state.random = randomRecipe();
+    $('pattern').value = 'random';
+    syncLabels(); schedule();
+  });
+  $('reseed').addEventListener('click', () => {
+    if ($('pattern').value === 'random' && state.random) state.random = { ...state.random, seed: state.random.seed + 1 };
+    else state.seed++;
+    schedule();
+  });
+
+  // output size: presets, or a custom width and height
+  $('size').addEventListener('input', () => {
+    if ($('size').value === 'custom') {
+      const prev = $('size').dataset.last;
+      if (prev) { const [w, h] = prev.split('x'); $('customW').value = w; $('customH').value = h; }
+    } else $('size').dataset.last = $('size').value;
+    syncLabels(); schedule();
+  });
+  $('size').dataset.last = $('size').value;
+  ['customW', 'customH'].forEach((id) => {
+    const el = $(id);
+    el.addEventListener('input', () => {
+      const v = +el.value;
+      if (v >= SIZE_MIN && v <= SIZE_MAX) schedule(500);
+    });
+    el.addEventListener('change', () => {
+      el.value = clampSize(el.value, id === 'customW' ? 1600 : 900);
+      schedule();
+    });
+  });
+
   $('dotsBtn').addEventListener('click', () => {
     $('dots').checked = !$('dots').checked;
     $('dots').dispatchEvent(new Event('input'));
@@ -737,6 +971,13 @@ button.on { border-color: var(--accent); color: var(--accent); }
   $('out').addEventListener('dblclick', toggleFs);
 
   applySource();
+  loadMouse().then((c) => {
+    state.mouse = c;
+    if ($('source').value === 'logo' && !state.upload) applySource();
+  }).catch(() => {
+    $('note').innerHTML = '<span class="error">Couldn’t load the mouse logo. Drop or choose your own logo instead.</span>';
+    $('status').textContent = 'Choose a logo to start.';
+  });
 })();
 </script>
 </body>

@@ -32,6 +32,12 @@
       if (el.dataset.email === "text") el.textContent = email;
     });
 
+    /* links to other websites open in a new tab, so visitors keep this page */
+    document.querySelectorAll("a[href]").forEach((el) => {
+      let url; try { url = new URL(el.getAttribute("href"), location.href); } catch (e) { return; }
+      if (/^https?:$/.test(url.protocol) && url.origin !== location.origin) { el.target = "_blank"; el.rel = "noopener noreferrer"; }
+    });
+
     /* highlight nav entry for the section in view */
     const links = [...document.querySelectorAll(".side nav a[href^='#']")].filter((a) => a.getAttribute("href") !== "#play");   // the playground column is always on screen
     const map = new Map(links.map((a) => [a.getAttribute("href").slice(1), a]));

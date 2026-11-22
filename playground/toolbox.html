@@ -1,0 +1,1063 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lab toolbox</title>
+<meta name="description" content="Small calculators for the lab: coplanar waveguide impedance, CPW resonators, dew point before opening a cryostat, unit conversions and inch threads.">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/toy.css?v=20261122k">
+<style>
+  html, body { height: auto; }
+  body { overflow-x: hidden; overflow-y: auto; line-height: 1.5; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 22px 16px 72px; }
+  .back { display: inline-block; color: var(--soft); font-size: 12.5px; }
+  .back:hover { color: var(--ink); text-decoration: none; }
+  h1 { font-family: var(--serif); font-weight: 500; font-size: 36px; letter-spacing: -.01em; line-height: 1.1; margin: 14px 0 6px; }
+  .lede { color: var(--soft); margin: 0 0 6px; max-width: 64ch; font-size: 14px; }
+
+  .tabs { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 6px;
+    padding: 12px 0; margin: 10px 0 20px; background: var(--bg); border-bottom: 1px solid var(--rule); }
+  .tabs button { padding: 6px 12px; flex: 0 0 auto; }
+  @media (max-width: 560px) { .tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px; }
+    .tabs::-webkit-scrollbar { display: none; } }
+
+  .tool { display: none; }
+  .tool.active { display: block; }
+  .tool h2 { font-family: var(--serif); font-weight: 500; font-size: 26px; letter-spacing: -.005em; line-height: 1.2; margin: 0 0 4px; }
+  .intro { color: var(--soft); margin: 0 0 16px; max-width: 72ch; }
+
+  .cols { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 780px) { .cols { grid-template-columns: minmax(0, 1fr); } h1 { font-size: 30px; } }
+  .card { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 16px; min-width: 0; }
+  .card + .card { margin-top: 16px; }
+  .card h3 { font-size: 13px; font-weight: 600; margin: 0 0 12px; color: var(--ink); }
+  .card h3 + .hint { margin: -8px 0 12px; }
+  .sep { border: 0; border-top: 1px solid var(--rule); margin: 16px 0; }
+
+  .fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  @media (max-width: 520px) { .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .inp input { padding-right: 44px; } }
+  #peek { display: none; }
+  @media (max-width: 780px) {
+    #peek { position: fixed; left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); z-index: 6;
+      display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+      background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 10px 14px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .4); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+    #peek .cap { color: var(--soft); font-size: 12.5px; }
+    #peek .val { font-family: var(--serif); font-size: 22px; }
+    #peek .val .u { font-size: 14px; color: var(--soft); margin-left: 3px; }
+    #peek.off { display: none; }
+  }
+  .fields .wide { grid-column: 1 / -1; }
+  .f label { display: block; color: var(--soft); font-size: 12.5px; font-weight: 500; margin: 0 0 5px; }
+  .inp { position: relative; }
+  .inp input { padding-right: 52px; font-variant-numeric: tabular-nums; }
+  .inp .u { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--soft); font-size: 12px; pointer-events: none; }
+  input[type=text].bad { border-color: #e0907e; background: rgba(224, 144, 126, .08); }
+  input[type=text]:disabled { color: var(--accent); background: rgba(143, 180, 236, .08); border-style: dashed; opacity: 1; }
+  input[type=text]:focus, select:focus, button:focus-visible { outline: 2px solid rgba(143, 180, 236, .55); outline-offset: 1px; }
+  .hide { display: none !important; }
+
+  .seg { display: inline-flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
+  .big { font-family: var(--serif); font-size: 42px; line-height: 1.05; margin: 2px 0 2px; font-variant-numeric: tabular-nums; }
+  .big .u { font-size: 20px; color: var(--soft); margin-left: 4px; }
+  .bigcap { color: var(--soft); font-size: 12.5px; margin-bottom: 12px; }
+  dl.res { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 14px; margin: 0; font-size: 13.5px; }
+  dl.res dt { color: var(--soft); }
+  dl.res dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  dl.res .grp { grid-column: 1 / -1; color: var(--ink); font-weight: 600; font-size: 12.5px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--rule); }
+  .msg { margin: 12px 0 0; font-size: 13px; }
+  .msg:empty { display: none; }
+  .ok { color: #9ccfa4; }
+  .warn { color: #e3c27f; }
+  .err { color: #e8a090; }
+  .verdict { border-left: 3px solid var(--rule); padding: 8px 12px; background: rgba(255, 255, 255, .03); border-radius: 0 6px 6px 0; margin: 0 0 12px; }
+  .verdict.ok { border-color: #9ccfa4; color: var(--ink); }
+  .verdict.warn { border-color: #e3c27f; color: var(--ink); }
+  .verdict.err { border-color: #e8a090; color: var(--ink); }
+  .verdict b { font-weight: 600; }
+
+  details.ref { margin-top: 16px; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 0 16px; }
+  details.ref summary { cursor: pointer; padding: 12px 0; color: var(--ink); font-weight: 500; }
+  details.ref[open] summary { border-bottom: 1px solid var(--rule); margin-bottom: 10px; }
+  details.ref ul { margin: 0 0 12px; padding-left: 18px; }
+  details.ref li { margin: 4px 0; }
+  details.ref p { margin: 6px 0 12px; color: var(--soft); }
+  details.ref h4 { margin: 12px 0 4px; font-size: 12.5px; font-weight: 600; }
+  .eq { font-family: var(--serif); font-size: 15.5px; color: var(--ink); }
+  .eq i { font-style: italic; }
+  .refs li { color: var(--soft); font-size: 12.5px; }
+
+  svg.xs { width: 100%; height: auto; display: block; margin: 0 0 14px; }
+
+  .tablewrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 6px; background: var(--panel); }
+  table.data { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  table.data th, table.data td { padding: 7px 10px; border-bottom: 1px solid var(--rule); text-align: left; white-space: nowrap; }
+  table.data th { color: var(--soft); font-weight: 500; font-size: 12px; background: rgba(255, 255, 255, .03); }
+  table.data tr:last-child td { border-bottom: 0; }
+  table.data td.num { text-align: right; }
+  table.data td .sub2 { color: var(--soft); font-size: 12px; margin-left: 4px; }
+  table.data tbody tr:hover td { background: rgba(255, 255, 255, .03); }
+  table.conv tbody tr { cursor: pointer; }
+  table.conv tr.src td { color: var(--accent); }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin: 0 0 12px; }
+  .toolbar .f { flex: 1 1 180px; }
+  .count { color: var(--soft); font-size: 12.5px; margin: 8px 2px 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="../index.html">← Home</a>
+  <h1>Lab toolbox</h1>
+  <p class="lede">Small calculators I keep reaching for in the lab. Everything runs in your browser and updates as you type. Formulas, assumptions and references are under each tool.</p>
+
+  <nav class="tabs" id="tabs" aria-label="Tools">
+    <button data-tab="cpw">CPW impedance</button>
+    <button data-tab="res">CPW resonator</button>
+    <button data-tab="dew">Dew point</button>
+    <button data-tab="units">Unit converter</button>
+    <button data-tab="threads">Inch threads</button>
+  </nav>
+
+  <!-- ============================== CPW ============================== -->
+  <section class="tool" id="tool-cpw">
+    <h2>Coplanar waveguide impedance</h2>
+    <p class="intro">Characteristic impedance of a CPW on a substrate of finite thickness, from conformal mapping. Optionally includes metal thickness and the kinetic inductance of a superconducting film. Switch to “Find dimension” to solve for w or s at a target impedance.</p>
+    <div class="cols">
+      <div>
+        <div class="card">
+          <svg class="xs" viewBox="0 0 380 118" role="img" aria-label="Cross-section of a coplanar waveguide: centre conductor of width w between two ground planes, separated by gaps s, on a substrate of thickness h">
+            <rect x="8" y="44" width="364" height="60" fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.14)"/>
+            <rect x="8" y="37" width="118" height="7" fill="#8fb4ec"/>
+            <rect x="158" y="37" width="64" height="7" fill="#8fb4ec"/>
+            <rect x="254" y="37" width="118" height="7" fill="#8fb4ec"/>
+            <g stroke="#a0a3a9" stroke-width="1" fill="none">
+              <path d="M158 22 H222 M158 18 V26 M222 18 V26"/>
+              <path d="M126 22 H158 M126 18 V26"/>
+              <path d="M222 22 H254 M254 18 V26"/>
+              <path d="M360 44 V104 M356 44 H364 M356 104 H364"/>
+              <path d="M100 37 V44" />
+            </g>
+            <g fill="#ececea" font-family="Newsreader, Georgia, serif" font-style="italic" font-size="15" text-anchor="middle">
+              <text x="190" y="15">w</text><text x="142" y="15">s</text><text x="238" y="15">s</text>
+              <text x="346" y="79">h</text><text x="92" y="32" font-size="13">t</text>
+            </g>
+            <g fill="#a0a3a9" font-family="Public Sans, Arial, sans-serif" font-size="11" text-anchor="middle">
+              <text x="67" y="62">ground</text><text x="190" y="62">signal</text><text x="313" y="62">ground</text>
+              <text x="160" y="92">substrate, ε<tspan font-size="8" dy="3">r</tspan></text>
+              <text x="190" y="116">vacuum below</text>
+            </g>
+          </svg>
+
+          <div class="seg" id="cpw-mode">
+            <button data-mode="analyse" class="on">Analyse</button>
+            <button data-mode="synth">Find dimension for target Z₀</button>
+          </div>
+
+          <div class="fields hide" id="cpw-synth">
+            <div class="f"><label for="cpw-z">Target Z₀</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="cpw-z" value="50"><span class="u">Ω</span></div></div>
+            <div class="f"><label for="cpw-free">Solve for</label>
+              <select autocomplete="off" id="cpw-free">
+                <option value="s">Gap s (w fixed)</option>
+                <option value="w">Centre width w (s fixed)</option>
+                <option value="ws">w and s, keeping w + 2s fixed</option>
+              </select></div>
+            <div class="f hide" id="cpw-tot-f"><label for="cpw-tot">Fixed w + 2s</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="cpw-tot" value="22"><span class="u">µm</span></div></div>
+          </div>
+          <hr class="sep hide" id="cpw-synth-sep">
+
+          <div class="fields">
+            <div class="f"><label for="cpw-w">Centre width w</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="cpw-w" value="10"><span class="u">µm</span></div></div>
+            <div class="f"><label for="cpw-s">Gap s</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="cpw-s" value="6"><span class="u">µm</span></div></div>
+            <div class="f"><label for="cpw-h">Substrate thickness h</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="cpw-h" value="525"><span class="u">µm</span></div></div>
+            <div class="f"><label for="cpw-t">Metal thickness t</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="cpw-t" value="0"><span class="u">nm</span></div></div>
+            <div class="f wide"><label for="cpw-sub">Substrate</label>
+              <select autocomplete="off" id="cpw-sub"></select></div>
+            <div class="f"><label for="cpw-er">Relative permittivity εᵣ</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="cpw-er" value="11.45"><span class="u"></span></div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Superconductor (kinetic inductance)</h3>
+          <div class="fields">
+            <div class="f wide"><label for="ki-mat">Film</label>
+              <select autocomplete="off" id="ki-mat"></select></div>
+            <div class="f ki-bcs"><label for="ki-tc">Critical temperature T<sub>c</sub></label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="ki-tc" value="1.2"><span class="u">K</span></div></div>
+            <div class="f ki-bcs"><label for="ki-rho">Normal resistivity ρ<sub>n</sub></label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="ki-rho" value="0.8"><span class="u">µΩ·cm</span></div></div>
+            <div class="f ki-sheet"><label for="ki-ls">Sheet kinetic inductance L<sub>s</sub></label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="ki-ls" value="1"><span class="u">pH/□</span></div></div>
+            <div class="f ki-bcs"><label for="ki-temp">Operating temperature</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="ki-temp" value="20"><span class="u">mK</span></div></div>
+          </div>
+          <p class="hint ki-any" style="margin:12px 0 0">Kinetic inductance uses the metal thickness t above; enter the film thickness there. Presets are typical thin-film values and vary a lot with deposition, so use your own T<sub>c</sub> and ρ<sub>n</sub> (or measured L<sub>s</sub>) when you have them.</p>
+        </div>
+      </div>
+
+      <div class="card" id="cpw-out" aria-live="polite">
+        <div class="bigcap">Characteristic impedance</div>
+        <div class="big" id="cpw-big">—</div>
+        <div class="bigcap" id="cpw-bigsub"></div>
+        <dl class="res" id="cpw-res"></dl>
+        <p class="msg" id="cpw-msg"></p>
+      </div>
+    </div>
+
+    <details class="ref">
+      <summary>Formulas, assumptions and references</summary>
+      <h4>Geometry (quasi-static conformal mapping)</h4>
+      <p class="eq"><i>k</i><sub>0</sub> = <i>w</i> / (<i>w</i> + 2<i>s</i>), &nbsp; <i>k</i><sub>1</sub> = sinh(π<i>w</i>/4<i>h</i>) / sinh(π(<i>w</i> + 2<i>s</i>)/4<i>h</i>), &nbsp; <i>k</i>′ = √(1 − <i>k</i>²)<br>
+        ε<sub>eff</sub> = 1 + ½(ε<sub>r</sub> − 1) · [<i>K</i>(<i>k</i><sub>1</sub>)/<i>K</i>(<i>k</i><sub>1</sub>′)] · [<i>K</i>(<i>k</i><sub>0</sub>′)/<i>K</i>(<i>k</i><sub>0</sub>)]<br>
+        <i>Z</i><sub>0</sub> = (30π / √ε<sub>eff</sub>) · <i>K</i>(<i>k</i><sub>0</sub>′)/<i>K</i>(<i>k</i><sub>0</sub>)</p>
+      <p><i>K</i> is the complete elliptic integral of the first kind, computed with the arithmetic–geometric mean, <i>K</i>(<i>k</i>) = π / (2 AGM(1, <i>k</i>′)), to machine precision. The line is a CPW with semi-infinite ground planes on a substrate of thickness <i>h</i> with vacuum below it (no backside metal), quasi-TEM, lossless and non-dispersive. Then <i>C</i>′ = √ε<sub>eff</sub> / (<i>c Z</i><sub>0</sub>) and <i>L</i>′ = <i>Z</i><sub>0</sub>√ε<sub>eff</sub> / <i>c</i>.</p>
+      <h4>Metal thickness</h4>
+      <p class="eq">Δ = (1.25<i>t</i>/π)[1 + ln(4π<i>w</i>/<i>t</i>)], &nbsp; <i>w</i><sub>e</sub> = <i>w</i> + Δ, &nbsp; <i>s</i><sub>e</sub> = <i>s</i> − Δ<br>
+        ε<sub>eff,t</sub> = ε<sub>eff</sub> − 0.7(ε<sub>eff</sub> − 1)(<i>t</i>/<i>s</i>) / [<i>K</i>(<i>k</i><sub>0</sub>)/<i>K</i>(<i>k</i><sub>0</sub>′) + 0.7<i>t</i>/<i>s</i>]</p>
+      <p><i>Z</i><sub>0</sub> then uses <i>k</i><sub>e</sub> = <i>w</i><sub>e</sub>/(<i>w</i><sub>e</sub> + 2<i>s</i><sub>e</sub>) and ε<sub>eff,t</sub>. Set t = 0 to ignore thickness. For thin films (t ≪ s) the correction is about 1–2 %.</p>
+      <h4>Anisotropic sapphire</h4>
+      <p>A uniaxial substrate with in-plane (across the line) permittivity ε<sub>x</sub> and out-of-plane ε<sub>y</sub> is mapped to an isotropic one with ε<sub>r</sub> = √(ε<sub>x</sub>ε<sub>y</sub>) and thickness <i>h</i>√(ε<sub>x</sub>/ε<sub>y</sub>). The presets use ε<sub>⊥</sub> = 9.27 and ε<sub>∥</sub> = 11.35 (sapphire near 4 K, Krupka et al.). Editing ε<sub>r</sub> by hand switches to an isotropic custom substrate.</p>
+      <h4>Kinetic inductance</h4>
+      <p class="eq">Δ = 1.764 <i>k</i><sub>B</sub><i>T</i><sub>c</sub>, &nbsp; λ = √(ħρ<sub>n</sub> / (πμ<sub>0</sub>Δ)) / √tanh(Δ/2<i>k</i><sub>B</sub><i>T</i>), &nbsp; <i>L</i><sub>s</sub> = μ<sub>0</sub>λ coth(<i>t</i>/λ)</p>
+      <p>For <i>t</i> ≪ λ this is the familiar <i>L</i><sub>s</sub> = ħ<i>R</i><sub>s</sub>/(πΔ) with <i>R</i><sub>s</sub> = ρ<sub>n</sub>/<i>t</i> (local, dirty-limit Mattis–Bardeen, valid well below T<sub>c</sub>). The kinetic inductance per length is <i>L</i><sub>k</sub>′ = <i>g</i> <i>L</i><sub>s</sub> with the CPW geometric factor <i>g</i> = <i>g</i><sub>c</sub> + <i>g</i><sub>g</sub>:</p>
+      <p class="eq"><i>g</i><sub>c</sub> = [π + ln(4π<i>w</i>/<i>t</i>) − <i>k</i> ln((1+<i>k</i>)/(1−<i>k</i>))] / [4<i>w</i>(1 − <i>k</i>²)<i>K</i>(<i>k</i>)²]<br>
+        <i>g</i><sub>g</sub> = <i>k</i>[π + ln(4π(<i>w</i>+2<i>s</i>)/<i>t</i>) − (1/<i>k</i>) ln((1+<i>k</i>)/(1−<i>k</i>))] / [4<i>w</i>(1 − <i>k</i>²)<i>K</i>(<i>k</i>)²], &nbsp; <i>k</i> = <i>k</i><sub>0</sub></p>
+      <p>The total line has <i>L</i>′ = <i>L</i><sub>g</sub>′ + <i>L</i><sub>k</sub>′, <i>Z</i><sub>0</sub> = √(<i>L</i>′/<i>C</i>′), <i>v</i> = 1/√(<i>L</i>′<i>C</i>′) and kinetic fraction α = <i>L</i><sub>k</sub>′/<i>L</i>′. The geometric factor assumes t ≪ w, s.</p>
+      <h4>Find dimension</h4>
+      <p>Scans the free dimension on a logarithmic grid, then bisects the bracket closest to the current value to a relative precision of 10<sup>−12</sup>. Solved fields are shown dashed. Switch back to “Analyse” to keep them.</p>
+      <h4>Check</h4>
+      <p>w = 10 µm, s = 6 µm on 525 µm silicon (ε<sub>r</sub> = 11.45, t = 0) gives Z<sub>0</sub> = 50.94 Ω and ε<sub>eff</sub> = 6.225, matching an independent evaluation with SciPy’s elliptic integrals.</p>
+      <h4>References</h4>
+      <ul class="refs">
+        <li>R. N. Simons, <i>Coplanar Waveguide Circuits, Components, and Systems</i> (Wiley, 2001), ch. 2.</li>
+        <li>K. C. Gupta, R. Garg, I. Bahl and P. Bhartia, <i>Microstrip Lines and Slotlines</i>, 2nd ed. (Artech House, 1996): thickness correction.</li>
+        <li>J. Gao, <i>The Physics of Superconducting Microwave Resonators</i>, PhD thesis, Caltech (2008): kinetic inductance and CPW geometric factor (after R. E. Collin, <i>Foundations for Microwave Engineering</i>).</li>
+        <li>A. J. Annunziata et al., Nanotechnology 21, 445202 (2010): L<sub>k</sub> = ħR<sub>n</sub>/(πΔ).</li>
+        <li>J. Krupka et al., Meas. Sci. Technol. 10, 387 (1999): sapphire permittivity at cryogenic temperatures.</li>
+        <li>J. Krupka et al., IEEE Trans. Microw. Theory Tech. 54, 3995 (2006): high-resistivity silicon permittivity.</li>
+        <li>Physical constants: CODATA 2018.</li>
+      </ul>
+    </details>
+  </section>
+
+  <!-- ============================== Resonator ============================== -->
+  <section class="tool" id="tool-res">
+    <h2>CPW resonator</h2>
+    <p class="intro">Resonance frequency of a quarter-wave or half-wave transmission-line resonator from its length, or the length for a target frequency. Kinetic inductance is included through the phase velocity.</p>
+    <div class="cols">
+      <div class="card">
+        <div class="seg" id="res-type">
+          <button data-v="4" class="on">Quarter-wave (λ/4)</button>
+          <button data-v="2">Half-wave (λ/2)</button>
+        </div>
+        <div class="seg" id="res-mode" style="display:flex">
+          <button data-v="len" class="on">Frequency from length</button>
+          <button data-v="freq">Length from frequency</button>
+        </div>
+        <div class="fields">
+          <div class="f" id="res-l-f"><label for="res-l">Length</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="res-l" value="5"><span class="u">mm</span></div></div>
+          <div class="f hide" id="res-fz-f"><label for="res-fz">Target frequency</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="res-fz" value="6"><span class="u">GHz</span></div></div>
+          <div class="f"><label for="res-cc">Coupling capacitance C<sub>c</sub></label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="res-cc" value="0"><span class="u">fF</span></div></div>
+        </div>
+        <hr class="sep">
+        <div class="fields">
+          <div class="f wide"><label for="res-src">Line parameters</label>
+            <select autocomplete="off" id="res-src">
+              <option value="cpw">From the CPW impedance tab</option>
+              <option value="manual">Enter by hand</option>
+            </select></div>
+        </div>
+        <p class="hint" id="res-cpwline" style="margin:10px 0 0"></p>
+        <div class="fields hide" id="res-manual" style="margin-top:12px">
+          <div class="f"><label for="res-ee">Geometric ε<sub>eff</sub></label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="res-ee" value="6.225"><span class="u"></span></div></div>
+          <div class="f"><label for="res-al">Kinetic fraction α</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="res-al" value="0"><span class="u">%</span></div></div>
+          <div class="f"><label for="res-z">Impedance Z₀</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="res-z" value="50"><span class="u">Ω</span></div></div>
+        </div>
+      </div>
+      <div class="card" aria-live="polite">
+        <div class="bigcap" id="res-bigcap">Resonance frequency</div>
+        <div class="big" id="res-big">—</div>
+        <div class="bigcap" id="res-bigsub"></div>
+        <dl class="res" id="res-res"></dl>
+        <p class="msg" id="res-msg"></p>
+      </div>
+    </div>
+    <details class="ref">
+      <summary>Formulas, assumptions and references</summary>
+      <p class="eq"><i>v</i> = 1/√(<i>L</i>′<i>C</i>′) = (<i>c</i>/√ε<sub>eff</sub>)·√(1 − α), &nbsp; <i>f</i><sub>0</sub> = <i>v</i>/(4ℓ) for λ/4, &nbsp; <i>f</i><sub>0</sub> = <i>v</i>/(2ℓ) for λ/2</p>
+      <p>The kinetic inductance fraction α lowers the frequency by √(1 − α) compared with a perfect conductor. Harmonics are at 3<i>f</i><sub>0</sub>, 5<i>f</i><sub>0</sub>… (λ/4) and 2<i>f</i><sub>0</sub>, 3<i>f</i><sub>0</sub>… (λ/2), ignoring dispersion.</p>
+      <p>Near <i>f</i><sub>0</sub> both resonators behave like a parallel LC circuit with</p>
+      <p class="eq"><i>C</i> = <i>C</i>′ℓ/2, &nbsp; <i>L</i> = 8<i>L</i>′ℓ/π² (λ/4) or 2<i>L</i>′ℓ/π² (λ/2).</p>
+      <p><b>Bare frequency.</b> <i>f</i><sub>0</sub> is the frequency of an isolated resonator with an ideal open (and, for λ/4, an ideal short). The coupling capacitor, the open-end fringing field and the junction at the shorted end all pull it down. With C<sub>c</sub> to a low-impedance feedline the estimate is <i>f</i> ≈ <i>f</i><sub>0</sub>/√(1 + <i>C</i><sub>c</sub>/<i>C</i>); for a λ/2 resonator coupled at both ends, enter the sum of the two capacitances. Expect a few per cent lower frequencies in practice; simulate the final layout.</p>
+      <ul class="refs">
+        <li>M. Göppl et al., J. Appl. Phys. 104, 113904 (2008): lumped-element equivalent of a CPW resonator.</li>
+        <li>D. M. Pozar, <i>Microwave Engineering</i>, 4th ed. (Wiley, 2012), ch. 6: transmission-line resonators.</li>
+        <li>J. Gao, PhD thesis, Caltech (2008): kinetic inductance fraction and frequency shift.</li>
+      </ul>
+    </details>
+  </section>
+
+  <!-- ============================== Dew point ============================== -->
+  <section class="tool" id="tool-dew">
+    <h2>Dew point before opening a cryostat</h2>
+    <p class="intro">Cold parts exposed to room air collect water (above 0 °C) or frost (below 0 °C) if they are colder than the dew or frost point. Enter the lab conditions to see how warm the plates must be before you vent or open.</p>
+    <div class="cols">
+      <div class="card">
+        <div class="fields">
+          <div class="f"><label for="dew-t">Room temperature</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="dew-t" value="21"><span class="u">°C</span></div></div>
+          <div class="f"><label for="dew-rh">Relative humidity</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="dew-rh" value="45"><span class="u">%</span></div></div>
+          <div class="f"><label for="dew-p">Coldest exposed part</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="dew-p" value="280"><span class="u" id="dew-pu">K</span></div></div>
+          <div class="f"><label for="dew-pu-sel">Part temperature in</label>
+            <select autocomplete="off" id="dew-pu-sel"><option value="K">kelvin</option><option value="C">degrees Celsius</option></select></div>
+          <div class="f"><label for="dew-m">Safety margin</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="dew-m" value="3"><span class="u">K</span></div></div>
+        </div>
+      </div>
+      <div class="card" aria-live="polite">
+        <div id="dew-verdict" class="verdict"></div>
+        <div class="bigcap">Warm every exposed part to at least</div>
+        <div class="big" id="dew-big">—</div>
+        <div class="bigcap" id="dew-bigsub"></div>
+        <dl class="res" id="dew-res"></dl>
+      </div>
+    </div>
+    <details class="ref">
+      <summary>Formulas, assumptions and references</summary>
+      <p>Saturation vapour pressure from the Magnus form with the Alduchov–Eskridge constants (pressures in hPa, temperatures in °C):</p>
+      <p class="eq">over water: <i>e</i><sub>w</sub>(<i>T</i>) = 6.1094 exp(17.625<i>T</i> / (243.04 + <i>T</i>)) &nbsp; (−40 to 50 °C)<br>
+        over ice: <i>e</i><sub>i</sub>(<i>T</i>) = 6.1121 exp(22.587<i>T</i> / (273.86 + <i>T</i>)) &nbsp; (−80 to 0 °C)</p>
+      <p>The vapour pressure is <i>e</i> = RH · <i>e</i><sub>w</sub>(<i>T</i><sub>room</sub>). The dew point solves <i>e</i><sub>w</sub>(<i>T</i><sub>d</sub>) = <i>e</i> and the frost point solves <i>e</i><sub>i</sub>(<i>T</i><sub>f</sub>) = <i>e</i>:</p>
+      <p class="eq"><i>T</i><sub>d</sub> = 243.04 γ / (17.625 − γ), &nbsp; γ = ln(<i>e</i>/6.1094); &nbsp; <i>T</i><sub>f</sub> = 273.86 γ<sub>i</sub> / (22.587 − γ<sub>i</sub>), &nbsp; γ<sub>i</sub> = ln(<i>e</i>/6.1121)</p>
+      <p>A part condenses water if 0 °C ≤ <i>T</i><sub>part</sub> &lt; <i>T</i><sub>d</sub> and collects frost if <i>T</i><sub>part</sub> &lt; 0 °C and below the frost point (frost forms before dew when the dew point is below freezing). The recommended temperature is the onset temperature plus your margin. Absolute humidity uses ρ<sub>v</sub> = <i>e</i>/(<i>R</i><sub>v</sub><i>T</i>) with <i>R</i><sub>v</sub> = 461.5 J kg<sup>−1</sup> K<sup>−1</sup>. Check: 20 °C and 50 % give a dew point of 9.3 °C.</p>
+      <p>In practice: the plate thermometers lag the parts that actually see the air (radiation shields, cold fingers, the sample stage), so give a margin, vent with dry nitrogen or helium gas rather than room air, and keep the cans closed until everything is above the dew point.</p>
+      <ul class="refs">
+        <li>O. A. Alduchov and R. E. Eskridge, J. Appl. Meteorol. 35, 601 (1996): improved Magnus form approximation of saturation vapor pressure.</li>
+      </ul>
+    </details>
+  </section>
+
+  <!-- ============================== Units ============================== -->
+  <section class="tool" id="tool-units">
+    <h2>Unit converter</h2>
+    <p class="intro">Type a value, pick its unit, and read it in every other unit. Click a row to convert from that unit instead.</p>
+    <div class="chips" id="u-cats"></div>
+    <div class="card">
+      <div class="toolbar">
+        <div class="f"><label for="u-val">Value</label><input type="text" autocomplete="off" inputmode="decimal" id="u-val" value="1"></div>
+        <div class="f"><label for="u-from">Unit</label><select autocomplete="off" id="u-from"></select></div>
+      </div>
+      <div class="tablewrap">
+        <table class="data conv"><thead><tr><th>Unit</th><th style="text-align:right">Value</th><th>Note</th></tr></thead><tbody id="u-body"></tbody></table>
+      </div>
+      <p class="msg" id="u-msg"></p>
+    </div>
+    <details class="ref">
+      <summary>Definitions and references</summary>
+      <ul>
+        <li>Length: 1 in = 25.4 mm exactly; 1 mil = 1 thou = 0.001 in = 25.4 µm; 1 ft = 12 in.</li>
+        <li>Pressure: 1 atm = 101 325 Pa; 1 Torr = 1/760 atm (≈ 1 mmHg); 1 bar = 10<sup>5</sup> Pa = 1000 mbar = 1000 hPa; 1 psi = 6894.757 Pa.</li>
+        <li>Mass: 1 lb = 0.453 592 37 kg; 1 oz = 1/16 lb.</li>
+        <li>Energy equivalents use E = <i>hf</i> = <i>k</i><sub>B</sub><i>T</i> = <i>hc</i>ν̃ = ħω = <i>hc</i>/λ with exact SI values of <i>h</i>, <i>k</i><sub>B</sub>, <i>e</i> and <i>c</i>: 1 K ≙ 20.837 GHz ≙ 86.17 µeV, 1 GHz ≙ 4.1357 µeV ≙ 48.0 mK, 1 meV ≙ 8.0655 cm<sup>−1</sup> ≙ 0.2418 THz.</li>
+        <li>Magnetic field: 1 T = 10<sup>4</sup> G. Oe and A/m are converted as fields in vacuum (B = μ<sub>0</sub>H). Φ<sub>0</sub>/µm² is the field that puts one flux quantum Φ<sub>0</sub> = <i>h</i>/2<i>e</i> through 1 µm².</li>
+      </ul>
+      <ul class="refs"><li>CODATA 2018 recommended values; BIPM, <i>The International System of Units</i>, 9th ed. (2019); NIST SP 811.</li></ul>
+    </details>
+  </section>
+
+  <!-- ============================== Threads ============================== -->
+  <section class="tool" id="tool-threads">
+    <h2>Inch threads (UNC and UNF)</h2>
+    <p class="intro">Unified inch screw threads from #0-80 to 1 inch, with tap drills for about 75 % thread engagement, clearance holes and the closest ISO metric coarse thread. Search for “4-40”, “1/4”, “UNF” or “M3”.</p>
+    <div class="toolbar">
+      <div class="f"><label for="th-q">Search</label><input type="text" autocomplete="off" id="th-q" placeholder="e.g. 4-40, 1/4-20, M3"></div>
+      <div class="f" style="flex:0 1 170px"><label for="th-ser">Series</label><select autocomplete="off" id="th-ser"><option value="">UNC and UNF</option><option value="UNC">UNC (coarse)</option><option value="UNF">UNF (fine)</option></select></div>
+    </div>
+    <div class="tablewrap">
+      <table class="data">
+        <thead><tr>
+          <th>Thread</th><th>Series</th><th style="text-align:right">Major Ø</th><th style="text-align:right">TPI</th><th style="text-align:right">Pitch</th>
+          <th>Tap drill</th><th>Close clearance</th><th>Free clearance</th><th>Nearest metric</th>
+        </tr></thead>
+        <tbody id="th-body"></tbody>
+      </table>
+    </div>
+    <p class="count" id="th-count"></p>
+    <details class="ref">
+      <summary>Notes and references</summary>
+      <ul>
+        <li>Major diameters and threads per inch follow ASME B1.1. Numbered sizes have major diameter 0.060 in + 0.013 in × N. Pitch = 25.4 mm / TPI.</li>
+        <li>Tap drills give roughly 75 % thread engagement, the usual shop recommendation; for hard materials or deep holes one size larger is common. Number and letter drills are converted to mm exactly from their inch sizes.</li>
+        <li>Close and free clearance holes follow the common shop tables (Machinery’s Handbook style); close is for accurate location, free for easy assembly.</li>
+        <li>The nearest metric thread is the ISO coarse thread (ISO 261/262) with the closest major diameter. It is a size guide only; the threads are not interchangeable.</li>
+      </ul>
+      <ul class="refs">
+        <li>ASME B1.1, <i>Unified Inch Screw Threads (UN, UNR, and UNJ Thread Forms)</i>.</li>
+        <li>E. Oberg et al., <i>Machinery’s Handbook</i> (Industrial Press): tap drill and clearance hole tables.</li>
+        <li>ISO 261 and ISO 262, ISO general purpose metric screw threads.</li>
+      </ul>
+    </details>
+  </section>
+</div>
+
+<div id="peek" class="off" aria-hidden="true"><span class="cap"></span><span class="val"></span></div>
+
+<script>
+"use strict";
+/* ---------- constants (CODATA 2018; h, kB, e, c exact) ---------- */
+const C0 = 299792458, MU0 = 1.25663706212e-6, EPS0 = 1 / (MU0 * C0 * C0);
+const HP = 6.62607015e-34, HBAR = HP / (2 * Math.PI), KB = 1.380649e-23, QE = 1.602176634e-19, PHI0 = HP / (2 * QE);
+
+const $ = id => document.getElementById(id);
+
+/* ---------- number helpers ---------- */
+function num(id) {
+  const el = $(id);
+  const s = el.value.trim().replace(",", ".").replace(/−/g, "-");
+  const v = s === "" ? NaN : Number(s);
+  el.classList.toggle("bad", !isFinite(v));
+  return v;
+}
+function markBad(id, bad) { $(id).classList.toggle("bad", !!bad); }
+function fmt(x, sig = 4) {
+  if (x === null || x === undefined || !isFinite(x)) return "—";
+  if (x === 0) return "0";
+  const a = Math.abs(x);
+  let out;
+  if (a >= 1e-3 && a < 1e6) out = String(Number(x.toPrecision(sig)));
+  else {
+    let e = Math.floor(Math.log10(a)), m = x / Math.pow(10, e);
+    if (Math.abs(Number(m.toPrecision(sig))) >= 10) { m /= 10; e += 1; }
+    out = Number(m.toPrecision(sig)) + " × 10<sup>" + String(e).replace("-", "−") + "</sup>";
+  }
+  return out.replace(/^-/, "−");
+}
+function fmtFixed(x, sig = 4) {   // keeps trailing zeros: 50.00
+  if (!isFinite(x)) return "—";
+  const a = Math.abs(x);
+  if (a >= 1e-3 && a < 1e6) return x.toPrecision(sig).replace(/^-/, "−");
+  return fmt(x, sig);
+}
+function rows(list) {
+  return list.map(r => r.grp ? `<div class="grp">${r.grp}</div>` : `<dt>${r[0]}</dt><dd>${r[1]}</dd>`).join("");
+}
+
+/* ---------- complete elliptic integral K via AGM ---------- */
+function agm(a, b) {
+  for (let i = 0; i < 80; i++) {
+    const an = (a + b) / 2, bn = Math.sqrt(a * b);
+    a = an; b = bn;
+    if (Math.abs(a - b) <= 1e-16 * a) break;
+  }
+  return (a + b) / 2;
+}
+// K(k) with the complementary modulus kp = sqrt(1-k^2) passed in for accuracy
+function ellipK(k, kp) {
+  if (kp === undefined) kp = Math.sqrt((1 - k) * (1 + k));
+  return Math.PI / (2 * agm(1, kp));
+}
+// ratio K(k)/K(k')
+function KK(k, kp) { return ellipK(k, kp) / ellipK(kp, k); }
+
+/* ---------- CPW model (SI units throughout) ---------- */
+function cpw(p) {
+  const { w, s, h, er } = p, hs = p.hScale || 1, t = p.t || 0, Ls = p.Ls || 0;
+  if (!(w > 0 && s > 0 && h > 0 && er >= 1 && t >= 0)) return { err: "Enter positive dimensions and εᵣ ≥ 1." };
+  const W = w + 2 * s;
+  const k0 = w / W, k0p = 2 * Math.sqrt(s * (w + s)) / W;
+  const he = h * hs;
+  const a = Math.PI * w / (4 * he), b = Math.PI * W / (4 * he);
+  // sinh(a)/sinh(b) without overflow
+  const k1 = Math.exp(a - b) * (-Math.expm1(-2 * a)) / (-Math.expm1(-2 * b));
+  const k1p = Math.sqrt((1 - k1) * (1 + k1));
+  const r0 = KK(k0, k0p);                          // K(k0)/K(k0')
+  const q = 0.5 * KK(k1, k1p) / r0;                // filling factor
+  let ee = 1 + (er - 1) * q;
+  let Z = 30 * Math.PI / Math.sqrt(ee) / r0;
+  const eeThin = ee, Zthin = Z;
+  let delta = 0;
+  if (t > 0) {
+    delta = 1.25 * t / Math.PI * (1 + Math.log(4 * Math.PI * w / t));
+    const we = w + delta, se = s - delta;
+    if (!(se > 0)) return { err: "The metal is too thick for this gap: the thickness correction closes the gap (s − Δ ≤ 0)." };
+    const ke = we / (we + 2 * se), kep = 2 * Math.sqrt(se * (we + se)) / (we + 2 * se);
+    ee = ee - 0.7 * (ee - 1) * (t / s) / (r0 + 0.7 * t / s);
+    Z = 30 * Math.PI / Math.sqrt(ee) / KK(ke, kep);
+  }
+  const vg = C0 / Math.sqrt(ee);
+  const Cl = 1 / (Z * vg), Lg = Z / vg;
+  const out = { w, s, h, er, t, k0, q, delta, eeThin, Zthin, eeGeo: ee, Zgeo: Z, vGeo: vg, C: Cl, Lg, Lk: 0, g: 0 };
+  if (Ls > 0) {
+    if (!(t > 0)) return { err: "Kinetic inductance needs the film thickness: enter the metal thickness t." };
+    const k = k0, K = ellipK(k0, k0p), den = 4 * w * (1 - k * k) * K * K;
+    const lr = Math.log((1 + k) / (1 - k));
+    const gc = (Math.PI + Math.log(4 * Math.PI * w / t) - k * lr) / den;
+    const gg = k * (Math.PI + Math.log(4 * Math.PI * W / t) - lr / k) / den;
+    out.g = gc + gg; out.Lk = Ls * out.g;
+  }
+  out.L = Lg + out.Lk;
+  out.Z = Math.sqrt(out.L / Cl);
+  out.v = 1 / Math.sqrt(out.L * Cl);
+  out.ee = (C0 / out.v) ** 2;
+  out.alpha = out.Lk / out.L;
+  return out;
+}
+
+/* ---------- superconducting film: sheet kinetic inductance ---------- */
+function sheetLk(Tc, rho, t, T) {   // SI: K, ohm·m, m, K
+  if (!(Tc > 0 && rho > 0 && t > 0 && T >= 0)) return { err: "Enter T_c, ρ_n, film thickness t and temperature (all positive)." };
+  if (T >= Tc) return { err: "Operating temperature is at or above T_c: the film is not superconducting." };
+  const D = 1.764 * KB * Tc;
+  const th = T > 0 ? Math.tanh(D / (2 * KB * T)) : 1;
+  const lam0 = Math.sqrt(HBAR * rho / (Math.PI * MU0 * D));
+  const lam = lam0 / Math.sqrt(th);
+  const Ls = MU0 * lam / Math.tanh(t / lam);
+  return { Ls, lam, lam0, D, Rs: rho / t, LsThin: HBAR * (rho / t) / (Math.PI * D * th), warmish: T > Tc / 3 };
+}
+
+/* ---------- root finding on a scan + bisection ---------- */
+function solve(f, xs, xNow) {
+  // f(x) - target; xs sorted grid; returns root nearest to xNow
+  const vals = xs.map(x => { const v = f(x); return isFinite(v) ? v : NaN; });
+  const brackets = [];
+  for (let i = 0; i + 1 < xs.length; i++) {
+    const a = vals[i], b = vals[i + 1];
+    if (isFinite(a) && isFinite(b) && (a === 0 || a * b < 0)) brackets.push([xs[i], xs[i + 1], a]);
+  }
+  if (!brackets.length) return NaN;
+  brackets.sort((p, q) => Math.abs(Math.log((p[0] + p[1]) / 2 / xNow)) - Math.abs(Math.log((q[0] + q[1]) / 2 / xNow)));
+  let [lo, hi, flo] = brackets[0];
+  if (flo === 0) return lo;
+  for (let i = 0; i < 200 && (hi - lo) > 1e-12 * hi; i++) {
+    const mid = (lo + hi) / 2, fm = f(mid);
+    if (!isFinite(fm)) { hi = mid; continue; }
+    if (fm * flo > 0) { lo = mid; flo = fm; } else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+function logGrid(a, b, n) { const out = []; for (let i = 0; i <= n; i++) out.push(a * Math.pow(b / a, i / n)); return out; }
+
+/* ======================================================================
+   Tool 1: CPW
+   ====================================================================== */
+const SUBSTRATES = [
+  { id: "si-cryo", name: "Silicon, cryogenic (11.45)", ex: 11.45, ey: 11.45 },
+  { id: "si-rt", name: "Silicon, room temperature (11.7)", ex: 11.7, ey: 11.7 },
+  { id: "sap-c", name: "Sapphire, c-plane (c-axis normal), cryogenic", ex: 9.27, ey: 11.35 },
+  { id: "sap-a-par", name: "Sapphire, A-plane, line along the c-axis, cryogenic", ex: 9.27, ey: 9.27 },
+  { id: "sap-a-perp", name: "Sapphire, A-plane, line across the c-axis, cryogenic", ex: 11.35, ey: 9.27 },
+  { id: "quartz", name: "Fused silica / quartz (3.8)", ex: 3.8, ey: 3.8 },
+  { id: "custom", name: "Custom (isotropic)", ex: null, ey: null },
+];
+const MATERIALS = [
+  { id: "none", name: "None: ideal conductor, no kinetic inductance" },
+  { id: "Al", name: "Aluminium (Tc 1.2 K, ρn 0.8 µΩ·cm)", Tc: 1.2, rho: 0.8 },
+  { id: "Nb", name: "Niobium (Tc 9.2 K, ρn 5 µΩ·cm)", Tc: 9.2, rho: 5 },
+  { id: "NbTiN", name: "NbTiN (Tc 14 K, ρn 100 µΩ·cm)", Tc: 14, rho: 100 },
+  { id: "TiN", name: "TiN (Tc 4.5 K, ρn 100 µΩ·cm)", Tc: 4.5, rho: 100 },
+  { id: "Ta", name: "α-tantalum (Tc 4.4 K, ρn 2 µΩ·cm)", Tc: 4.4, rho: 2 },
+  { id: "custom", name: "Custom: enter Tc and ρn" },
+  { id: "sheet", name: "Enter the sheet kinetic inductance directly" },
+];
+let cpwMode = "analyse", lastCPW = null;
+
+function initCPW() {
+  $("cpw-sub").innerHTML = SUBSTRATES.map(s => `<option value="${s.id}">${s.name}</option>`).join("");
+  $("ki-mat").innerHTML = MATERIALS.map(m => `<option value="${m.id}">${m.name}</option>`).join("");
+  $("cpw-sub").addEventListener("change", () => {
+    const s = SUBSTRATES.find(x => x.id === $("cpw-sub").value);
+    if (s.ex) $("cpw-er").value = String(+Math.sqrt(s.ex * s.ey).toFixed(3));
+    updateAll();
+  });
+  $("cpw-er").addEventListener("input", () => {
+    const s = SUBSTRATES.find(x => x.id === $("cpw-sub").value);
+    if (s.ex && Math.abs(num("cpw-er") - Math.sqrt(s.ex * s.ey)) > 1e-3) $("cpw-sub").value = "custom";
+  });
+  $("ki-mat").addEventListener("change", () => {
+    const m = MATERIALS.find(x => x.id === $("ki-mat").value);
+    if (m.Tc) { $("ki-tc").value = m.Tc; $("ki-rho").value = m.rho; if (!(num("cpw-t") > 0)) $("cpw-t").value = "100"; }
+    if (m.id === "sheet" && !(num("cpw-t") > 0)) $("cpw-t").value = "100";
+    kiVisibility(); updateAll();
+  });
+  ["ki-tc", "ki-rho"].forEach(id => $(id).addEventListener("input", () => {
+    const m = MATERIALS.find(x => x.id === $("ki-mat").value);
+    if (m.Tc && (num("ki-tc") !== m.Tc || num("ki-rho") !== m.rho)) $("ki-mat").value = "custom";
+  }));
+  document.querySelectorAll("#cpw-mode button").forEach(b => b.addEventListener("click", () => {
+    cpwMode = b.dataset.mode;
+    document.querySelectorAll("#cpw-mode button").forEach(x => x.classList.toggle("on", x === b));
+    if (cpwMode === "synth" && isFinite(num("cpw-w")) && isFinite(num("cpw-s"))) $("cpw-tot").value = String(+(num("cpw-w") + 2 * num("cpw-s")).toPrecision(6));
+    synthVisibility(); updateAll();
+  }));
+  $("cpw-free").addEventListener("change", () => {
+    if ($("cpw-free").value === "ws" && isFinite(num("cpw-w")) && isFinite(num("cpw-s"))) $("cpw-tot").value = String(+(num("cpw-w") + 2 * num("cpw-s")).toPrecision(6));
+    synthVisibility(); updateAll();
+  });
+  kiVisibility(); synthVisibility();
+}
+function kiVisibility() {
+  const id = $("ki-mat").value;
+  document.querySelectorAll(".ki-bcs").forEach(e => e.classList.toggle("hide", id === "none" || id === "sheet"));
+  document.querySelectorAll(".ki-sheet").forEach(e => e.classList.toggle("hide", id !== "sheet"));
+  document.querySelectorAll(".ki-any").forEach(e => e.classList.toggle("hide", id === "none"));
+}
+function synthVisibility() {
+  const on = cpwMode === "synth", free = $("cpw-free").value;
+  $("cpw-synth").classList.toggle("hide", !on);
+  $("cpw-synth-sep").classList.toggle("hide", !on);
+  $("cpw-tot-f").classList.toggle("hide", !(on && free === "ws"));
+  $("cpw-w").disabled = on && (free === "w" || free === "ws");
+  $("cpw-s").disabled = on && (free === "s" || free === "ws");
+}
+
+function computeCPW() {
+  const msgs = [];
+  const sub = SUBSTRATES.find(x => x.id === $("cpw-sub").value);
+  const er = num("cpw-er");
+  const hScale = sub.ex ? Math.sqrt(sub.ex / sub.ey) : 1;
+  const p = { w: num("cpw-w") * 1e-6, s: num("cpw-s") * 1e-6, h: num("cpw-h") * 1e-6, er, hScale, t: num("cpw-t") * 1e-9 };
+  if (cpwMode === "synth") {   // solved fields are outputs; don't flag them
+    if ($("cpw-w").disabled) $("cpw-w").classList.remove("bad");
+    if ($("cpw-s").disabled) $("cpw-s").classList.remove("bad");
+  }
+  // kinetic inductance
+  const mat = $("ki-mat").value;
+  let film = null;
+  if (mat === "sheet") {
+    const ls = num("ki-ls");
+    if (!(ls >= 0)) return { err: "Enter a sheet kinetic inductance ≥ 0." };
+    p.Ls = ls * 1e-12;
+  } else if (mat !== "none") {
+    film = sheetLk(num("ki-tc"), num("ki-rho") * 1e-8, p.t, num("ki-temp") * 1e-3);
+    if (film.err) return { err: film.err };
+    p.Ls = film.Ls;
+    if (film.warmish) msgs.push(["warn", "Operating temperature is above T<sub>c</sub>/3; the gap is no longer constant and L<sub>s</sub> is underestimated."]);
+    if (p.t > 2 * film.lam) msgs.push(["warn", "Film is thicker than 2λ: the CPW geometric factor assumes a thin film and becomes approximate."]);
+  }
+  // inverse mode
+  let solvedNote = "";
+  if (cpwMode === "synth") {
+    const Zt = num("cpw-z"), free = $("cpw-free").value;
+    if (!(Zt > 0)) return { err: "Enter a positive target impedance." };
+    const Zof = q => { const r = cpw(q); return r.err ? NaN : r.Z - Zt; };
+    let x;
+    if (free === "w") {
+      if (!(p.s > 0)) return { err: "Enter the gap s." };
+      const now = p.w > 0 ? p.w : 10e-6;
+      x = solve(w => Zof({ ...p, w }), logGrid(1e-9, 1e-1, 600), now);
+      if (isFinite(x)) { p.w = x; $("cpw-w").value = String(+(x * 1e6).toPrecision(6)); }
+    } else if (free === "s") {
+      if (!(p.w > 0)) return { err: "Enter the centre width w." };
+      const now = p.s > 0 ? p.s : 6e-6;
+      x = solve(s => Zof({ ...p, s }), logGrid(1e-9, 1e-1, 600), now);
+      if (isFinite(x)) { p.s = x; $("cpw-s").value = String(+(x * 1e6).toPrecision(6)); }
+    } else {
+      const W = num("cpw-tot") * 1e-6;
+      if (!(W > 0)) return { err: "Enter the fixed total width w + 2s." };
+      const grid = [];
+      for (let i = 1; i < 800; i++) grid.push(W * i / 800);
+      x = solve(w => Zof({ ...p, w, s: (W - w) / 2 }), grid, p.w > 0 && p.w < W ? p.w : W / 2);
+      if (isFinite(x)) {
+        p.w = x; p.s = (W - x) / 2;
+        $("cpw-w").value = String(+(p.w * 1e6).toPrecision(6));
+        $("cpw-s").value = String(+(p.s * 1e6).toPrecision(6));
+      }
+    }
+    if (!isFinite(x)) return { err: "No geometry reaches this target impedance with the other dimensions fixed." };
+    solvedNote = free === "ws" ? `Solved: w = ${fmt(p.w * 1e6, 5)} µm, s = ${fmt(p.s * 1e6, 5)} µm` : `Solved: ${free} = ${fmt(p[free] * 1e6, 5)} µm`;
+  }
+  const r = cpw(p);
+  if (r.err) return r;
+  r.film = film; r.Ls = p.Ls || 0; r.msgs = msgs; r.solvedNote = solvedNote; r.mat = mat;
+  if (p.t > 0 && p.t > 0.2 * p.s) msgs.push(["warn", "t is more than 20 % of s; the thickness correction is approximate."]);
+  if (p.h < 2 * (p.w + 2 * p.s)) msgs.push(["", "The substrate is thin compared with w + 2s, so the field below the substrate matters; the finite-h model accounts for this."]);
+  return r;
+}
+
+function renderCPW() {
+  const r = computeCPW();
+  lastCPW = r.err ? null : r;
+  if (r.err) {
+    $("cpw-big").innerHTML = "—"; $("cpw-bigsub").textContent = ""; $("cpw-res").innerHTML = "";
+    $("cpw-msg").className = "msg err"; $("cpw-msg").innerHTML = r.err;
+    return;
+  }
+  const ki = r.Lk > 0;
+  $("cpw-big").innerHTML = `${fmtFixed(r.Z, 4)}<span class="u">Ω</span>`;
+  $("cpw-bigsub").innerHTML = [r.solvedNote, ki ? `Geometric part alone: ${fmtFixed(r.Zgeo, 4)} Ω` : ""].filter(Boolean).join(". ");
+  const list = [
+    ["Effective permittivity ε<sub>eff</sub>" + (ki ? " (incl. kinetic)" : ""), fmt(r.ee, 4)],
+  ];
+  if (ki) list.push(["Geometric ε<sub>eff</sub>", fmt(r.eeGeo, 4)]);
+  list.push(
+    ["Phase velocity", `${fmt(r.v / 1e8, 4)} × 10<sup>8</sup> m/s`],
+    ["", `${fmt(r.v / C0, 4)} c`],
+    ["Capacitance per length C′", `${fmt(r.C * 1e12, 4)} pF/m`],
+    ["Inductance per length L′" + (ki ? " (total)" : ""), `${fmt(r.L * 1e9, 4)} nH/m`],
+  );
+  if (ki) {
+    list.push(
+      ["Geometric L<sub>g</sub>′", `${fmt(r.Lg * 1e9, 4)} nH/m`],
+      ["Kinetic L<sub>k</sub>′", `${fmt(r.Lk * 1e9, 4)} nH/m`],
+      ["Kinetic inductance fraction α", `${fmt(r.alpha * 100, 3)} %`],
+      { grp: "Film" },
+      ["Sheet kinetic inductance L<sub>s</sub>", `${fmt(r.Ls * 1e12, 4)} pH/□`],
+    );
+    if (r.film) list.push(
+      ["Thin-film limit ħR<sub>s</sub>/(πΔ)", `${fmt(r.film.LsThin * 1e12, 4)} pH/□`],
+      ["Penetration depth λ", `${fmt(r.film.lam * 1e9, 4)} nm`],
+      ["Sheet resistance R<sub>s</sub>", `${fmt(r.film.Rs, 4)} Ω/□`],
+      ["Superconducting gap Δ", `${fmt(r.film.D / QE * 1e6, 4)} µeV`],
+    );
+    list.push(["Geometric factor g", `${fmt(r.g * 1e-6, 4)} µm<sup>−1</sup>`]);
+  }
+  list.push({ grp: "Geometry" },
+    ["k<sub>0</sub> = w/(w + 2s)", fmt(r.k0, 5)],
+    ["w + 2s", `${fmt((r.w + 2 * r.s) * 1e6, 5)} µm`],
+    ["Filling factor q", fmt(r.q, 4)]);
+  if (r.t > 0) list.push(["Thickness correction Δ", `${fmt(r.delta * 1e6, 3)} µm`], ["Z<sub>0</sub> at t = 0", `${fmt(r.Zthin, 4)} Ω`]);
+  $("cpw-res").innerHTML = rows(list);
+  const m = r.msgs.filter(x => x[0]);
+  $("cpw-msg").className = "msg warn";
+  $("cpw-msg").innerHTML = m.map(x => x[1]).join("<br>");
+}
+
+/* ======================================================================
+   Tool 2: resonator
+   ====================================================================== */
+let resType = 4, resMode = "len";
+function initRes() {
+  document.querySelectorAll("#res-type button").forEach(b => b.addEventListener("click", () => {
+    resType = +b.dataset.v; document.querySelectorAll("#res-type button").forEach(x => x.classList.toggle("on", x === b)); renderRes();
+  }));
+  document.querySelectorAll("#res-mode button").forEach(b => b.addEventListener("click", () => {
+    resMode = b.dataset.v; document.querySelectorAll("#res-mode button").forEach(x => x.classList.toggle("on", x === b));
+    $("res-l-f").classList.toggle("hide", resMode !== "len"); $("res-fz-f").classList.toggle("hide", resMode !== "freq"); renderRes();
+  }));
+  $("res-src").addEventListener("change", () => { $("res-manual").classList.toggle("hide", $("res-src").value !== "manual"); renderRes(); });
+}
+function renderRes() {
+  const err = e => { $("res-big").innerHTML = "—"; $("res-bigsub").textContent = ""; $("res-res").innerHTML = ""; $("res-msg").className = "msg err"; $("res-msg").innerHTML = e; };
+  let v, Z, Cl, Ll, alpha, eeGeo;
+  if ($("res-src").value === "cpw") {
+    if (!lastCPW) { $("res-cpwline").textContent = ""; return err("The CPW impedance tab has an input error; fix it or enter the line parameters by hand."); }
+    const r = lastCPW;
+    v = r.v; Z = r.Z; Cl = r.C; Ll = r.L; alpha = r.alpha; eeGeo = r.eeGeo;
+    $("res-cpwline").innerHTML = `Using w = ${fmt(r.w * 1e6, 4)} µm, s = ${fmt(r.s * 1e6, 4)} µm: Z<sub>0</sub> = ${fmt(r.Z, 4)} Ω, ε<sub>eff</sub> = ${fmt(r.ee, 4)}, α = ${fmt(r.alpha * 100, 3)} %.`;
+  } else {
+    $("res-cpwline").textContent = "";
+    eeGeo = num("res-ee"); alpha = num("res-al") / 100; Z = num("res-z");
+    if (!(eeGeo >= 1)) return err("Enter a geometric ε<sub>eff</sub> ≥ 1.");
+    if (!(alpha >= 0 && alpha < 1)) return err("Enter a kinetic fraction between 0 and 100 %.");
+    if (!(Z > 0)) return err("Enter a positive impedance.");
+    v = C0 / Math.sqrt(eeGeo) * Math.sqrt(1 - alpha);
+    Cl = 1 / (Z * v); Ll = Z / v;
+  }
+  const n = resType;   // 4 or 2
+  let f0, len;
+  if (resMode === "len") {
+    len = num("res-l") * 1e-3;
+    if (!(len > 0)) return err("Enter a positive length.");
+    f0 = v / (n * len);
+  } else {
+    f0 = num("res-fz") * 1e9;
+    if (!(f0 > 0)) return err("Enter a positive frequency.");
+    len = v / (n * f0);
+  }
+  const Cc = num("res-cc") * 1e-15;
+  if (!(Cc >= 0)) return err("Enter a coupling capacitance ≥ 0.");
+  const Ceq = Cl * len / 2, Leq = (n === 4 ? 8 : 2) * Ll * len / (Math.PI ** 2);
+  const fgeo = f0 / Math.sqrt(1 - alpha);
+  const fload = f0 / Math.sqrt(1 + Cc / Ceq);
+  if (resMode === "len") {
+    $("res-bigcap").textContent = "Bare resonance frequency";
+    $("res-big").innerHTML = `${fmtFixed(f0 / 1e9, 5)}<span class="u">GHz</span>`;
+    $("res-bigsub").innerHTML = `${n === 4 ? "Quarter" : "Half"}-wave resonator, ℓ = ${fmt(len * 1e3, 5)} mm`;
+  } else {
+    $("res-bigcap").textContent = "Resonator length";
+    $("res-big").innerHTML = `${fmtFixed(len * 1e3, 5)}<span class="u">mm</span>`;
+    $("res-bigsub").innerHTML = `${n === 4 ? "Quarter" : "Half"}-wave resonator at ${fmt(f0 / 1e9, 5)} GHz (bare)`;
+  }
+  const list = [
+    ["Resonance frequency f<sub>0</sub>", `${fmt(f0 / 1e9, 5)} GHz`],
+    ["Length ℓ", `${fmt(len * 1e3, 5)} mm`],
+    ["Guided wavelength at f<sub>0</sub>", `${fmt(v / f0 * 1e3, 5)} mm`],
+    ["Free-space wavelength at f<sub>0</sub>", `${fmt(C0 / f0 * 1e3, 5)} mm`],
+    ["Phase velocity", `${fmt(v / C0, 4)} c`],
+    ["Harmonics", (n === 4 ? [3, 5] : [2, 3]).map(m => fmt(m * f0 / 1e9, 4)).join(", ") + " GHz"],
+    { grp: "Kinetic inductance" },
+    ["Fraction α", `${fmt(alpha * 100, 3)} %`],
+    ["Frequency without kinetic inductance", `${fmt(fgeo / 1e9, 5)} GHz`],
+    ["Shift from kinetic inductance", `${fmt((f0 - fgeo) / 1e6, 4)} MHz`],
+    { grp: "Lumped equivalent near f<sub>0</sub>" },
+    ["C", `${fmt(Ceq * 1e15, 4)} fF`],
+    ["L", `${fmt(Leq * 1e9, 4)} nH`],
+    ["Line impedance Z<sub>0</sub>", `${fmt(Z, 4)} Ω`],
+  ];
+  if (Cc > 0) list.push({ grp: "With coupling capacitor" },
+    ["Loaded estimate f", `${fmt(fload / 1e9, 5)} GHz`],
+    ["Shift", `${fmt((fload - f0) / 1e6, 4)} MHz`]);
+  $("res-res").innerHTML = rows(list);
+  $("res-msg").className = "msg hint";
+  $("res-msg").innerHTML = "Bare frequency: no coupling capacitor, ideal open and short ends. Real devices come out lower; see the notes below.";
+}
+
+/* ======================================================================
+   Tool 3: dew point
+   ====================================================================== */
+const MAG_W = { A: 6.1094, b: 17.625, c: 243.04 }, MAG_I = { A: 6.1121, b: 22.587, c: 273.86 };
+const satP = (T, m) => m.A * Math.exp(m.b * T / (m.c + T));
+const invP = (e, m) => { const g = Math.log(e / m.A); return m.c * g / (m.b - g); };
+function dew(Troom, RH) {
+  const e = RH / 100 * satP(Troom, MAG_W);
+  const Td = invP(e, MAG_W), Tf = invP(e, MAG_I);
+  const onset = Td >= 0 ? Td : Tf;   // warmest temperature at which water or ice deposits
+  const rhoV = e * 100 / (461.5 * (Troom + 273.15)) * 1000;   // g/m^3
+  return { e, Td, Tf, onset, rhoV };
+}
+function initDew() {
+  $("dew-pu-sel").addEventListener("change", () => {
+    const x = num("dew-p"), toK = $("dew-pu-sel").value === "C";
+    if (isFinite(x)) $("dew-p").value = String(+(toK ? x - 273.15 : x + 273.15).toFixed(2));
+    $("dew-pu").textContent = toK ? "°C" : "K";
+    renderDew();
+  });
+}
+function renderDew() {
+  const T = num("dew-t"), RH = num("dew-rh"), P = num("dew-p"), M = num("dew-m");
+  markBad("dew-rh", !(RH > 0 && RH <= 100));
+  markBad("dew-t", !(T > -40 && T < 60));
+  const unitC = $("dew-pu-sel").value === "C";
+  const Pc = unitC ? P : P - 273.15;
+  markBad("dew-p", !(Pc >= -273.15));
+  markBad("dew-m", !(M >= 0));
+  const fail = () => { $("dew-big").innerHTML = "—"; $("dew-res").innerHTML = ""; $("dew-bigsub").textContent = ""; };
+  if (!(RH > 0 && RH <= 100 && T > -40 && T < 60)) {
+    fail(); $("dew-verdict").className = "verdict err";
+    $("dew-verdict").textContent = "Enter a room temperature between −40 and 60 °C and a relative humidity between 0 and 100 %."; return;
+  }
+  const d = dew(T, RH);
+  const need = d.onset + (M >= 0 ? M : 0);
+  $("dew-big").innerHTML = `${fmtFixed(need + 273.15, 4)}<span class="u">K</span>`;
+  $("dew-bigsub").innerHTML = `${fmt(need, 3)} °C, i.e. the ${d.Td >= 0 ? "dew" : "frost"} point plus ${fmt(M >= 0 ? M : 0, 3)} K margin`;
+  const K = x => `${fmt(x, 3)} °C <span class="hint">(${fmt(x + 273.15, 4)} K)</span>`;
+  $("dew-res").innerHTML = rows([
+    ["Dew point (over water)", K(d.Td)],
+    ["Frost point (over ice)", d.Tf < 0.05 ? K(d.Tf) : "above 0 °C: dew forms first"],
+    ["Water vapour pressure", `${fmt(d.e, 4)} hPa`],
+    ["Absolute humidity", `${fmt(d.rhoV, 3)} g/m³`],
+  ]);
+  const v = $("dew-verdict");
+  if (!(Pc >= -273.15)) { v.className = "verdict err"; v.textContent = "Enter a part temperature above absolute zero."; return; }
+  const pStr = `${fmt(Pc + 273.15, 4)} K (${fmt(Pc, 3)} °C)`;
+  if (Pc >= d.onset + (M >= 0 ? M : 0)) {
+    v.className = "verdict ok"; v.innerHTML = `<b>Safe to open.</b> A part at ${pStr} stays dry: it is ${fmt(Pc - d.onset, 3)} K above the ${d.Td >= 0 ? "dew" : "frost"} point.`;
+  } else if (Pc >= d.onset) {
+    v.className = "verdict warn"; v.innerHTML = `<b>Marginal.</b> A part at ${pStr} is only ${fmt(Pc - d.onset, 2)} K above the ${d.Td >= 0 ? "dew" : "frost"} point, inside your margin. Wait a little longer.`;
+  } else if (Pc >= 0) {
+    v.className = "verdict err"; v.innerHTML = `<b>Water will condense.</b> A part at ${pStr} is below the dew point. Keep it closed or vent with dry gas.`;
+  } else {
+    v.className = "verdict err"; v.innerHTML = `<b>Frost will form.</b> A part at ${pStr} is below the frost point. Keep it closed or vent with dry gas.`;
+  }
+}
+
+/* ======================================================================
+   Tool 4: units
+   ====================================================================== */
+const lin = (name, f, note) => ({ name, to: x => x * f, from: y => y / f, note: note || "" });
+const UNITS = {
+  "Length": [
+    lin("m", 1), lin("cm", 1e-2), lin("mm", 1e-3), lin("µm", 1e-6), lin("nm", 1e-9), lin("Å", 1e-10),
+    lin("in", 0.0254, "25.4 mm exactly"), lin("mil", 2.54e-5, "0.001 in"), lin("thou", 2.54e-5, "same as mil"), lin("ft", 0.3048, "12 in"),
+  ],
+  "Pressure": [
+    lin("Pa", 1), lin("hPa", 100), lin("kPa", 1e3), lin("mbar", 100, "= hPa"), lin("bar", 1e5), lin("atm", 101325, "standard atmosphere"),
+    lin("Torr", 101325 / 760, "≈ mmHg"), lin("mTorr", 101325 / 760e3, "≈ micron Hg"), lin("psi", 6894.757293168361, "lbf/in²"),
+  ],
+  "Temperature": [
+    { name: "K", to: x => x, from: y => y, note: "" },
+    { name: "mK", to: x => x / 1e3, from: y => y * 1e3, note: "" },
+    { name: "°C", to: x => x + 273.15, from: y => y - 273.15, note: "" },
+    { name: "°F", to: x => (x - 32) * 5 / 9 + 273.15, from: y => (y - 273.15) * 9 / 5 + 32, note: "" },
+  ],
+  "Mass": [
+    lin("kg", 1), lin("g", 1e-3), lin("mg", 1e-6), lin("µg", 1e-9), lin("t", 1e3, "tonne"), lin("lb", 0.45359237, "avoirdupois pound"), lin("oz", 0.45359237 / 16, "avoirdupois ounce"),
+  ],
+  "Energy and frequency": [
+    lin("GHz", HP * 1e9, "E = hf"), lin("MHz", HP * 1e6, "E = hf"), lin("THz", HP * 1e12, "E = hf"),
+    lin("K", KB, "E = k<sub>B</sub>T"), lin("mK", KB * 1e-3, "E = k<sub>B</sub>T"),
+    lin("µeV", QE * 1e-6), lin("meV", QE * 1e-3), lin("eV", QE),
+    lin("cm⁻¹", HP * C0 * 100, "wavenumber, E = hcν̃"),
+    lin("Grad/s", HBAR * 1e9, "angular frequency, E = ħω"),
+    { name: "nm (wavelength)", to: x => HP * C0 / (x * 1e-9), from: y => HP * C0 / y / 1e-9, note: "λ = hc/E" },
+    lin("J", 1), lin("zJ", 1e-21, "10⁻²¹ J"),
+  ],
+  "Magnetic field": [
+    lin("T", 1), lin("mT", 1e-3), lin("µT", 1e-6), lin("nT", 1e-9), lin("G", 1e-4, "gauss"), lin("mG", 1e-7),
+    lin("Oe", 1e-4, "H in vacuum, B = μ<sub>0</sub>H"), lin("A/m", MU0, "H in vacuum, B = μ<sub>0</sub>H"), lin("kA/m", MU0 * 1e3, "H in vacuum"),
+    lin("Φ₀/µm²", PHI0 / 1e-12, "one flux quantum per µm²"),
+  ],
+};
+const UNIT_DEFAULTS = { "Length": "µm", "Pressure": "mbar", "Temperature": "K", "Mass": "g", "Energy and frequency": "GHz", "Magnetic field": "mT" };
+let uCat = "Energy and frequency";
+function initUnits() {
+  $("u-cats").innerHTML = Object.keys(UNITS).map(c => `<button data-c="${c}">${c}</button>`).join("");
+  $("u-cats").querySelectorAll("button").forEach(b => b.addEventListener("click", () => setCat(b.dataset.c, true)));
+  $("u-body").addEventListener("click", e => {
+    const tr = e.target.closest("tr"); if (!tr || !tr.dataset.u) return;
+    $("u-val").value = tr.dataset.raw; $("u-from").value = tr.dataset.u; renderUnits();
+  });
+  setCat(uCat, false);
+}
+function setCat(c, resetVal) {
+  uCat = c;
+  $("u-cats").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.c === c));
+  $("u-from").innerHTML = UNITS[c].map(u => `<option value="${u.name}">${u.name}</option>`).join("");
+  $("u-from").value = UNIT_DEFAULTS[c];
+  if (resetVal) $("u-val").value = c === "Temperature" ? "4.2" : "1";
+  renderUnits();
+}
+function renderUnits() {
+  const x = num("u-val"), list = UNITS[uCat], src = list.find(u => u.name === $("u-from").value);
+  if (!isFinite(x)) { $("u-body").innerHTML = ""; $("u-msg").className = "msg err"; $("u-msg").textContent = "Enter a number (e.g. 1.5 or 2e-3)."; return; }
+  const base = src.to(x);
+  let msg = "";
+  if (uCat === "Temperature" && base < 0) msg = "That is below absolute zero.";
+  if (src.name.startsWith("nm") && x <= 0) msg = "Wavelength must be positive.";
+  $("u-msg").className = "msg err"; $("u-msg").textContent = msg;
+  $("u-body").innerHTML = list.map(u => {
+    const y = u.from(base);
+    const raw = isFinite(y) ? String(Number(y.toPrecision(10))) : "";
+    return `<tr data-u="${u.name}" data-raw="${raw}" class="${u === src ? "src" : ""}"><td>${u.name}</td><td class="num">${fmt(y, 6)}</td><td class="hint">${u.note}</td></tr>`;
+  }).join("");
+}
+
+/* ======================================================================
+   Tool 5: threads
+   ====================================================================== */
+const DRILL = {   // inch sizes of number and letter drills
+  "#1": .2280, "#2": .2210, "#3": .2130, "#7": .2010, "#9": .1960, "#14": .1820, "#16": .1770, "#18": .1695, "#21": .1590,
+  "#25": .1495, "#27": .1440, "#29": .1360, "#30": .1285, "#32": .1160, "#33": .1130, "#35": .1100, "#36": .1065, "#37": .1040,
+  "#38": .1015, "#41": .0960, "#42": .0935, "#43": .0890, "#45": .0820, "#46": .0810, "#47": .0785, "#48": .0760, "#50": .0700,
+  "#52": .0635, "#53": .0595,
+  "F": .2570, "H": .2660, "I": .2720, "P": .3230, "Q": .3320, "U": .3680, "W": .3860, "X": .3970,
+};
+function drillIn(d) {
+  if (DRILL[d] !== undefined) return DRILL[d];
+  const m = d.match(/^(?:(\d+)-)?(\d+)\/(\d+)$/);   // "1-1/64" or "27/64"
+  if (m) return (m[1] ? +m[1] : 0) + (+m[2]) / (+m[3]);
+  return NaN;
+}
+// size, major diameter (in), [UNC tpi, tap], [UNF tpi, tap], close clearance, free clearance
+const THREADS = [
+  ["#0", .0600, null, [80, "3/64"], "#52", "#50"],
+  ["#1", .0730, [64, "#53"], [72, "#53"], "#48", "#46"],
+  ["#2", .0860, [56, "#50"], [64, "#50"], "#43", "#41"],
+  ["#3", .0990, [48, "#47"], [56, "#45"], "#37", "#35"],
+  ["#4", .1120, [40, "#43"], [48, "#42"], "#32", "#30"],
+  ["#5", .1250, [40, "#38"], [44, "#37"], "#30", "#29"],
+  ["#6", .1380, [32, "#36"], [40, "#33"], "#27", "#25"],
+  ["#8", .1640, [32, "#29"], [36, "#29"], "#18", "#16"],
+  ["#10", .1900, [24, "#25"], [32, "#21"], "#9", "#7"],
+  ["#12", .2160, [24, "#16"], [28, "#14"], "#2", "#1"],
+  ["1/4", .2500, [20, "#7"], [28, "#3"], "F", "H"],
+  ["5/16", .3125, [18, "F"], [24, "I"], "P", "Q"],
+  ["3/8", .3750, [16, "5/16"], [24, "Q"], "W", "X"],
+  ["7/16", .4375, [14, "U"], [20, "25/64"], "29/64", "15/32"],
+  ["1/2", .5000, [13, "27/64"], [20, "29/64"], "33/64", "17/32"],
+  ["9/16", .5625, [12, "31/64"], [18, "33/64"], "37/64", "19/32"],
+  ["5/8", .6250, [11, "17/32"], [18, "37/64"], "41/64", "21/32"],
+  ["3/4", .7500, [10, "21/32"], [16, "11/16"], "49/64", "25/32"],
+  ["7/8", .8750, [9, "49/64"], [14, "13/16"], "57/64", "29/32"],
+  ["1", 1.0000, [8, "7/8"], [12, "59/64"], "1-1/64", "1-1/32"],
+];
+const ISO = [[1, .25], [1.2, .25], [1.4, .3], [1.6, .35], [2, .4], [2.5, .45], [3, .5], [3.5, .6], [4, .7], [5, .8], [6, 1], [8, 1.25],
+  [10, 1.5], [12, 1.75], [14, 2], [16, 2], [18, 2.5], [20, 2.5], [22, 2.5], [24, 3], [27, 3]];
+let THREAD_ROWS = [];
+function initThreads() {
+  for (const [size, D, unc, unf, close, free] of THREADS) {
+    const mm = D * 25.4;
+    const iso = ISO.reduce((best, m) => Math.abs(m[0] - mm) < Math.abs(best[0] - mm) ? m : best);
+    for (const [ser, spec] of [["UNC", unc], ["UNF", unf]]) {
+      if (!spec) continue;
+      const [tpi, tap] = spec;
+      const name = `${size}-${tpi}`;
+      const metric = `M${iso[0]} × ${iso[1]}`;
+      THREAD_ROWS.push({
+        ser, name, metric,
+        key: (name + " " + name.replace("#", "") + " " + size.replace("#", "no") + " " + ser + " M" + iso[0]).toLowerCase().replace(/\s+/g, " "),
+        html: `<td>${name}</td><td>${ser}</td>` +
+          `<td class="num">${D.toFixed(4)} in<span class="sub2">${mm.toFixed(3)} mm</span></td>` +
+          `<td class="num">${tpi}</td><td class="num">${(25.4 / tpi).toFixed(3)} mm</td>` +
+          `<td>${dr(tap)}</td><td>${dr(close)}</td><td>${dr(free)}</td><td>${metric}<span class="sub2">Ø ${(iso[0] - mm >= 0 ? "+" : "−") + Math.abs(iso[0] - mm).toFixed(2)} mm</span></td>`,
+      });
+    }
+  }
+  $("th-q").addEventListener("input", renderThreads);
+  $("th-ser").addEventListener("change", renderThreads);
+  renderThreads();
+}
+function dr(d) {
+  const inch = drillIn(d);
+  return `${d}<span class="sub2">${inch.toFixed(4)} in · ${(inch * 25.4).toFixed(2)} mm</span>`;
+}
+function renderThreads() {
+  const q = $("th-q").value.trim().toLowerCase().replace(/\s+/g, " ").replace(/^no\.?\s*/, "no").replace(/^#/, "");
+  const ser = $("th-ser").value;
+  const tokens = q.split(" ").filter(Boolean);
+  const hits = THREAD_ROWS.filter(r => (!ser || r.ser === ser) && tokens.every(t => keyMatch(r, t)));
+  $("th-body").innerHTML = hits.map(r => `<tr>${r.html}</tr>`).join("") ||
+    `<tr><td colspan="9" class="hint">No thread matches “${$("th-q").value.replace(/[<&]/g, "")}”.</td></tr>`;
+  $("th-count").textContent = `${hits.length} of ${THREAD_ROWS.length} threads`;
+}
+function keyMatch(r, t) {
+  t = t.replace(/^#/, "");
+  if (/^m\d/.test(t)) return ("m" + r.metric.slice(1).split(" ")[0]) === t;      // exact metric size
+  // match on a token boundary so that "4-40" does not hit "1/4-20"
+  return r.key.split(" ").some(k => k.startsWith(t)) ;
+}
+
+/* ======================================================================
+   tabs and wiring
+   ====================================================================== */
+function showTab(id) {
+  if (!document.getElementById("tool-" + id)) id = "cpw";
+  document.querySelectorAll(".tool").forEach(s => s.classList.toggle("active", s.id === "tool-" + id));
+  document.querySelectorAll("#tabs button").forEach(b => { b.classList.toggle("on", b.dataset.tab === id); b.setAttribute("aria-pressed", b.dataset.tab === id); });
+  if (typeof updatePeek === "function") setTimeout(updatePeek, 50);
+}
+document.querySelectorAll("#tabs button").forEach(b => b.addEventListener("click", () => {
+  history.replaceState(null, "", "#" + b.dataset.tab); showTab(b.dataset.tab);
+}));
+window.addEventListener("hashchange", () => showTab(location.hash.slice(1)));
+
+/* phones: mirror the main result into a small bar while the result card is off screen */
+const PEEK = { cpw: ["cpw-big", "Z₀"], res: ["res-big", null], dew: ["dew-big", "Warm parts to"] };
+const visibleCards = new Set();
+const peekObs = new IntersectionObserver(es => {
+  es.forEach(e => e.isIntersecting ? visibleCards.add(e.target.id) : visibleCards.delete(e.target.id));
+  updatePeek();
+});
+["cpw-big", "res-big", "dew-big"].forEach(id => peekObs.observe($(id).closest(".card")));
+$("cpw-big").closest(".card").id = "cpw-out";
+$("res-big").closest(".card").id = "res-out";
+$("dew-big").closest(".card").id = "dew-out";
+function updatePeek() {
+  const active = (document.querySelector(".tool.active") || {}).id || "", id = active.replace("tool-", ""), cfg = PEEK[id];
+  const peek = $("peek");
+  if (!cfg || visibleCards.has(id + "-out")) { peek.classList.add("off"); return; }
+  peek.querySelector(".cap").textContent = cfg[1] || $("res-bigcap").textContent;
+  peek.querySelector(".val").innerHTML = $(cfg[0]).innerHTML;
+  peek.classList.remove("off");
+}
+function updateAll() { renderCPW(); renderRes(); updatePeek(); }
+initCPW(); initRes(); initDew(); initUnits(); initThreads();
+$("tool-cpw").addEventListener("input", updateAll);
+$("tool-res").addEventListener("input", () => { renderRes(); updatePeek(); });
+$("tool-res").addEventListener("click", () => setTimeout(updatePeek));
+$("tool-dew").addEventListener("input", () => { renderDew(); updatePeek(); });
+$("u-val").addEventListener("input", renderUnits);
+$("u-from").addEventListener("change", renderUnits);
+updateAll(); renderDew();
+showTab(location.hash.slice(1) || "cpw");
+
+// exposed for checking the numbers from the console
+window.toolbox = { cpw, sheetLk, ellipK, KK, dew, UNITS, THREAD_ROWS, solve };
+</script>
+</body>
+</html>

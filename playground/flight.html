@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Flight Simulator</title>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../assets/toy.css?v=20261122i">
+<link rel="stylesheet" href="../assets/toy.css?v=20261122k">
 <style>
   #gl, #hud { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
   #hud { pointer-events: none; }
@@ -43,9 +43,10 @@
   .modal-bg { position: fixed; inset: 0; z-index: 30; background: rgba(4,5,7,.55); display: flex; align-items: center; justify-content: center; padding: 16px; }
   .modal-bg[hidden] { display: none; }
   .modal {
-    width: min(460px, 100%); max-height: calc(100vh - 32px); overflow-y: auto;
+    width: min(460px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; scrollbar-width: none;
     background: rgba(16,18,22,.95); border: 1px solid var(--rule); border-radius: 14px; padding: 20px;
   }
+  .modal::-webkit-scrollbar, .panel::-webkit-scrollbar { display: none; }
   .modal h2 { margin: 0 0 4px; font-size: 18px; font-weight: 500; letter-spacing: .04em; }
   .modal .big { font-size: 40px; color: var(--accent); margin: 6px 0 2px; }
   .modal .stats { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; font-size: 12px; color: var(--soft); margin: 10px 0; }
@@ -70,7 +71,7 @@
   <button class="close" id="closePanel" aria-label="Close settings" title="Close (H)">✕</button>
   <a class="back" href="../index.html">← Home</a>
   <h1>Flight simulator</h1>
-  <p class="sub">Pilatus aircraft and a helicopter over endless mountains. Watch your fuel and land on a runway to refuel. I helped design the PC-24's rear fuselage and wings.</p>
+  <p class="sub">For some reason, Pilatus decided to build aircraft in the middle of towering alpine mountains. I was part of the PC-24's rear fuselage and wing engineering team for four years before starting my physics studies.</p>
 
   <label>aircraft</label>
   <div class="grid3" id="acBtns"></div>
@@ -98,7 +99,6 @@
     <span><kbd>C</kbd> <kbd>T</kbd> <kbd>H</kbd></span><span>view · time of day · panel</span>
     <span>touch</span><span>drag to steer, slider = throttle</span>
   </div>
-  <p class="hint" style="margin-top:10px">Land gently: wings level, sink under ~1,300 ft/min, on the runway. Idle throttle brakes. Score: rings 100, landings 250 (+ bonus for smooth ones), 10 per km flown.</p>
 </div>
 
 <div class="modal-bg" id="modalBg" hidden>
@@ -226,14 +226,14 @@ function height(x, z) {
 function terrainColor(h, slope, x, z, aw) {
   const j = Noise(x / 90, z / 90) * 0.06;
   let c;
-    if (h < 4) c = [0.80, 0.76, 0.58];
-    else if (slope > 0.85 && h > 60) c = [0.42, 0.40, 0.38];
-    else if (h < 220) c = [0.36, 0.56, 0.25];
-    else if (h < 600) c = [0.20, 0.40, 0.22];
-    else if (h < 880) c = [0.47, 0.45, 0.42];
-    else c = [0.93, 0.95, 0.98];
-    if (h > 840 && h < 940 && slope < 0.6) c = [0.80, 0.82, 0.86];
-  if (aw > 0.3) { const g = [0.44, 0.60, 0.29]; const k = smooth(0.3, 0.9, aw); c = c.map((v, i) => v * (1 - k) + g[i] * k); }
+    if (h < 4) c = [0.90, 0.82, 0.62];
+    else if (slope > 0.85 && h > 60) c = [0.53, 0.50, 0.46];
+    else if (h < 220) c = [0.47, 0.63, 0.34];
+    else if (h < 600) c = [0.32, 0.52, 0.33];
+    else if (h < 880) c = [0.58, 0.55, 0.50];
+    else c = [0.96, 0.95, 0.97];
+    if (h > 840 && h < 940 && slope < 0.6) c = [0.84, 0.84, 0.90];
+  if (aw > 0.3) { const g = [0.48, 0.63, 0.35]; const k = smooth(0.3, 0.9, aw); c = c.map((v, i) => v * (1 - k) + g[i] * k); }
   return c.map((v) => clamp(v + j, 0, 1));
 }
 
@@ -244,9 +244,9 @@ const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById("gl")
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(62, 1, 0.5, 14000);
-scene.fog = new THREE.Fog(0x9cc9ee, 1500, 5600);
-const hemi = new THREE.HemisphereLight(0xdfefff, 0x3b4a2a, 0.75);
-const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+scene.fog = new THREE.Fog(0xa8d2ec, 1300, 4800);
+const hemi = new THREE.HemisphereLight(0xf2efe6, 0x5e5238, 0.75);
+const sun = new THREE.DirectionalLight(0xfff0dc, 0.9);
 sun.position.set(-0.5, 0.8, -0.3);
 scene.add(hemi, sun);
 
@@ -263,7 +263,9 @@ const stars = (() => {
 
 // ---- terrain chunks
 const CHUNK = 1600, SEG = 48, RAD = 3;
-const terrainMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+// flat-shaded faceted look: Phong with flatShading and no highlights (Lambert ignores flatShading in this three.js version)
+const FLAT = { flatShading: true, shininess: 0, specular: 0x000000 };
+const terrainMat = new THREE.MeshPhongMaterial(Object.assign({ vertexColors: true }, FLAT));
 const chunks = new Map();
 function buildChunk(cx, cz) {
   const n = SEG + 1, pos = new Float32Array(n * n * 3), col = new Float32Array(n * n * 3), idx = [];
@@ -297,10 +299,10 @@ function updateChunks(px, pz, all) {
 }
 function clearChunks() { for (const [, m] of chunks) { scene.remove(m); m.geometry.dispose(); } chunks.clear(); }
 
-const water = new THREE.Mesh(new THREE.PlaneGeometry(16000, 16000), new THREE.MeshLambertMaterial({ color: 0x3f7fb3, transparent: true, opacity: 0.88 }));
+const water = new THREE.Mesh(new THREE.PlaneGeometry(16000, 16000), new THREE.MeshLambertMaterial({ color: 0x4b93b8, transparent: true, opacity: 0.88 }));
 water.rotation.x = -Math.PI / 2; scene.add(water);
 
-const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x555a60, flatShading: true, transparent: true, opacity: 0.92 });
+const cloudMat = new THREE.MeshPhongMaterial(Object.assign({ color: 0xffffff, emissive: 0x5c5852, transparent: true, opacity: 0.92 }, FLAT));
 const clouds = [];
 for (let i = 0; i < 46; i++) {
   const g = new THREE.Group(), puffs = 3 + Math.floor(Math.random() * 4);
@@ -315,11 +317,12 @@ for (let i = 0; i < 46; i++) {
 }
 
 // ---- shared helpers / materials
-const M = (c) => new THREE.MeshLambertMaterial({ color: c, flatShading: true });
+const M = (c) => new THREE.MeshPhongMaterial(Object.assign({ color: c }, FLAT));
 const MB = (c, o) => new THREE.MeshBasicMaterial(o ? Object.assign({ color: c }, o) : { color: c });
 const MAT = { white: M(0xf4f4f2), blue: M(0x1f4e8c), gold: M(0xe0b35a), red: M(0xc8323a), cream: M(0xefe9dc),
   glass: M(0x1c2733), metal: M(0x8b9097), dark: M(0x2a2d33), tire: M(0x18191b), grey: M(0x9aa0a8),
-  asphalt: M(0x3a3d42), concrete: M(0x8d9096), orange: M(0xe0702a), ggb: M(0xc0362c), stone: M(0xe9e4d8) };
+  asphalt: M(0x3a3d42), concrete: M(0x8d9096), orange: M(0xe0702a), ggb: M(0xc0362c), stone: M(0xe9e4d8),
+  pcRed: M(0xd9342b), maroon: M(0x8e1f26), silver: M(0xb3b9c1) };
 function mk(g, geo, mat, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); g.add(m); return m; }
 const box = (a, b, c) => new THREE.BoxGeometry(a, b, c);
 const cyl = (a, b, h, s = 10) => new THREE.CylinderGeometry(a, b, h, s);
@@ -383,11 +386,11 @@ ring.add(ringGlow); ring.visible = false; scene.add(ring);
 //  aircraft
 // ===================================================================
 const AC = {
-  pc24: { name: "PC-24", kind: "plane", blurb: "business jet · fast, needs a long runway", cruise: 110, stall: 55, T: 4.2, pitch: .55, roll: 1.6, yaw: .3, fuelSec: 260, brake: 6, len: 17, gearH: 1.95, zMain: 1.5 },
-  pc12: { name: "PC-12", kind: "plane", blurb: "single turboprop · long range", cruise: 80, stall: 36, T: 3.5, pitch: .6, roll: 1.5, yaw: .35, fuelSec: 360, brake: 5, len: 14.4, gearH: 1.83, zMain: -0.1 },
-  pc21: { name: "PC-21", kind: "plane", blurb: "turboprop trainer · agile, rolls fast", cruise: 105, stall: 42, T: 5.5, pitch: .95, roll: 3.4, yaw: .45, fuelSec: 210, brake: 6, len: 11.2, gearH: 1.5, zMain: 0.4 },
-  pc6:  { name: "PC-6", kind: "plane", blurb: "Porter · STOL taildragger, slow, lands short", cruise: 50, stall: 22, T: 4.0, pitch: .7, roll: 1.2, yaw: .4, fuelSec: 320, brake: 4, len: 11, gearH: 1.98, zMain: -1.4, groundPitch: .153, fixedGear: true },
-  heli: { name: "Heli", kind: "heli", blurb: "helicopter · hovers, lands anywhere flat, refuels at airports", T: 20, kd: .00043, cruise: 45, fuelSec: 280, len: 13, gearH: 1.22 },
+  pc24: { name: "PC-24", kind: "plane", blurb: "The only business jet in the world that can land on unpaved runways.", cruise: 110, stall: 55, T: 4.2, pitch: .55, roll: 1.6, yaw: .3, fuelSec: 260, brake: 6, len: 17, gearH: 1.95, zMain: 1.5 },
+  pc12: { name: "PC-12", kind: "plane", blurb: "Single-engine turboprop. Steady, roomy and forgiving.", cruise: 80, stall: 36, T: 3.5, pitch: .6, roll: 1.5, yaw: .35, fuelSec: 360, brake: 5, len: 14.4, gearH: 1.83, zMain: -0.1 },
+  pc21: { name: "PC-21", kind: "plane", blurb: "Turboprop trainer that flies like a fighter jet. Agile, rolls fast.", cruise: 105, stall: 42, T: 5.5, pitch: .95, roll: 3.4, yaw: .45, fuelSec: 210, brake: 6, len: 11.2, gearH: 1.5, zMain: 0.4 },
+  pc6:  { name: "PC-6", kind: "plane", blurb: "The Porter. Slow taildragger that takes off and lands on very short strips.", cruise: 50, stall: 22, T: 4.0, pitch: .7, roll: 1.2, yaw: .4, fuelSec: 320, brake: 4, len: 11, gearH: 1.98, zMain: -1.4, groundPitch: .153, fixedGear: true },
+  heli: { name: "Heli", kind: "heli", blurb: "So ugly that it flies because the earth repels it. Lands anywhere flat, refuels at airports.", T: 20, kd: .00043, cruise: 45, fuelSec: 280, len: 13, gearH: 1.22 },
 };
 for (const k in AC) if (AC[k].kind === "plane") AC[k].k = 0.65 * AC[k].T / AC[k].cruise ** 2;
 
@@ -404,6 +407,16 @@ function propeller(g, z, blades, len, spinnerMat) {
   }
   g.add(p); return p;
 }
+// a painted line on both sides of a round fuselage: pts are [z, y] pairs, rAt(z) is the fuselage radius there
+function sideLine(g, mat, rAt, pts, h, inset = 0.03) {
+  for (const s of [-1, 1]) for (let i = 0; i + 1 < pts.length; i++) {
+    const [za, ya] = pts[i], [zb, yb] = pts[i + 1];
+    const xa = s * (Math.sqrt(Math.max(rAt(za) ** 2 - ya * ya, 0)) - inset), xb = s * (Math.sqrt(Math.max(rAt(zb) ** 2 - yb * yb, 0)) - inset);
+    const a = new THREE.Vector3(xa, ya, za), b = new THREE.Vector3(xb, yb, zb);
+    const m = mk(g, box(0.13, h, a.distanceTo(b) + h * 0.5), mat);
+    m.position.copy(a).add(b).multiplyScalar(0.5); m.lookAt(b);
+  }
+}
 function buildModel(id) {
   const g = new THREE.Group(), gear = new THREE.Group(); g.add(gear);
   const ud = { gear, lights: [] };
@@ -411,20 +424,27 @@ function buildModel(id) {
     const r = mk(g, new THREE.SphereGeometry(0.2, 6, 6), MB(0xff3030), -x, y, z), gr = mk(g, new THREE.SphereGeometry(0.2, 6, 6), MB(0x30ff60), x, y, z);
     ud.lights.push(r, gr);
   };
-  if (id === "pc24") {
-    mk(g, cyl(1.05, 0.8, 11), MAT.white, 0, 0, 0.5, Math.PI / 2);
+  if (id === "pc24") {   // prototype P01, HB-VXA: white, grey wings, red swoosh sweeping up to the tail
+    const r24 = (z) => 1.05 - 0.25 * clamp((z + 5) / 11, 0, 1);
+    mk(g, cyl(0.8, 1.05, 11), MAT.white, 0, 0, 0.5, Math.PI / 2);
     mk(g, new THREE.ConeGeometry(1.05, 3.2, 10), MAT.white, 0, 0, -6.6, -Math.PI / 2);
     mk(g, new THREE.ConeGeometry(0.8, 3, 10), MAT.white, 0, 0.15, 7.5, Math.PI / 2);
     mk(g, box(1.6, 0.5, 1.2), MAT.glass, 0, 0.6, -5.2, -0.35);
-    mk(g, box(2.15, 0.25, 9), MAT.blue, 0, -0.1, 0.4);
-    mk(g, box(1.9, 0.3, 6.5), MAT.glass, 0, 0.35, 0.3);
-    mk(g, box(7.8, 0.22, 2.2), MAT.white, 4.1, -0.45, 1.0, 0, -0.22, 0.06);
-    mk(g, box(7.8, 0.22, 2.2), MAT.white, -4.1, -0.45, 1.0, 0, 0.22, -0.06);
-    mk(g, box(0.3, 0.9, 0.9), MAT.blue, 8.0, -0.1, 1.9, 0, -0.22, 0);
-    mk(g, box(0.3, 0.9, 0.9), MAT.blue, -8.0, -0.1, 1.9, 0, 0.22, 0);
-    mk(g, cyl(0.55, 0.5, 2.6, 8), MAT.white, 1.55, 0.45, 5.0, Math.PI / 2);
-    mk(g, cyl(0.55, 0.5, 2.6, 8), MAT.white, -1.55, 0.45, 5.0, Math.PI / 2);
-    mk(g, box(0.25, 3.2, 2.4), MAT.blue, 0, 2.0, 7.2, -0.35);
+    for (let z = -3.3; z <= 2.8; z += 0.87) sideLine(g, MAT.glass, r24, [[z, 0.36], [z + 0.42, 0.36]], 0.3, 0.05);
+    sideLine(g, MAT.pcRed, r24, [[-5.4, -0.42], [-2, -0.36], [1.8, -0.22], [4.4, 0.12], [5.8, 0.5]], 0.17);
+    sideLine(g, MAT.maroon, r24, [[-3.6, -0.62], [0, -0.56], [2.6, -0.42], [4.8, -0.08], [5.8, 0.2]], 0.07);
+    mk(g, box(7.8, 0.22, 2.2), MAT.silver, 4.1, -0.45, 1.0, 0, -0.22, 0.06);
+    mk(g, box(7.8, 0.22, 2.2), MAT.silver, -4.1, -0.45, 1.0, 0, 0.22, -0.06);
+    mk(g, box(0.3, 0.9, 0.9), MAT.white, 8.0, -0.1, 1.9, 0, -0.22, 0);
+    mk(g, box(0.3, 0.9, 0.9), MAT.white, -8.0, -0.1, 1.9, 0, 0.22, 0);
+    for (const s of [-1, 1]) {
+      mk(g, cyl(0.55, 0.5, 2.6, 8), MAT.white, s * 1.55, 0.45, 5.0, Math.PI / 2);
+      mk(g, cyl(0.57, 0.57, 0.22, 8), MAT.silver, s * 1.55, 0.45, 3.75, Math.PI / 2);
+      mk(g, box(0.04, 0.34, 0.34), MAT.pcRed, s * 2.08, 0.5, 5.0);                 // Swiss flag on the nacelle
+      mk(g, box(0.05, 0.22, 0.06), MAT.white, s * 2.09, 0.5, 5.0); mk(g, box(0.05, 0.06, 0.22), MAT.white, s * 2.09, 0.5, 5.0);
+    }
+    mk(g, box(0.25, 3.2, 2.4), MAT.white, 0, 2.0, 7.2, -0.35);
+    mk(g, box(0.27, 0.5, 2.0), MAT.pcRed, 0, 0.7, 6.6, -0.35);                    // swoosh runs up into the fin root
     mk(g, box(5.5, 0.18, 1.4), MAT.white, 0, 3.55, 7.9);
     nav(8.05, 0.4, 1.9);
     gearLeg(gear, 1.4, -0.7, 1.5, 0.9, 0.35); gearLeg(gear, -1.4, -0.7, 1.5, 0.9, 0.35); gearLeg(gear, 0, -0.75, -5, 0.85, 0.3);
@@ -445,19 +465,26 @@ function buildModel(id) {
     ud.prop = propeller(g, -6.1, 4, 1.3, MAT.white);
     nav(8.05, -0.1, 0);
     gearLeg(gear, 1.6, -0.55, -0.1, 0.95, 0.33); gearLeg(gear, -1.6, -0.55, -0.1, 0.95, 0.33); gearLeg(gear, 0, -0.6, -4.2, 0.9, 0.28);
-  } else if (id === "pc21") {
-    mk(g, cyl(0.55, 0.72, 6.4), MAT.white, 0, 0, 0.6, Math.PI / 2);
-    mk(g, cyl(0.72, 0.48, 1.6), MAT.white, 0, 0, -3.4, Math.PI / 2);
-    mk(g, new THREE.ConeGeometry(0.55, 2.4, 10), MAT.white, 0, 0.1, 5.0, Math.PI / 2);
+  } else if (id === "pc21") {   // Pilatus company scheme: red all over, white pinstripe, white crosses under the wings
+    const r21 = (z) => z < -2.6 ? 0.48 + 0.24 * clamp((z + 4.2) / 1.6, 0, 1) : 0.72 - 0.17 * clamp((z + 2.6) / 6.4, 0, 1);
+    mk(g, cyl(0.55, 0.72, 6.4), MAT.pcRed, 0, 0, 0.6, Math.PI / 2);
+    mk(g, cyl(0.72, 0.48, 1.6), MAT.pcRed, 0, 0, -3.4, Math.PI / 2);
+    mk(g, new THREE.ConeGeometry(0.55, 2.4, 10), MAT.pcRed, 0, 0.1, 5.0, Math.PI / 2);
     const can = mk(g, new THREE.SphereGeometry(0.55, 12, 8), MAT.glass, 0, 0.62, -0.6); can.scale.set(1, 0.85, 3.2);
-    mk(g, box(1.47, 0.14, 6), MAT.red, 0, -0.2, 0.5);
-    mk(g, box(3.9, 0.17, 1.7), MAT.white, 2.4, -0.4, 0.5, 0, 0, 0.07);
-    mk(g, box(3.9, 0.17, 1.7), MAT.white, -2.4, -0.4, 0.5, 0, 0, -0.07);
-    mk(g, box(0.25, 0.22, 1.3), MAT.red, 4.4, -0.25, 0.5); mk(g, box(0.25, 0.22, 1.3), MAT.red, -4.4, -0.25, 0.5);
-    mk(g, box(0.16, 1.9, 1.5), MAT.red, 0, 1.2, 5.3, -0.5);
-    mk(g, box(3.6, 0.12, 1), MAT.white, 0, 0.25, 5.6);
-    ud.prop = propeller(g, -4.95, 5, 1.15, MAT.red);
-    nav(4.55, -0.25, 0.5);
+    sideLine(g, MAT.white, r21, [[-3.9, 0.02], [-2.6, 0.04], [0.5, 0.08], [3.7, 0.16]], 0.07);
+    for (const s of [-1, 1]) {
+      mk(g, box(0.16, 0.14, 0.5), MAT.dark, s * 0.62, 0.12, -3.3, 0, s * 0.15, 0);   // exhaust stacks
+      // tapered wing: inner panel + slimmer outer panel, straight trailing edge (span ~10 m)
+      mk(g, box(2.35, 0.18, 1.85), MAT.pcRed, s * 1.75, -0.4, 0.5, 0, 0, s * 0.07);
+      mk(g, box(2.3, 0.14, 1.3), MAT.pcRed, s * 3.98, -0.244, 0.775, 0, 0, s * 0.07);
+      mk(g, box(0.9, 0.03, 0.26), MAT.white, s * 3.5, -0.355, 0.75, 0, 0, s * 0.07);   // cross under the wing
+      mk(g, box(0.26, 0.03, 0.9), MAT.white, s * 3.5, -0.355, 0.75, 0, 0, s * 0.07);
+    }
+    mk(g, box(0.16, 1.9, 1.5), MAT.pcRed, 0, 1.2, 5.3, -0.5);
+    mk(g, box(3.6, 0.12, 1), MAT.pcRed, 0, 0.25, 5.6);
+    mk(g, box(0.18, 0.3, 0.09), MAT.white, 0, 1.6, 5.5, -0.5); mk(g, box(0.18, 0.09, 0.3), MAT.white, 0, 1.6, 5.5, -0.5);   // Swiss cross on the fin
+    ud.prop = propeller(g, -4.95, 5, 1.15, MAT.pcRed);
+    nav(5.15, -0.1, 0.8);
     gearLeg(gear, 1.25, -0.4, 0.4, 0.8, 0.3); gearLeg(gear, -1.25, -0.4, 0.4, 0.8, 0.3); gearLeg(gear, 0, -0.45, -3.2, 0.8, 0.25);
   } else if (id === "pc6") {
     mk(g, box(1.3, 1.5, 5.6), MAT.cream, 0, 0.05, 0.4);
@@ -502,6 +529,44 @@ function buildModel(id) {
 }
 let craft = new THREE.Group(); scene.add(craft);
 
+// ---- ground shadow: a second copy of the model, squashed flat onto the ground plane under the aircraft.
+// The stencil test makes overlapping parts darken only once; polygonOffset + a small lift keep it off the runway.
+const shadowMat = new THREE.MeshBasicMaterial({ color: 0x1a1a28, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide,
+  polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4, fog: true,
+  stencilWrite: true, stencilRef: 0, stencilFunc: THREE.EqualStencilFunc, stencilZPass: THREE.IncrementStencilOp });
+let shadow = new THREE.Group();
+function buildShadow(id) {
+  scene.remove(shadow);
+  shadow = buildModel(id); shadow.matrixAutoUpdate = false;
+  shadow.traverse((o) => { if (o.isMesh) { if (o.material.transparent) o.visible = false; o.material = shadowMat; o.frustumCulled = false; } });
+  shadow.userData.lights.forEach((l) => l.visible = false);
+  scene.add(shadow);
+}
+const shM = new THREE.Matrix4(), shF = new THREE.Matrix4(), shC = new THREE.Matrix4();
+function updateShadow() {
+  const agl = P.pos.y - Math.max(height(P.pos.x, P.pos.z), 0) - A.gearH;
+  const fade = 1 - smooth(25, 150, agl);
+  shadow.visible = fade > 0.01 && !(P.crashed > 0);
+  if (!shadow.visible) return;
+  const x = P.pos.x, z = P.pos.z, e = 4, gy = (px, pz) => Math.max(height(px, pz), 0);
+  const sx = (gy(x + e, z) - gy(x - e, z)) / (2 * e), sz = (gy(x, z + e) - gy(x, z - e)) / (2 * e);
+  const y0 = gy(x, z) + 0.45 + Math.min(1.5, Math.hypot(sx, sz) * 1.2);   // lift a bit more on slopes so bumps don't swallow it
+  // straight-down projection onto the plane y = y0 + sx (X - x) + sz (Z - z), grown a little with height so it reads as softer
+  const k = 1 + Math.max(agl, 0) * 0.005;
+  shF.set(k, 0, 0, x * (1 - k),
+          sx * k, 0, sz * k, y0 - k * (sx * x + sz * z),
+          0, 0, k, z * (1 - k),
+          0, 0, 0, 1);
+  shC.compose(P.pos, P.q, new THREE.Vector3(1, 1, 1));
+  shM.multiplyMatrices(shF, shC);
+  shadow.matrix.copy(shM); shadow.matrixWorldNeedsUpdate = true;
+  shadowMat.opacity = 0.32 * fade / Math.sqrt(k);
+  const su = shadow.userData, cu = craft.userData;
+  if (su.prop && cu.prop) su.prop.rotation.z = cu.prop.rotation.z;
+  if (su.rotor && cu.rotor) su.rotor.rotation.y = cu.rotor.rotation.y;
+  su.gear.visible = cu.gear.visible;
+}
+
 // ===================================================================
 //  state
 // ===================================================================
@@ -525,7 +590,7 @@ const groundOffset = (gp) => A.gearH * Math.cos(gp) + (A.zMain || 0) * Math.sin(
 
 function selectAircraft(id) {
   acId = id; A = AC[id];
-  scene.remove(craft); craft = buildModel(id); scene.add(craft);
+  scene.remove(craft); craft = buildModel(id); scene.add(craft); buildShadow(id);
   document.querySelectorAll("#acBtns button").forEach((b) => b.classList.toggle("on", b.dataset.ac === id));
   document.getElementById("acInfo").textContent = A.name + ": " + A.blurb;
   newFlight(true);
@@ -737,10 +802,23 @@ function heliStep(dt, { up, tr, ty }) {
     P.coll = assist ? P.thr : P.thr;
     return;
   }
-  // cyclic: tilt the rotor disc, the thrust vector follows
-  H.pitch = approach(H.pitch, -up * 0.38, 2.5, dt);
-  H.roll = approach(H.roll, tr * 0.42, 2.5, dt);
-  H.hdg += (ty * 1.1 + tr * 0.6 * Math.min(1, sp / 25)) * dt;
+  // velocity in the heading frame: vf forward, vs to the right
+  const sH = Math.sin(H.hdg), cH = Math.cos(H.hdg);
+  const vf = P.vel.x * sH - P.vel.z * cH, vs = P.vel.x * cH + P.vel.z * sH;
+  // cyclic: tilt the rotor disc, the thrust vector follows.
+  // With assist and the stick centred, the disc is tilted against the drift so the helicopter settles into a hover.
+  const hands = Math.abs(up) > 0.05 || Math.abs(tr) > 0.05;
+  let pT = -up * 0.38, rT = tr * 0.42;
+  if (assist && !hands && P.fuel > 0) { pT = clamp(vf * 0.05, -0.35, 0.35); rT = clamp(-vs * 0.05, -0.35, 0.35); }
+  H.pitch = approach(H.pitch, pT, 2.5, dt);
+  H.roll = approach(H.roll, rT, 2.5, dt);
+  const dHdg = (ty * 1.1 + tr * 0.6 * Math.min(1, sp / 25)) * dt;
+  H.hdg += dHdg;
+  // in forward flight the fuselage weathervanes: the velocity turns with the nose instead of skidding sideways
+  if (vf > 3) {
+    const k = dHdg * Math.min(1, vf / 20), c = Math.cos(k), s = Math.sin(k), x = P.vel.x, z = P.vel.z;
+    P.vel.x = x * c - z * s; P.vel.z = z * c + x * s;
+  }
   setOrientation(H.hdg, H.pitch, H.roll);
   const u = upv();
   let lift;
@@ -757,7 +835,15 @@ function heliStep(dt, { up, tr, ty }) {
   P.coll = lift / A.T;
   burnFuel(dt, P.coll);
   const v = P.vel, s = v.length();
-  const acc = u.multiplyScalar(lift).add(new THREE.Vector3(0, -9.81, 0)).addScaledVector(v, -A.kd * s - 0.02);
+  const thrust = u.multiplyScalar(lift);
+  // in forward flight the sideways part of a banked rotor's thrust bends the flight path (the heading turn above,
+  // with the velocity following the nose) instead of pushing the helicopter into a sideways skid
+  const ff = clamp((vf - 3) / 17, 0, 1), tl = (thrust.x * cH + thrust.z * sH) * ff;
+  thrust.x -= tl * cH; thrust.z -= tl * sH;
+  const acc = thrust.add(new THREE.Vector3(0, -9.81, 0)).addScaledVector(v, -A.kd * s - 0.02);
+  // horizontal drag: rotor + fuselage. Stronger at walking pace so slow drift dies out; extra side drag against skids
+  const hDrag = 0.05 + 0.2 * Math.max(0, 1 - sp / 15);
+  acc.x -= v.x * hDrag + vs * cH * 0.12; acc.z -= v.z * hDrag + vs * sH * 0.12;
   if (P.fuel <= 0) acc.y -= v.y * 0.2;   // a windmilling rotor brakes the descent (~7 m/s)
   v.addScaledVector(acc, dt);
   P.pos.addScaledVector(v, dt);
@@ -784,9 +870,9 @@ function crash(what, sub) {
 //  camera, time of day, HUD
 // ===================================================================
 const TIMES = [
-  { name: "day",   sky: 0x9cc9ee, sun: 0xffffff, sunI: 0.9,  hemi: 0.75, sunPos: [-0.5, 0.8, -0.3], stars: false, water: 0x3f7fb3 },
-  { name: "dusk",  sky: 0xe7a27c, sun: 0xffb27a, sunI: 0.75, hemi: 0.5,  sunPos: [-0.9, 0.18, -0.4], stars: false, water: 0x5a6f94 },
-  { name: "night", sky: 0x0a1022, sun: 0x8aa6ff, sunI: 0.35, hemi: 0.18, sunPos: [0.4, 0.6, 0.5],   stars: true,  water: 0x13233d },
+  { name: "day",   sky: 0xa8d2ec, sun: 0xfff0dc, sunI: 0.9,  hemi: 0.72, sunPos: [-0.5, 0.8, -0.3], stars: false, water: 0x4b93b8 },
+  { name: "dusk",  sky: 0xeeb08c, sun: 0xffb27a, sunI: 0.75, hemi: 0.5,  sunPos: [-0.9, 0.18, -0.4], stars: false, water: 0x5a6f94 },
+  { name: "night", sky: 0x161d38, sun: 0x9fb2ff, sunI: 0.38, hemi: 0.22, sunPos: [0.4, 0.6, 0.5],   stars: true,  water: 0x13233d },
   { name: "dawn",  sky: 0xf3c9d6, sun: 0xffd9b0, sunI: 0.7,  hemi: 0.55, sunPos: [0.9, 0.2, 0.3],    stars: false, water: 0x6f8fb8 },
 ];
 let tIdx = 0;
@@ -1055,6 +1141,7 @@ function frame(t) {
     const agl = P.pos.y - Math.max(height(P.pos.x, P.pos.z), 0);
     ud.gear.visible = P.ground || (agl < 150 && P.v < A.stall * 2.2);
   }
+  updateShadow();
   ring.rotation.z += dt * 0.6;
   ringGlow.material.opacity = 0.14 + 0.08 * Math.sin(t * 0.004);
   updateCamera(dt);

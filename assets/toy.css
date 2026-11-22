@@ -31,6 +31,8 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
   transition: opacity .25s, transform .25s;
   z-index: 10;
 }
+.panel { scrollbar-width: none; }
+.panel::-webkit-scrollbar { display: none; }
 .panel.hidden { opacity: 0; transform: translateY(-6px); pointer-events: none; }
 .panel h1 { font-family: var(--serif); font-size: 24px; font-weight: 500; letter-spacing: -.01em; margin: 0 0 4px; line-height: 1.15; }
 .panel .sub { color: var(--soft); margin: 0 0 14px; font-size: 13px; }
