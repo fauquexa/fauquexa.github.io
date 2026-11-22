@@ -67,7 +67,7 @@
 
   function setupMusic(name) {
     const M = MOODS[name] || MOODS.cats;
-    const KEY = "playground-music", VOL = 0.5;
+    const KEY = "playground-music", VOL = 0.4;
     let muted = false;
     try { muted = localStorage.getItem(KEY) === "off"; } catch (e) { }
 
@@ -78,7 +78,9 @@
       "display:grid;place-items:center;background:rgba(24,25,28,.82);border:1px solid rgba(255,255,255,.14);color:#ececea;cursor:pointer;" +
       "box-shadow:0 4px 14px rgba(0,0,0,.25);transition:background .15s,opacity .2s}" +
       "#musicBtn:hover{background:rgba(44,46,52,.92)}#musicBtn svg{width:20px;height:20px;display:block}" +
-      "#musicBtn.off{opacity:.75}body.cinema #musicBtn{display:none}";
+      "#musicBtn.off{opacity:.75}body.cinema #musicBtn{display:none}" +
+      "#musicBtn.waiting{animation:musicPulse 1.8s ease-in-out infinite}" +
+      "@keyframes musicPulse{0%,100%{box-shadow:0 0 0 0 rgba(143,180,236,.55)}50%{box-shadow:0 0 0 8px rgba(143,180,236,0)}}";
     document.head.appendChild(css);
     const btn = document.createElement("button");
     btn.id = "musicBtn"; btn.type = "button";
@@ -208,7 +210,7 @@
     function play() {
       if (!ctx) build();
       if (ctx.state === "suspended") ctx.resume();
-      fadeTo(VOL, 2.5);
+      fadeTo(VOL, 6);   // a slow fade in
     }
     function stop() {
       if (!ctx) return;
@@ -216,14 +218,25 @@
       setTimeout(() => { if (muted && ctx.state === "running") ctx.suspend(); }, 700);
     }
 
-    // browsers only allow sound after the visitor has interacted with the page
+    // Start right away. Browsers allow that when the visitor already clicked on this site (say, a
+    // tile on the homepage); otherwise the sound waits for the first click or key press, and the
+    // speaker gently pulses in the meantime.
     let armed = false;
+    const GESTURES = ["pointerdown", "keydown", "touchstart"];
     const firstGesture = () => {
       if (armed) return; armed = true;
-      ["pointerdown", "keydown", "touchstart"].forEach((e) => removeEventListener(e, firstGesture, true));
+      GESTURES.forEach((e) => removeEventListener(e, firstGesture, true));
+      btn.classList.remove("waiting");
       if (!muted) play();
     };
-    ["pointerdown", "keydown", "touchstart"].forEach((e) => addEventListener(e, firstGesture, true));
+    GESTURES.forEach((e) => addEventListener(e, firstGesture, true));
+    if (!muted) {
+      try { play(); } catch (e) { }
+      setTimeout(() => {
+        if (ctx && ctx.state === "running") { armed = true; GESTURES.forEach((e) => removeEventListener(e, firstGesture, true)); }
+        else if (!armed) { btn.classList.add("waiting"); btn.title = "Click anywhere for sound"; }
+      }, 400);
+    }
 
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
