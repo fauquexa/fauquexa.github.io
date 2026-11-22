@@ -494,6 +494,14 @@ const structures = new THREE.Group(); scene.add(structures);
 let W = new Bake();   // everything that casts shadows near the run (switched to a cutaway group while building those)
 const MAIN_W = W;
 
+// things that aren't part of the run, the passage or the coop (the garage, the outbuilding, the trees, hedges and shrubs,
+// the van, the mixer) go into their own meshes with their own materials: when one is in the camera's way it turns
+// see-through instead of pushing the camera about
+const FADES = [];
+let FCUR = null;
+function newFade(name) { const F = { name, solid: new Bake(), extra: [], c: 0, lastC: -1 }; FADES.push(F); return F; }
+function intoF(F) { FCUR = F; W = F ? F.solid : MAIN_W; }
+intoF(newFade("garage"));
 // the long garage: brick base with proud bricks, corrugated sheet above, corrugated gable roof
 {
   const G = GAR, w = G.x1 - G.x0, d = G.z1 - G.z0, cx = (G.x0 + G.x1) / 2, cz = (G.z0 + G.z1) / 2;
@@ -535,6 +543,7 @@ const MAIN_W = W;
 W.box(0xb8b2a6, 0.5, 1.32, GAR.z1 + 0.45 - (RUN.z1 + 0.07), GAR.x1 + 0.17, -0.64, (GAR.z1 + 0.45 + RUN.z1 + 0.07) / 2, 0, 0, 0, null, 0.03);
 W.box(0xb8b2a6, GAR.x1 - GAR.x0 + 0.42, 1.32, 0.45, (GAR.x0 + GAR.x1) / 2 + 0.08, -0.64, GAR.z1 + 0.2, 0, 0, 0, null, 0.03);
 
+intoF(newFade("outbuilding"));
 // the concrete outbuilding with its big wooden door
 {
   const B = BLOCK, w = B.x1 - B.x0, d = B.z1 - B.z0, cx = (B.x0 + B.x1) / 2, cz = (B.z0 + B.z1) / 2;
@@ -556,6 +565,7 @@ W.box(0xb8b2a6, GAR.x1 - GAR.x0 + 0.42, 1.32, 0.45, (GAR.x0 + GAR.x1) / 2 + 0.08
   W.box(0x4f4c4a, 0.03, 0.18, 0.03, dcx - 0.06, 1.05, dz + 0.05); W.box(0x4f4c4a, 0.22, 0.035, 0.02, dcx, 1.15, dz + 0.05);
 }
 
+intoF(null);
 // the passage: plank-and-mesh east wall, little fence door at the front, mono-pitch roof of red beaver-tail tiles
 // diamond wire mesh: a small canvas of galvanised wires on a clear background, repeated over every fence panel
 // (wires drawn corner-to-corner of each tile so the tiles join into one lattice; darker knots where wires cross)
@@ -719,6 +729,7 @@ const CONN_Y = (x) => CONN.hHi - (x - CONN.x0) * (CONN.hHi - CONN.hLo) / (CONN.x
   for (let i = 0; i < 70; i++) W.box(pick([0xe2c46a, 0xd6b45c, 0xead27e, 0xf0dc8a]), rand(0.07, 0.16), 0.007, 0.012, rand(C.x0 + 0.1, C.x1 - 0.1), 0.014, rand(C.z0 + 0.1, C.z1 - 0.1), rand(-0.2, 0.2), rand(0, 3), 0, null, 0.05);
   for (let i = 0; i < 24; i++) W.box(pick([0xf0dc8a, 0xe2c46a, 0xf4e49c]), rand(0.06, 0.12), 0.008, 0.012, rand(N.x0 + 0.05, N.x1 - 0.05), N.y + 0.012, rand(N.z0 + 0.04, N.z1 - 0.03), rand(-0.3, 0.3), rand(0, 3), 0, null, 0.05);
 }
+intoF(newFade("bench"));
 // a little wooden bench along the passage's east wall (on the right, walking towards the coop); the mice like the gap under it
 {
   const B = BENCH, cx = (B.x0 + B.x1) / 2, cz = (B.z0 + B.z1) / 2, L = B.z1 - B.z0;
@@ -726,6 +737,7 @@ const CONN_Y = (x) => CONN.hHi - (x - CONN.x0) * (CONN.hHi - CONN.hLo) / (CONN.x
   for (const z of [B.z0 + 0.1, B.z1 - 0.1]) for (const x of [B.x0 + 0.05, B.x1 - 0.05]) W.box(0xa27a56, 0.045, B.h - 0.02, 0.045, x, (B.h - 0.02) / 2, z, 0, 0, 0, null, 0.06);
   W.box(0xa27a56, 0.03, 0.05, L - 0.2, B.x0 + 0.05, 0.14, cz); W.box(0xa27a56, 0.03, 0.05, L - 0.2, B.x1 - 0.05, 0.14, cz);
 }
+intoF(null);
 const coopLight = new THREE.PointLight(0xffe2b0, 0.55, 3.4, 1.6); coopLight.position.set(2.5, 1.5, -8.0); scene.add(coopLight);
 
 // diamond-mesh fences on round posts with ball tops
@@ -751,6 +763,7 @@ fence(3.55, 3.55, 3.55, -3.55);     // east
   W.box(0x4f4c4a, 0.09, 0.03, 0.025, 3.5, 0.92, z + 0.01); W.add(new THREE.TorusGeometry(0.02, 0.005, 4, 8), 0x4f4c4a, mat4(3.53, 0.92, z + 0.03), 0.01);   // latch
 }
 
+intoF(newFade("mixer"));
 // the orange concrete mixer: tilting drum on a little two-wheeled frame, hand wheel on the side
 {
   const M = mat4(MIXER.x, 0, MIXER.z, 0, Math.PI / 2, 0), add = (geo, c, m, j = 0.05) => W.add(geo, c, M.clone().multiply(m), j), O = COL.orange, OD = COL.orangeDark;
@@ -776,6 +789,7 @@ fence(3.55, 3.55, 3.55, -3.55);     // east
   add(new THREE.CylinderGeometry(0.014, 0.014, 0.08, 6), OD, mat4(-0.48, 1.15, 0.04, 0, 0, Math.PI / 2));
 }
 
+intoF(newFade("waterer"));
 // waterer
 {
   W.add(new THREE.CylinderGeometry(0.2, 0.21, 0.045, 10), 0xb5c0c6, mat4(WATER.x, 0.022, WATER.z), 0.05);
@@ -787,6 +801,7 @@ fence(3.55, 3.55, 3.55, -3.55);     // east
 
 // shrubs the hens like to hide under: a few stems, a low leafy dome
 for (const S of SHRUBS) {
+  intoF(newFade("shrub"));
   for (let k = 0; k < 4; k++) { const a = k / 4 * 6.28 + 0.4; W.add(new THREE.CylinderGeometry(0.012, 0.02, 0.4, 5), COL.bark, mat4(S.x + Math.cos(a) * 0.05, 0.18, S.z + Math.sin(a) * 0.05, Math.sin(a) * 0.3, 0, -Math.cos(a) * 0.3), 0.1); }
   for (let k = 0; k < 7; k++) {
     const a = rand(0, 6.28), d = k ? rand(0.12, S.r * 0.62) : 0, r = k ? rand(0.22, 0.3) : 0.32;
@@ -794,6 +809,8 @@ for (const S of SHRUBS) {
   }
 }
 
+intoF(newFade("tree"));
+const TREE_FADE = FCUR;
 // the little tree: a slim young trunk tied to its stake, a small round crown
 const treeTop = (() => {
   const T = TREE, B = new Bake();
@@ -816,6 +833,7 @@ const treeTop = (() => {
   const m = B.build(true, true); scene.remove(m);
   const g = new THREE.Group(); g.position.set(T.x, 0, T.z); g.add(m); scene.add(g); return g;
 })();
+TREE_FADE.extra.push(treeTop); intoF(null);
 
 // round the edges of the island: the flower bed and its figurines, the parking with the van, the stone path
 // down beside the run, a couple of hedges, the plane tree and one more tree
@@ -836,6 +854,7 @@ for (let i = 0; i < 600 && SHRUBLETS.length < 16; i++) {
 }
 {
   for (const [x, z, r] of SHRUBLETS) {
+    intoF(newFade("shrublet"));
     const y = terrainY(x, z), n = 2 + Math.floor(rand(0, 3));
     for (let k = 0; k < n; k++) { const a = rand(0, 6.28), d = k ? rand(0.08, r * 0.7) : 0, rr = r * rand(0.6, 0.95); W.add(blob(rr, 0, 0.2), pick(COL.shrub), mat4(x + Math.cos(a) * d, y + rr * 0.72, z + Math.sin(a) * d, rand(0, 3), rand(0, 3), 0, 1, 0.85, 1), 0.06); }
     if (Math.random() < 0.45) { const fc = pick([0xf2c2d2, 0xfdf9f0, 0xf6dc78, 0xd9c8f0]); for (let k = 0; k < 6; k++) { const a = rand(0, 6.28), d = rand(0, r * 0.7); W.add(new THREE.IcosahedronGeometry(0.03, 0), fc, mat4(x + Math.cos(a) * d, y + r * rand(1.05, 1.3), z + Math.sin(a) * d), 0.02); } }
@@ -844,13 +863,15 @@ for (let i = 0; i < 600 && SHRUBLETS.length < 16; i++) {
     const len = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(len / 0.55);
     for (let i = 0; i <= n; i++) { const t = i / n, x = lerp(x0, x1, t), z = lerp(z0, z1, t), r = rand(0.36, 0.45); W.add(blob(r, 0, 0.2), pick([0x7fae58, 0x86b45e, 0x79a753]), mat4(x, terrainY(x, z) + r * 0.85, z, rand(0, 3), rand(0, 3), 0, 1, rand(1.15, 1.35), 1), 0.06); }
   };
-  hedge(7.4, -3.2, 7.4, 3.3); hedge(4.8, 5.6, 6.6, 5.6);
+  intoF(newFade("hedge")); hedge(7.4, -3.2, 7.4, 3.3); intoF(newFade("hedge")); hedge(4.8, 5.6, 6.6, 5.6);
   for (const [x, z, s] of ISLE_TREES) {
+    intoF(newFade("tree"));
     W.add(new THREE.CylinderGeometry(0.1 * s, 0.16 * s, 1.9 * s, 6).translate(0, 0.95 * s - 0.1, 0), COL.bark, mat4(x, 0, z), 0.08);
     for (let i = 0; i < 5; i++) W.add(blob(rand(0.6, 0.8) * s, 0, 0.16), pick(COL.leaf), mat4(x + rand(-0.5, 0.5) * s, (2.1 + rand(0, 0.8)) * s, z + rand(-0.5, 0.5) * s, rand(0, 3), rand(0, 3)), 0.06);
   }
 
   // the plane tree: a tall pale trunk with flaking olive and cream patches, and a broad rounded crown
+  intoF(newFade("plane tree"));
   {
     const { x, z } = PLANE;
     W.add(new THREE.CylinderGeometry(0.17, 0.27, 3.3, 8).translate(0, 1.65, 0), 0xb6ae98, mat4(x, 0, z), 0.05);
@@ -863,7 +884,9 @@ for (let i = 0; i < 600 && SHRUBLETS.length < 16; i++) {
     const crown = [[0, 4.5, 0, 1.25], [1.15, 4.1, 0.3, 0.95], [-1.1, 4.15, 0.25, 0.95], [0.25, 4.15, 1.1, 0.95], [-0.2, 4.1, -1.15, 0.95], [0.85, 4.6, -0.75, 0.85], [-0.8, 4.65, -0.6, 0.85], [-0.6, 4.6, 0.85, 0.85], [0.75, 4.65, 0.8, 0.85]];
     for (const [cx, cy, cz, r] of crown) W.add(blob(r, 0, 0.18), pick([0x8cbd5c, 0x95c464, 0x83b455, 0x9dc96c]), mat4(x + cx, cy, z + cz, rand(0, 3), rand(0, 3), 0, 1, 0.78, 1), 0.06);
   }
+  intoF(null);
 
+  intoF(newFade("flower bed"));
   // the raised bed of pink hydrangeas, in a rusty steel box
   {
     const B = BED, hw = B.w / 2, hd = B.d / 2, rust = [0x8d4b2c, 0x9a5532, 0x7e4227];
@@ -935,6 +958,7 @@ for (let i = 0; i < 600 && SHRUBLETS.length < 16; i++) {
     }
   }
 
+  intoF(null);
   // a small paved parking pad with a kerb, an asphalt road coming in from the island's edge, and the white van
   {
     const P = PAD, cx = (P.x0 + P.x1) / 2, cz = (P.z0 + P.z1) / 2;
@@ -948,6 +972,7 @@ for (let i = 0; i < 600 && SHRUBLETS.length < 16; i++) {
     const rz = (ROAD.z0 + ROAD.z1) / 2, rw = ROAD.z1 - ROAD.z0;
     for (let x = P.x1; x < xr; x += 0.6) { const L = Math.min(0.6, xr - x); W.box(pick([0x5f6267, 0x63666b, 0x5a5d62]), L, 0.05, rw, x + L / 2, 0.018, rz, 0, 0, 0, null, 0.02); }
     for (const z of [ROAD.z0 + 0.12, ROAD.z1 - 0.12]) W.box(0xd9d6cc, xr - P.x1 - 0.2, 0.006, 0.07, (P.x1 + xr) / 2 + 0.1, 0.046, z, 0, 0, 0, null, 0.02);
+    intoF(newFade("van"));
     // the white high-roof panel van (an Iveco Daily kind of van, no badges): tall boxy load body, the cab roof sweeping up
     // to the high roof, short sloped bonnet under a raked windscreen in a black surround, a black band all round the bottom
     // (bumpers, rubbing strips, wheel arches), hex-mesh grilles, swept-back headlamps, steel wheels, a roof aerial
@@ -995,7 +1020,7 @@ for (let i = 0; i < 600 && SHRUBLETS.length < 16; i++) {
       const tex = new THREE.CanvasTexture(c); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(6, 1.4); tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
       const gm = new THREE.MeshPhongMaterial({ map: tex, shininess: 20, specular: 0x222222 });
       for (const [w, h, y, z] of [[1.5, 0.2, 1.02, 2.651], [1.0, 0.05, 1.17, 2.633], [1.3, 0.16, 0.52, 2.732]]) {
-        const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), gm); m.applyMatrix4(M.clone().multiply(mat4(0, y, z))); scene.add(m);
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), gm); m.applyMatrix4(M.clone().multiply(mat4(0, y, z))); scene.add(m); FCUR.extra.push(m);
       }
     }
     v(new THREE.CylinderGeometry(0.006, 0.01, 0.5, 4).translate(0, 0.25, 0), BLACK, mat4(0, 2.62, 0.75, -0.35, 0, 0), 0.01);   // roof aerial
@@ -1007,6 +1032,7 @@ for (let i = 0; i < 600 && SHRUBLETS.length < 16; i++) {
       v(new THREE.CylinderGeometry(0.16, 0.16, 0.275, 10), 0x9a9fa3, mat4(x + o, 0.37, z, 0, 0, Math.PI / 2));
       v(new THREE.CylinderGeometry(0.1, 0.1, 0.28, 8), 0x26282b, mat4(x + o * 2, 0.37, z, 0, 0, Math.PI / 2));
     }
+    intoF(null);
   }
 
   // the stone path: a level landing at the coop's people door, then down alongside the passage and the run,
@@ -1034,6 +1060,7 @@ for (let i = 0; i < 600 && SHRUBLETS.length < 16; i++) {
       W.box(pick(bricks), 0.11, 0.065, 0.24, P.x1 + 0.065, y0 + 0.033 + k * 0.067, zz, 0, 0, 0, null, 0.04);
       if (k === 1 && Math.random() < 0.16) crack(P.x1 + 0.065, y0 + 0.135, zz);
     }
+    intoF(newFade("wall"));
     // retaining wall: stone blocks from the level ground down to the path and the lawn below it
     let ze = P.top; while (ze < RUN.z1 + 1.3 && onIsland(3.78, ze + 0.5, 0.25)) ze += 0.45;
     for (let z = P.top; z < ze; z += 0.45) {
@@ -1044,9 +1071,35 @@ for (let i = 0; i < 600 && SHRUBLETS.length < 16; i++) {
       if (Math.random() < 0.65) crack(rand(3.62, 3.92), top, zc + rand(-0.15, 0.15));                                        // on top of the wall
       for (let q = 0; q < 2; q++) if (top - base > 0.3 && Math.random() < 0.6) crack(3.975, rand(base + 0.12, top - 0.06), z + (q ? 0.225 : 0), -rand(0.9, 1.3));          // out of a joint, leaning out
     }
+    intoF(null);
   }
 }
+intoF(null);
 const builtStatic = W.build(true, true);
+const fadeObjs = [];
+for (const F of FADES) {
+  F.mats = []; F.objs = [];
+  if (F.solid.p.length) { const m = F.solid.build(true, true); m.material = FLAT.clone(); F.mats.push(m.material); F.objs.push(m); }
+  for (const o of F.extra) o.traverse((q) => { if (q.isMesh) { q.material = q.material.clone(); F.mats.push(q.material); F.objs.push(q); } });
+  const b = new THREE.Box3(); for (const o of F.objs) { o.updateMatrixWorld(true); b.expandByObject(o); }
+  F.box = [b.min.x - 0.05, b.max.x + 0.05, b.min.y - 0.05, b.max.y + 0.05, b.min.z - 0.05, b.max.z + 0.05];
+  for (const mm of F.mats) mm.userData.op = mm.opacity;
+  fadeObjs.push(...F.objs);
+}
+// each frame: anything of these between the camera and the look-at point (or around the camera) fades to about 20 %
+// over a fifth of a second, and comes back when it's out of the way
+function updateFade(dt, pos, look) {
+  for (const F of FADES) {
+    const q = F.box, m = 0.35;
+    const near = pos.x > q[0] - m && pos.x < q[1] + m && pos.y > q[2] - m && pos.y < q[3] + m && pos.z > q[4] - m && pos.z < q[5] + m;
+    const want = near || segHits(pos, look, [q]) ? 1 : 0;
+    F.c = damp(F.c, want, 15, dt); if (Math.abs(F.c - want) < 0.004) F.c = want;
+    if (F.c === F.lastC) continue;
+    F.lastC = F.c;
+    const op = 1 - 0.8 * F.c;
+    for (const mm of F.mats) { mm.opacity = mm.userData.op * op; mm.transparent = F.c > 0.004 || mm.userData.op < 1; mm.depthWrite = F.c < 0.5; }
+  }
+}
 structures.add(builtStatic);
 const meshPanels = MESHB.build();
 const cutSolids = [];
@@ -1061,8 +1114,9 @@ function updateCut(dt, pos, look) {
   const near = look.x > 0.3 && look.x < 4.6 && look.z > -9.9 && look.z < -2.4;
   for (const k in CUT) {
     const G = CUT[k]; let want = 0;
-    if (G.kind === "roof") { const a = G.area; want = (look.x > a[0] && look.x < a[1] && look.z > a[2] && look.z < a[3]) || (near && segHits(pos, look, [G.box])) ? 1 : 0; }
-    else if (near && segHits(pos, look, [G.box])) want = 1;
+    const q = G.box, mm = 0.3, camIn = pos.x > q[0] - mm && pos.x < q[1] + mm && pos.y > q[2] - mm && pos.y < q[3] + mm && pos.z > q[4] - mm && pos.z < q[5] + mm;
+    if (G.kind === "roof") { const a = G.area; want = camIn || (look.x > a[0] && look.x < a[1] && look.z > a[2] && look.z < a[3]) || (near && segHits(pos, look, [G.box])) ? 1 : 0; }
+    else if (camIn || (near && segHits(pos, look, [G.box]))) want = 1;
     G.c = damp(G.c, want, 5, dt); if (Math.abs(G.c - want) < 0.003) G.c = want;
     const c = G.c;
     if (G.kind === "roof") {
@@ -1453,7 +1507,7 @@ function vnoise3(x, y, z) {
 // coats, painted once per triangle in the rest pose (as on the cats page)
 const cA = new THREE.Color(), cB = new THREE.Color(), cT = new THREE.Color();
 const CAT_PAT = {
-  grey(o, q) {   // Lenny I: grey with a white belly
+  grey(o, q) {   // Lenny Sr.: grey with a white belly
     const n = vnoise3(q.pc.x * 22, q.pc.y * 22, q.pc.z * 22);
     o.set(0x5f656d).multiplyScalar(0.94 + n * 0.12);
     let w = 0;
@@ -1466,7 +1520,7 @@ const CAT_PAT = {
     if (q.part === "ear") o.multiplyScalar(0.9);
     o.lerp(cA.set(0xf1efe9), w);
   },
-  tabby(o, q) {   // Lenny II: a brown-silver tabby, narrow dark stripes, peachy muzzle
+  tabby(o, q) {   // Lenny: a brown-silver tabby, narrow dark stripes, peachy muzzle
     const n = vnoise3(q.pc.x * 18, q.pc.y * 18, q.pc.z * 18);
     o.set(0x968f84).lerp(cA.set(0xa89c8a), n);
     const dark = cB.set(0x2f2a26);
@@ -1511,8 +1565,8 @@ const CAT_PAT = {
   },
 };
 const CAT_DEFS = [
-  { name: "Lenny I", scale: 1.0, head: 1.0, eye: 0xe0bb45, nose: 0x8a7276, inner: 0xd4a6a6, pat: "grey", sw: "#5f656d" },
-  { name: "Lenny II", scale: 1.05, head: 1.0, eye: 0xb4c45a, nose: 0xd98c78, inner: 0xe0aea4, pat: "tabby", sw: "#968f84" },
+  { name: "Lenny Sr.", scale: 1.0, head: 1.0, eye: 0xe0bb45, nose: 0x8a7276, inner: 0xd4a6a6, pat: "grey", sw: "#5f656d" },
+  { name: "Lenny", scale: 1.05, head: 1.0, eye: 0xb4c45a, nose: 0xd98c78, inner: 0xe0aea4, pat: "tabby", sw: "#968f84" },
   { name: "Edna", scale: 0.94, head: 0.97, eye: 0xc9b45a, nose: 0xf0a3ad, inner: 0xe8b4ac, pat: "edna", sw: "#6a5f53" },
 ];
 function buildCat(def) {
@@ -2212,16 +2266,9 @@ function panBy(dx, dy) {   // screen pixels -> move the look-at goal across the 
   keepGoal(); cam.follow = null; cam.ease = null; cam.idle = 0;
 }
 // the look-at goal stays in the chicken area (so never in the garage or the outbuilding) and off the mixer and the tree trunk
-function keepGoal() {   // anywhere on the island, out of the garage, the outbuilding, the mixer, the tree trunk, the van and the flower bed
-  const g = cam.goal, m = 0.3, blocks = [SOLIDS[0], SOLIDS[1], SOLIDS[4], SOLIDS[6], [VAN.x - 2.85, VAN.x + 2.85, 0, 3, VAN.z - 1.2, VAN.z + 1.2], [BED.x - 1.0, BED.x + 1.0, 0, 1, BED.z - 0.75, BED.z + 0.75]];
-  const inB = (x, z, skip) => blocks.some((q) => q !== skip && x > q[0] - m && x < q[1] + m && z > q[4] - m && z < q[5] + m);
+function keepGoal() {   // anywhere on the island (things in the way just turn see-through)
+  const g = cam.goal;
   if (!onIsland(g.x, g.z, 1.0)) { const a = Math.atan2(g.z, g.x), R = Math.max(0, isleR(a) - 1.0); g.x = Math.cos(a) * R; g.z = Math.sin(a) * R; }
-  for (let it = 0; it < 2; it++) for (const q of blocks) {
-    if (g.x < q[0] - m || g.x > q[1] + m || g.z < q[4] - m || g.z > q[5] + m) continue;
-    const c = [[q[0] - m, g.z], [q[1] + m, g.z], [g.x, q[4] - m], [g.x, q[5] + m]].filter(([x, z]) => onIsland(x, z, 0.9) && !inB(x, z, q))
-      .sort((a, b) => Math.hypot(a[0] - g.x, a[1] - g.z) - Math.hypot(b[0] - g.x, b[1] - g.z));
-    if (c.length) { g.x = c[0][0]; g.z = c[0][1]; }
-  }
 }
 function resetView() {
   if (cinema) return;
@@ -2291,7 +2338,7 @@ function eggAt(e) {
   if (!best) return null;
   const to = best.m.position.clone().sub(camera.position), dist = to.length();
   raycaster.set(camera.position, to.normalize()); raycaster.far = dist - 0.05;
-  const blockers = [builtStatic, ...cutSolids.filter((m) => m.visible && m.scale.y > 0.5)];
+  const blockers = [builtStatic, ...cutSolids.filter((m) => m.visible && m.scale.y > 0.5), ...FADES.filter((F) => F.c < 0.5).flatMap((F) => F.objs)];
   const hit = raycaster.intersectObjects(blockers, false).length > 0; raycaster.far = Infinity;
   return hit ? null : best;
 }
@@ -2299,7 +2346,7 @@ function click(e) {
   const egg = eggAt(e); if (egg) { fry(egg); return; }
   const b = birdAt(e); if (b) { showLabel(b, 3.5); return; }
   ndc.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1); raycaster.setFromCamera(ndc, camera);
-  const hit = raycaster.intersectObjects([runGround, builtStatic, treeTop], true)[0];
+  const hit = raycaster.intersectObjects([runGround, builtStatic, ...FADES.filter((F) => F.c < 0.5).flatMap((F) => F.objs)], true)[0];
   if (hit && hit.object === runGround) { throwFeed(hit.point.x, hit.point.z); hintbar.style.opacity = 0; }
 }
 
@@ -2658,17 +2705,19 @@ function render(dt) {
   if (off !== viewOff) { viewOff = off; if (off) camera.setViewOffset(innerWidth, innerHeight, -off, 0, innerWidth, innerHeight); else camera.clearViewOffset(); }
   if (cinemaExitT > 0) { cinemaExitT -= dt; if (cinemaExitT <= 0) cinemaExitBtn.classList.remove("show"); }
   updateCut(dt, camera.position, cinema ? CIN.look : cam.target);
+  updateFade(dt, camera.position, cinema ? CIN.look : cam.target);
   renderer.render(scene, camera);
   updateLabels(dt);
 }
 // how far the camera can sit from the look-at point along 'dir' before it would be inside something solid
 const _q = new THREE.Vector3();
+const ARM_SOLIDS = [];   // nothing shortens the orbit camera's arm any more: things in the way turn see-through, the passage and coop walls open
 function armLength(t, dir, r) {
   const inside = (p, q, m) => p.x > q[0] - m && p.x < q[1] + m && p.y > q[2] - m && p.y < q[3] + m && p.z > q[4] - m && p.z < q[5] + m;
   // anything the look-at point itself is in (the coop, a shrub a hen is under) doesn't count; anything it's right next to gets no margin
   // looking into the passage or the coop: their walls drop away (the cutaway), so neither counts as solid then
   const walkIn = inside(t, SOLIDS[2], 0) || inside(t, SOLIDS[3], 0), boxes = [];
-  for (const q of SOLIDS) if (!inside(t, q, 0) && !(walkIn && (q === SOLIDS[2] || q === SOLIDS[3]))) boxes.push([q, inside(t, q, 0.1) ? 0 : 0.1]);
+  for (const q of ARM_SOLIDS) if (!inside(t, q, 0) && !(walkIn && (q === SOLIDS[2] || q === SOLIDS[3]))) boxes.push([q, inside(t, q, 0.1) ? 0 : 0.1]);
   for (let s = 0.04; s < r; s += 0.04) {
     _q.copy(t).addScaledVector(dir, s);
     for (const [q, m] of boxes) if (inside(_q, q, m)) return Math.max(0.03, s - 0.05);
@@ -2686,6 +2735,6 @@ render(0);
 requestAnimationFrame(frame);
 </script>
 <script>/* links to other websites open in a new tab */ document.querySelectorAll("a[href]").forEach((a) => { if (/^https?:$/.test(a.protocol) && a.origin !== location.origin) { a.target = "_blank"; a.rel = "noopener noreferrer"; } });</script>
-<script src="../assets/ambient.js?v=20261123a" data-mood="chickens"></script>
+<script src="../assets/ambient.js?v=20261124b" data-mood="chickens"></script>
 </body>
 </html>

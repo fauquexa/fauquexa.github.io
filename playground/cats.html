@@ -67,7 +67,7 @@
   <button class="close" id="closePanel" aria-label="Close panel" title="Close (H)">✕</button>
   <a class="back" href="../index.html">← Home</a>
   <h1>Cats</h1>
-  <p class="sub">Lenny I, Lenny II, Edna, Dolly and Frank. Click the floor to put down food.</p>
+  <p class="sub">Lenny Sr., Lenny, Edna, Dolly and Frank. Click the floor to put down food.</p>
   <div class="modes" id="modes" role="group" aria-label="Which cats"></div>
   <ul class="catlist" id="catList"></ul>
   <div class="catcard" id="catCard" hidden><img alt="" loading="lazy"><button class="cx" aria-label="Close">✕</button></div>
@@ -310,9 +310,9 @@ let PERCHES = [];
 //  cats: rig, markings, poses
 // ===================================================================
 const CAT_DEFS = [
-  { name: "Lenny I", desc: "Grey with a white belly", scale: 1.0, girth: 1.0, head: 1.0, cheeks: 1.0, eye: 0xe0bb45, nose: 0x8a7276, inner: 0xd4a6a6, pat: "grey",
+  { name: "Lenny Sr.", desc: "Grey with a white belly", scale: 1.0, girth: 1.0, head: 1.0, cheeks: 1.0, eye: 0xe0bb45, nose: 0x8a7276, inner: 0xd4a6a6, pat: "grey",
     sw: "linear-gradient(180deg,#5f656d 0 55%,#f1efe9 55% 100%)", likes: { sun: 1.8, sofa: 1, tree: 0.5, box: 0.6, bed: 1.2, lazy: 1, play: 0.8 } },
-  { name: "Lenny II", desc: "Grey-brown tabby with a peachy muzzle", scale: 1.05, girth: 1.02, head: 1.0, cheeks: 1.04, eye: 0xb4c45a, nose: 0xd98c78, inner: 0xe0aea4, pat: "tabby",
+  { name: "Lenny", desc: "Grey-brown tabby with a peachy muzzle", scale: 1.05, girth: 1.02, head: 1.0, cheeks: 1.04, eye: 0xb4c45a, nose: 0xd98c78, inner: 0xe0aea4, pat: "tabby",
     sw: "repeating-linear-gradient(110deg,#9a948a 0 3px,#2f2a26 3px 4.5px)", likes: { sun: 1, sofa: 0.8, tree: 0.8, box: 2.2, bed: 0.8, lazy: 0.9, play: 1.1 } },
   { name: "Edna", desc: "Brown-grey tabby with a white blaze, chest and front paws", scale: 0.94, girth: 0.95, head: 0.97, cheeks: 0.96, eye: 0xc9b45a, nose: 0xf0a3ad, inner: 0xe8b4ac, pat: "edna",
     sw: "linear-gradient(180deg,transparent 0 55%,#f3f1ec 55% 100%),repeating-linear-gradient(110deg,#6e6356 0 3px,#2b241e 3px 5px)", likes: { sun: 1, sofa: 2.4, tree: 0.5, box: 0.5, bed: 1, lazy: 1, play: 0.7 } },
@@ -325,18 +325,18 @@ const CAT_DEFS = [
 ];
 // what else they like in the apartment (windowsills, the fish, high places, the kitchen counter...)
 const EXTRA_LIKES = {
-  "Lenny I": { window: 1.8, fish: 1.0, chair: 0.9 }, "Lenny II": { fish: 2.2, high: 0.8, window: 1.0 }, Edna: { chair: 1.5, fish: 0.7, window: 1.1 },
+  "Lenny Sr.": { window: 1.8, fish: 1.0, chair: 0.9 }, "Lenny": { fish: 2.2, high: 0.8, window: 1.0 }, Edna: { chair: 1.5, fish: 0.7, window: 1.1 },
   "Fläckli": { counter: 0.9, high: 1.5, fish: 1.4, tub: 1.0 }, Dolly: { high: 2.0, fish: 1.3, counter: 0.6 }, Frank: { bed: 1.9, chair: 1.0, fish: 0.8, window: 1.4 },
 };
 for (const d of CAT_DEFS) Object.assign(d.likes, EXTRA_LIKES[d.name] || {});
 // bonded pairs: they pick each other far more often for cuddling and grooming, napping close and following each other around
 // (they still spend time alone, and any cat can play with or groom any other)
-const BONDS = [["Dolly", "Frank"], ["Edna", "Lenny I"]];
+const BONDS = [["Dolly", "Frank"], ["Edna", "Lenny Sr."]];
 const BOND_W = 8;   // how much more often a bonded partner gets picked
 const bonded = (a, b) => BONDS.some(([p, q]) => (a.name === p && b.name === q) || (a.name === q && b.name === p));
 const bondW = (a, b) => (bonded(a, b) ? BOND_W : 1);
 // a small headshot shows under a name when it's clicked (only these cats have one)
-const CAT_PHOTO = { "Lenny II": "lenny2", Edna: "edna", Dolly: "dolly", Frank: "frank" };
+const CAT_PHOTO = { "Lenny": "lenny2", Edna: "edna", Dolly: "dolly", Frank: "frank" };
 
 // fur markings, evaluated once per triangle (flat colours, low-poly look)
 const tmpC = new THREE.Color(), cA = new THREE.Color(), cB = new THREE.Color();
@@ -2967,7 +2967,7 @@ function stageCats() {
   const sitAt = (c, x, z, h, pose = "sit", dur = 6) => { c.pos.set(x, 0, z); c.heading = c.prevH = h; setPose(c, pose); snapPose(c); c.step = poseStep(pose, dur, {}); c.stepT = 0; };
   const perchAt = (c, id, h, pose = "loaf", dur = 10) => { const P = PERCHES.find((p) => p.id === id); if (!P || P.occ) return false; placeOn(c, P, h); setPose(c, pose); snapPose(c); c.step = poseStep(pose, dur, {}); c.stepT = 0; c.perchActs = 2; return true; };
   const napSun = (c) => { const [x, z] = sunFloorW(NAV.suns[0], 0.55, 0.5); c.pos.set(x, 0, z); c.heading = c.prevH = 2.2; c.side = 1; setPose(c, "curl"); snapPose(c); c.step = poseStep("curl", 30, { nap: true }); c.stepT = 0; push(c, { type: "fn", f: () => { c.wake = true; } }); };
-  const L1 = byName("Lenny I"), L2 = byName("Lenny II"), E = byName("Edna"), D = byName("Dolly"), F = byName("Frank"), Fl = byName("Fläckli");
+  const L1 = byName("Lenny Sr."), L2 = byName("Lenny"), E = byName("Edna"), D = byName("Dolly"), F = byName("Frank"), Fl = byName("Fläckli");
   if (sceneName === "us") {   // Dolly up on the wardrobe, Frank asleep in the sun
     if (D) perchAt(D, "wTop", Math.PI / 2 + 0.3, "loaf", 9);
     if (F) napSun(F);
@@ -3019,7 +3019,7 @@ card.querySelector(".cx").onclick = () => toggleCard(null);
 // ---- modes: everyone, the Swiss cats, or the American cats
 const MODES = {
   all: { label: "All the kitties", names: null, scene: "apt" },
-  ch: { label: "Switzerland", names: ["Lenny I", "Lenny II", "Edna", "Fläckli"], scene: "apt" },
+  ch: { label: "Switzerland", names: ["Lenny Sr.", "Lenny", "Edna", "Fläckli"], scene: "apt" },
   us: { label: "America", names: ["Dolly", "Frank"], tip: "Leslie mode", scene: "us" },
 };
 const usSvg = (() => {
