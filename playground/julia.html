@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Julia of the Day</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/toy.css">
+<style>
+  #mset { width: 100%; aspect-ratio: 4 / 3; border-radius: 8px; cursor: crosshair; display: block; background: #000; border: 1px solid var(--rule); }
+  .name { font-size: 18px; color: var(--accent); margin: 2px 0 8px; }
+  .stage { cursor: grab; }
+  .stage:active { cursor: grabbing; }
+</style>
+</head>
+<body>
+<canvas class="stage" id="gl"></canvas>
+
+<div class="panel" id="panel">
+  <a class="back" href="../index.html">← home</a>
+  <h1>julia of the day</h1>
+  <p class="sub" id="date">—</p>
+  <div class="name" id="name">—</div>
+  <div class="kv">
+    <span>c</span><span id="cval">—</span>
+    <span>family</span><span id="family">—</span>
+  </div>
+  <div class="row" style="margin-top:12px">
+    <button id="prev" title="previous day">← day</button>
+    <button id="today">today</button>
+    <button id="next" title="next day">day →</button>
+    <button id="rand" title="random parameters">dice</button>
+  </div>
+  <hr>
+  <label>pick c on the Mandelbrot set (click / drag)</label>
+  <canvas id="mset" width="320" height="240"></canvas>
+  <label>iterations <span id="itv"></span></label>
+  <input type="range" id="iters" min="50" max="1000" value="300">
+  <label>color cycles</label>
+  <input type="range" id="cyc" min="0.2" max="4" step="0.01">
+  <div class="row" style="margin-top:12px">
+    <button id="pal">new palette</button>
+    <button id="save">save png</button>
+    <button id="share">copy link</button>
+  </div>
+  <p class="hint" style="margin-top:12px">scroll to zoom · drag to pan · double-click to reset · <kbd>H</kbd> hide panel</p>
+</div>
+<button class="toggle-panel" id="tp">panel</button>
+
+<script src="../assets/julia-day.js"></script>
+<script>
+const gl = document.getElementById("gl").getContext("webgl", { preserveDrawingBuffer: true, antialias: false });
+const cv = gl.canvas;
+
+const VS = `attribute vec2 p; void main(){ gl_Position = vec4(p,0.,1.); }`;
+const FS = `
+precision highp float;
+uniform vec2 uRes, uC, uCenter, uOff;
+uniform float uScale, uRot, uCycles;
+uniform int uMaxIt;
+uniform vec3 pa, pb, pc, pd;
+vec3 pal(float t){ return pa + pb*cos(6.2831853*(pc*t+pd)); }
+vec3 shade(vec2 frag){
+  vec2 q = (frag - 0.5*uRes - uOff) * uScale;
+  float cr = cos(uRot), sr = sin(uRot);
+  vec2 z = uCenter + vec2(q.x*cr - q.y*sr, q.x*sr + q.y*cr);
+  float m2 = 0., trap = 1e9; int n = 0;
+  for (int i = 0; i < 1000; i++) {
+    if (i >= uMaxIt) break;
+    z = vec2(z.x*z.x - z.y*z.y, 2.*z.x*z.y) + uC;
+    m2 = dot(z,z); trap = min(trap, m2);
+    n = i;
+    if (m2 > 256.) break;
+  }
+  if (m2 <= 256.) return 0.03 + 0.22 * pal(0.5 + 0.8*sqrt(sqrt(trap)) * uCycles) * smoothstep(0., .6, sqrt(trap));
+  float nu = float(n) + 1. - log2(log2(m2)*0.5);
+  return pal(sqrt(max(nu,0.)/float(uMaxIt)) * 3. * uCycles) * (1. - exp(-nu/5.));
+}
+void main(){
+  // 2x2 supersampling
+  vec3 c = shade(gl_FragCoord.xy + vec2(-.25,-.25)) + shade(gl_FragCoord.xy + vec2(.25,-.25))
+         + shade(gl_FragCoord.xy + vec2(-.25,.25)) + shade(gl_FragCoord.xy + vec2(.25,.25));
+  gl_FragColor = vec4(c*0.25, 1.);
+}`;
+
+function sh(type, src) {
+  const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(s);
+  return s;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS));
+gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog); gl.useProgram(prog);
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const loc = gl.getAttribLocation(prog, "p");
+gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+const U = {};
+["uOff","uRes","uC","uCenter","uScale","uRot","uCycles","uMaxIt","pa","pb","pc","pd"].forEach(n => U[n] = gl.getUniformLocation(prog, n));
+
+// ---------- state ----------
+let day = new Date();
+let S = null;                 // current spec
+let view = { cx: 0, cy: 0, h: 3.0 };   // h = visible height in complex units
+let maxIt = 300;
+let pending = false;
+
+function fromHash() {
+  const m = location.hash.match(/^#(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) day = new Date(+m[1], +m[2] - 1, +m[3]);
+}
+function load(spec) {
+  S = spec;
+  view = { cx: 0, cy: 0, h: 3.0 };
+  document.getElementById("cyc").value = S.cycles;
+  updateLabels(); draw(); drawMarker();
+}
+function loadDay() {
+  load(JuliaDay.spec(JuliaDay.dateKey(day)));
+  history.replaceState(null, "", "#" + JuliaDay.dateKey(day));
+}
+function updateLabels() {
+  const isToday = JuliaDay.dateKey(day) === JuliaDay.dateKey(new Date());
+  document.getElementById("date").textContent = S.custom ? "custom parameters" :
+    day.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" }) + (isToday ? " · today" : "");
+  document.getElementById("name").textContent = "“" + S.name + "”";
+  const [a, b] = S.c;
+  document.getElementById("cval").textContent = a.toFixed(5) + (b < 0 ? " − " : " + ") + Math.abs(b).toFixed(5) + "i";
+  document.getElementById("family").textContent = S.family;
+  document.getElementById("itv").textContent = maxIt;
+}
+
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  cv.width = Math.floor(innerWidth * dpr); cv.height = Math.floor(innerHeight * dpr);
+  gl.viewport(0, 0, cv.width, cv.height);
+  draw();
+}
+function draw() {
+  if (pending || !S) return;
+  pending = true;
+  requestAnimationFrame(() => {
+    pending = false;
+    gl.uniform2f(U.uRes, cv.width, cv.height);
+    gl.uniform2f(U.uOff, offPx() * cv.width / innerWidth, 0);
+    gl.uniform2f(U.uC, S.c[0], S.c[1]);
+    gl.uniform2f(U.uCenter, view.cx, view.cy);
+    gl.uniform1f(U.uScale, view.h / Math.min(cv.width, cv.height));
+    gl.uniform1f(U.uRot, S.rot);
+    gl.uniform1f(U.uCycles, S.cycles);
+    gl.uniform1i(U.uMaxIt, maxIt);
+    gl.uniform3fv(U.pa, S.palette.a); gl.uniform3fv(U.pb, S.palette.b);
+    gl.uniform3fv(U.pc, S.palette.c); gl.uniform3fv(U.pd, S.palette.d);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  });
+}
+
+// keep the fractal centred in the free space next to the panel
+function offPx() {
+  const p = document.getElementById("panel");
+  return innerWidth > 760 && !p.classList.contains("hidden") ? (p.offsetWidth + 16) / 2 : 0;
+}
+
+// ---------- pan / zoom ----------
+function toComplexDelta(dx, dy) {          // screen-pixel delta -> rotated complex delta
+  const dpr = cv.width / innerWidth;
+  const s = view.h / Math.min(cv.width, cv.height) * dpr;
+  const qx = dx * s, qy = -dy * s;
+  const c = Math.cos(S.rot), sn = Math.sin(S.rot);
+  return [qx * c - qy * sn, qx * sn + qy * c];
+}
+let drag = null;
+cv.addEventListener("pointerdown", e => { drag = { x: e.clientX, y: e.clientY }; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener("pointermove", e => {
+  if (!drag) return;
+  const [dx, dy] = toComplexDelta(e.clientX - drag.x, e.clientY - drag.y);
+  view.cx -= dx; view.cy -= dy; drag = { x: e.clientX, y: e.clientY }; draw();
+});
+cv.addEventListener("pointerup", () => drag = null);
+cv.addEventListener("wheel", e => {
+  e.preventDefault();
+  const f = Math.exp(e.deltaY * 0.0015);
+  const [ox, oy] = toComplexDelta(e.clientX - innerWidth / 2 - offPx(), e.clientY - innerHeight / 2);
+  view.cx += ox * (1 - f); view.cy += oy * (1 - f);
+  view.h = Math.max(1e-5, Math.min(8, view.h * f));
+  draw();
+}, { passive: false });
+cv.addEventListener("dblclick", () => { view = { cx: 0, cy: 0, h: 3.0 }; draw(); });
+
+// ---------- Mandelbrot picker ----------
+const ms = document.getElementById("mset"), mctx = ms.getContext("2d");
+const MB = { x0: -2.2, x1: 0.8, y0: -1.125, y1: 1.125 };
+const mImg = (() => {
+  const W = ms.width, H = ms.height, img = mctx.createImageData(W, H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const cr = MB.x0 + (x + .5) / W * (MB.x1 - MB.x0), ci = MB.y1 - (y + .5) / H * (MB.y1 - MB.y0);
+    let zr = 0, zi = 0, n = 0;
+    for (; n < 120 && zr * zr + zi * zi < 16; n++) { const t = zr * zr - zi * zi + cr; zi = 2 * zr * zi + ci; zr = t; }
+    const o = 4 * (y * W + x);
+    const v = n >= 120 ? 230 : Math.min(255, Math.sqrt(n / 120) * 150);
+    img.data[o] = v * .85; img.data[o + 1] = v * .8; img.data[o + 2] = v; img.data[o + 3] = 255;
+  }
+  return img;
+})();
+function drawMarker() {
+  mctx.putImageData(mImg, 0, 0);
+  const x = (S.c[0] - MB.x0) / (MB.x1 - MB.x0) * ms.width, y = (MB.y1 - S.c[1]) / (MB.y1 - MB.y0) * ms.height;
+  mctx.strokeStyle = "#e0b35a"; mctx.lineWidth = 1.5;
+  mctx.beginPath(); mctx.arc(x, y, 6, 0, 7); mctx.stroke();
+  mctx.beginPath(); mctx.moveTo(x - 11, y); mctx.lineTo(x - 7, y); mctx.moveTo(x + 7, y); mctx.lineTo(x + 11, y);
+  mctx.moveTo(x, y - 11); mctx.lineTo(x, y - 7); mctx.moveTo(x, y + 7); mctx.lineTo(x, y + 11); mctx.stroke();
+}
+let picking = false;
+function pick(e) {
+  const r = ms.getBoundingClientRect();
+  const cr = MB.x0 + (e.clientX - r.left) / r.width * (MB.x1 - MB.x0);
+  const ci = MB.y1 - (e.clientY - r.top) / r.height * (MB.y1 - MB.y0);
+  S = Object.assign({}, S, { c: [cr, ci], family: "hand-picked", custom: true });
+  updateLabels(); draw(); drawMarker();
+}
+ms.addEventListener("pointerdown", e => { picking = true; ms.setPointerCapture(e.pointerId); pick(e); });
+ms.addEventListener("pointermove", e => { if (picking) pick(e); });
+ms.addEventListener("pointerup", () => picking = false);
+
+// ---------- controls ----------
+const shiftDay = n => { day = new Date(day.getFullYear(), day.getMonth(), day.getDate() + n); loadDay(); };
+document.getElementById("prev").onclick = () => shiftDay(-1);
+document.getElementById("next").onclick = () => shiftDay(1);
+document.getElementById("today").onclick = () => { day = new Date(); loadDay(); };
+document.getElementById("rand").onclick = () => {
+  const s = JuliaDay.spec("rand:" + Math.random()); s.custom = true; load(s);
+};
+document.getElementById("pal").onclick = () => {
+  const r = JuliaDay.rng((Math.random() * 4294967296) >>> 0);
+  S = Object.assign({}, S, { palette: { a: [.5,.5,.5], b: [.5,.5,.5], c: [1, 1, r() < .5 ? 1 : .5], d: [r(), r(), r()] } });
+  draw();
+};
+const iters = document.getElementById("iters");
+iters.oninput = () => { maxIt = +iters.value; updateLabels(); draw(); };
+const cyc = document.getElementById("cyc");
+cyc.oninput = () => { S.cycles = +cyc.value; draw(); };
+document.getElementById("save").onclick = () => {
+  const a = document.createElement("a");
+  a.download = "julia-" + (S.custom ? "custom" : JuliaDay.dateKey(day)) + ".png";
+  a.href = cv.toDataURL("image/png"); a.click();
+};
+document.getElementById("share").onclick = async (e) => {
+  try { await navigator.clipboard.writeText(location.href.split("#")[0] + "#" + JuliaDay.dateKey(day)); e.target.textContent = "copied ✓"; }
+  catch (_) { e.target.textContent = "copy failed"; }
+  setTimeout(() => e.target.textContent = "copy link", 1500);
+};
+const panel = document.getElementById("panel");
+const togglePanel = () => { panel.classList.toggle("hidden"); draw(); };
+document.getElementById("tp").onclick = togglePanel;
+addEventListener("keydown", e => {
+  if (e.key === "h" || e.key === "H") togglePanel();
+  if (e.key === "ArrowLeft") shiftDay(-1);
+  if (e.key === "ArrowRight") shiftDay(1);
+});
+addEventListener("hashchange", () => { fromHash(); loadDay(); });
+addEventListener("resize", resize);
+
+fromHash();
+resize();
+loadDay();
+</script>
+</body>
+</html>

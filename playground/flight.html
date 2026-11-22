@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Little Flight Sim</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/toy.css">
+<style>
+  #gl, #hud { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #hud { pointer-events: none; }
+  #gl { touch-action: none; }
+  .toggle-panel { display: none; }
+  #banner {
+    position: fixed; left: 50%; top: 38%; transform: translate(-50%, -50%);
+    font-size: clamp(16px, 2.6vw, 26px); letter-spacing: .3em; text-transform: uppercase; color: #fff;
+    text-shadow: 0 0 16px rgba(0,0,0,.6); opacity: 0; transition: opacity .4s; pointer-events: none; text-align: center;
+  }
+  #banner small { display: block; font-size: 12px; letter-spacing: .1em; text-transform: none; opacity: .8; margin-top: 6px; }
+  .keys { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 11.5px; color: var(--soft); }
+  .keys span:nth-child(odd) { color: var(--ink); white-space: nowrap; }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<canvas id="hud"></canvas>
+<div id="banner"></div>
+
+<div class="panel" id="panel">
+  <a class="back" href="../index.html">← home</a>
+  <h1>little flight sim</h1>
+  <p class="sub">A small business jet over endless mountains, a nod to my years designing parts of one. Fly through the gold rings.</p>
+  <div class="keys">
+    <span><kbd>↑</kbd> <kbd>↓</kbd></span><span>pitch</span>
+    <span><kbd>←</kbd> <kbd>→</kbd></span><span>roll (bank to turn)</span>
+    <span><kbd>A</kbd> <kbd>D</kbd></span><span>rudder</span>
+    <span><kbd>W</kbd> <kbd>S</kbd></span><span>throttle</span>
+    <span><kbd>C</kbd></span><span>chase / cockpit view</span>
+    <span><kbd>T</kbd></span><span>time of day</span>
+    <span><kbd>R</kbd></span><span>restart</span>
+    <span>mouse / touch</span><span>drag to steer</span>
+  </div>
+  <label>throttle</label>
+  <input type="range" id="thr" min="0" max="1" step="0.01" value="0.65">
+  <div class="row" style="margin-top:12px">
+    <button id="view">cockpit view</button>
+    <button id="tod">time: day</button>
+    <button id="inv">↑ = nose up</button>
+    <button id="assist" class="on">auto-level</button>
+  </div>
+  <p class="hint" style="margin-top:12px">The panel fades while you fly. Move the mouse to bring it back.</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ===================================================================
+//  noise + terrain height
+// ===================================================================
+const Noise = (() => {
+  const perm = new Uint8Array(512);
+  let s = 1337;
+  const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  const p = [...Array(256).keys()];
+  for (let i = 255; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [p[i], p[j]] = [p[j], p[i]]; }
+  for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
+  const G = [[1,1],[-1,1],[1,-1],[-1,-1],[1,0],[-1,0],[0,1],[0,-1]];
+  const F2 = 0.5 * (Math.sqrt(3) - 1), G2 = (3 - Math.sqrt(3)) / 6;
+  return function (x, y) {   // 2D simplex, roughly [-1, 1]
+    const t = (x + y) * F2, i = Math.floor(x + t), j = Math.floor(y + t);
+    const u = (i + j) * G2, x0 = x - (i - u), y0 = y - (j - u);
+    const i1 = x0 > y0 ? 1 : 0, j1 = 1 - i1;
+    const x1 = x0 - i1 + G2, y1 = y0 - j1 + G2, x2 = x0 - 1 + 2 * G2, y2 = y0 - 1 + 2 * G2;
+    const ii = i & 255, jj = j & 255;
+    let n = 0, a;
+    a = 0.5 - x0 * x0 - y0 * y0; if (a > 0) { const g = G[perm[ii + perm[jj]] & 7]; a *= a; n += a * a * (g[0] * x0 + g[1] * y0); }
+    a = 0.5 - x1 * x1 - y1 * y1; if (a > 0) { const g = G[perm[ii + i1 + perm[jj + j1]] & 7]; a *= a; n += a * a * (g[0] * x1 + g[1] * y1); }
+    a = 0.5 - x2 * x2 - y2 * y2; if (a > 0) { const g = G[perm[ii + 1 + perm[jj + 1]] & 7]; a *= a; n += a * a * (g[0] * x2 + g[1] * y2); }
+    return 70 * n;
+  };
+})();
+const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+function height(x, z) {
+  const nx = x / 9000, nz = z / 9000;
+  const mask = smooth(-0.65, 0.45, Noise(nx * 0.55 + 11.3, nz * 0.55 - 7.1));    // where the mountains are
+  let r = 0, amp = 1, f = 1, w = 1, sum = 0;
+  for (let o = 0; o < 5; o++) {                                                    // ridged multifractal
+    let n = 1 - Math.abs(Noise(nx * f * 3 + o * 17.7, nz * f * 3 - o * 31.3));
+    n *= n; n *= w; w = Math.min(1, n * 1.6);
+    r += n * amp; sum += amp; amp *= 0.5; f *= 2.05;
+  }
+  r /= sum;
+  const hills = Noise(x / 1400, z / 1400) * 45 + Noise(x / 380, z / 380) * 8;
+  const lake = smooth(0.35, 0.75, Noise(x / 4200 + 3.7, z / 4200 - 9.2)) * (1 - mask);   // lakes in the lowlands
+  return mask * r * 1700 + hills + mask * 60 + 25 - lake * 140;
+}
+
+function terrainColor(h, slope, x, z) {
+  const j = Noise(x / 90, z / 90) * 0.06;
+  let c;
+  if (h < 4) c = [0.80, 0.76, 0.58];                      // shore
+  else if (slope > 0.85 && h > 60) c = [0.42, 0.40, 0.38]; // cliffs
+  else if (h < 220) c = [0.36, 0.56, 0.25];               // meadows
+  else if (h < 600) c = [0.20, 0.40, 0.22];               // forest
+  else if (h < 880) c = [0.47, 0.45, 0.42];               // rock
+  else c = [0.93, 0.95, 0.98];                            // snow
+  if (h > 840 && h < 940 && slope < 0.6) c = [0.80, 0.82, 0.86];
+  return c.map((v) => Math.min(1, Math.max(0, v + j)));
+}
+
+// ===================================================================
+//  scene
+// ===================================================================
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById("gl"), antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(62, 1, 1, 12000);
+scene.fog = new THREE.Fog(0x9cc9ee, 1500, 5200);
+
+const hemi = new THREE.HemisphereLight(0xdfefff, 0x3b4a2a, 0.75);
+const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+sun.position.set(-0.5, 0.8, -0.3);
+scene.add(hemi, sun);
+
+// stars for the night sky
+const stars = (() => {
+  const g = new THREE.BufferGeometry(), n = 1500, a = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const th = Math.random() * Math.PI * 2, ph = Math.acos(Math.random() * 0.95);
+    a[i * 3] = Math.sin(ph) * Math.cos(th) * 9000; a[i * 3 + 1] = Math.cos(ph) * 9000; a[i * 3 + 2] = Math.sin(ph) * Math.sin(th) * 9000;
+  }
+  g.setAttribute("position", new THREE.BufferAttribute(a, 3));
+  const p = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 2, sizeAttenuation: false, fog: false }));
+  p.visible = false; scene.add(p); return p;
+})();
+
+// terrain chunks around the aircraft
+const CHUNK = 1600, SEG = 48, RAD = 3;
+const terrainMat = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+const chunks = new Map();
+function buildChunk(cx, cz) {
+  const n = SEG + 1, pos = new Float32Array(n * n * 3), col = new Float32Array(n * n * 3), idx = [];
+  const ox = cx * CHUNK, oz = cz * CHUNK, step = CHUNK / SEG, e = 18;
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+    const x = ox + i * step, z = oz + j * step, h = height(x, z);
+    const sl = Math.hypot(height(x + e, z) - h, height(x, z + e) - h) / e;
+    const k = (j * n + i) * 3, c = terrainColor(h, sl, x, z);
+    pos[k] = x; pos[k + 1] = h; pos[k + 2] = z;
+    col[k] = c[0]; col[k + 1] = c[1]; col[k + 2] = c[2];
+  }
+  for (let j = 0; j < SEG; j++) for (let i = 0; i < SEG; i++) {
+    const a = j * n + i, b = a + 1, c = a + n, d = c + 1;
+    idx.push(a, c, b, b, c, d);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  g.setIndex(idx); g.computeVertexNormals();
+  const m = new THREE.Mesh(g, terrainMat);
+  scene.add(m); return m;
+}
+let pendingChunks = [];
+function updateChunks(px, pz, all) {
+  const ccx = Math.floor(px / CHUNK), ccz = Math.floor(pz / CHUNK), want = new Set();
+  for (let dz = -RAD; dz <= RAD; dz++) for (let dx = -RAD; dx <= RAD; dx++) want.add((ccx + dx) + "," + (ccz + dz));
+  for (const [k, m] of chunks) if (!want.has(k)) { scene.remove(m); m.geometry.dispose(); chunks.delete(k); }
+  pendingChunks = [...want].filter((k) => !chunks.has(k))
+    .sort((a, b) => { const [ax, az] = a.split(",").map(Number), [bx, bz] = b.split(",").map(Number); return Math.hypot(ax - ccx, az - ccz) - Math.hypot(bx - ccx, bz - ccz); });
+  const budget = all ? Infinity : 2;   // build a couple per frame to avoid hitches
+  for (let i = 0; i < budget && pendingChunks.length; i++) {
+    const k = pendingChunks.shift(), [x, z] = k.split(",").map(Number);
+    chunks.set(k, buildChunk(x, z));
+  }
+}
+
+// water
+const water = new THREE.Mesh(new THREE.PlaneGeometry(14000, 14000),
+  new THREE.MeshLambertMaterial({ color: 0x3f7fb3, transparent: true, opacity: 0.88 }));
+water.rotation.x = -Math.PI / 2; scene.add(water);
+
+// low-poly clouds
+const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x555a60, flatShading: true, transparent: true, opacity: 0.92 });
+const clouds = [];
+for (let i = 0; i < 46; i++) {
+  const g = new THREE.Group(), puffs = 3 + Math.floor(Math.random() * 4);
+  for (let p = 0; p < puffs; p++) {
+    const m = new THREE.Mesh(new THREE.IcosahedronGeometry(40 + Math.random() * 50, 1), cloudMat);
+    m.position.set((Math.random() - .5) * 180, (Math.random() - .5) * 30, (Math.random() - .5) * 90);
+    m.scale.y = 0.55; g.add(m);
+  }
+  g.position.set((Math.random() - .5) * 12000, 1150 + Math.random() * 600, (Math.random() - .5) * 12000);
+  g.rotation.y = Math.random() * 6.28;
+  scene.add(g); clouds.push(g);
+}
+
+// ===================================================================
+//  the jet (low-poly, generic small business jet)
+// ===================================================================
+const jet = new THREE.Group();
+(() => {
+  const white = new THREE.MeshLambertMaterial({ color: 0xf4f4f2, flatShading: true });
+  const blue = new THREE.MeshLambertMaterial({ color: 0x1f4e8c, flatShading: true });
+  const gold = new THREE.MeshLambertMaterial({ color: 0xe0b35a, flatShading: true });
+  const glass = new THREE.MeshLambertMaterial({ color: 0x1c2733, flatShading: true });
+  const add = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); jet.add(m); return m; };
+  add(new THREE.CylinderGeometry(1.05, 0.8, 11, 10), white, 0, 0, 0.5, Math.PI / 2);             // fuselage
+  add(new THREE.ConeGeometry(1.05, 3.2, 10), white, 0, 0, -6.6, -Math.PI / 2);                   // nose
+  add(new THREE.ConeGeometry(0.8, 3, 10), white, 0, 0.15, 7.5, Math.PI / 2);                    // tail cone
+  add(new THREE.BoxGeometry(1.6, 0.5, 1.2), glass, 0, 0.6, -5.2, -0.35);                         // windscreen
+  add(new THREE.BoxGeometry(2.15, 0.25, 9), blue, 0, -0.1, 0.4);                                 // cheat-line stripe
+  // swept wings: two half-wings angled back, with a little dihedral
+  add(new THREE.BoxGeometry(7.8, 0.22, 2.2), white, 4.1, -0.45, 1.0, 0, -0.22, 0.06);
+  add(new THREE.BoxGeometry(7.8, 0.22, 2.2), white, -4.1, -0.45, 1.0, 0, 0.22, -0.06);
+  add(new THREE.BoxGeometry(0.3, 0.9, 0.9), blue, 8.0, -0.1, 1.9, 0, -0.22, 0);                 // winglets
+  add(new THREE.BoxGeometry(0.3, 0.9, 0.9), blue, -8.0, -0.1, 1.9, 0, 0.22, 0);
+  add(new THREE.CylinderGeometry(0.55, 0.5, 2.6, 8), white, 1.55, 0.45, 5.0, Math.PI / 2);      // rear-mounted engines
+  add(new THREE.CylinderGeometry(0.55, 0.5, 2.6, 8), white, -1.55, 0.45, 5.0, Math.PI / 2);
+  add(new THREE.BoxGeometry(0.25, 3.2, 2.4), blue, 0, 2.0, 7.2, -0.35);                           // fin
+  add(new THREE.BoxGeometry(5.5, 0.18, 1.4), white, 0, 3.55, 7.9, 0, 0, 0);                       // T-tail
+  add(new THREE.BoxGeometry(0.3, 0.3, 0.3), gold, 0, 3.75, 8.1);
+  // nav lights
+  const red = new THREE.Mesh(new THREE.SphereGeometry(0.22, 6, 6), new THREE.MeshBasicMaterial({ color: 0xff3030 }));
+  const grn = new THREE.Mesh(new THREE.SphereGeometry(0.22, 6, 6), new THREE.MeshBasicMaterial({ color: 0x30ff60 }));
+  red.position.set(-8.05, 0.4, 1.9); grn.position.set(8.05, 0.4, 1.9); jet.add(red, grn);
+  jet.userData.lights = [red, grn];
+})();
+scene.add(jet);
+
+// rings
+const ringMat = new THREE.MeshBasicMaterial({ color: 0xe0b35a });
+const ring = new THREE.Mesh(new THREE.TorusGeometry(32, 3, 8, 32), ringMat);
+scene.add(ring);
+const ringGlow = new THREE.Mesh(new THREE.TorusGeometry(32, 7, 8, 32), new THREE.MeshBasicMaterial({ color: 0xffe2a0, transparent: true, opacity: 0.18, depthWrite: false }));
+ring.add(ringGlow);
+
+// ===================================================================
+//  flight model (arcade-ish: thrust, drag, gravity along the path, stall)
+// ===================================================================
+const P = { pos: new THREE.Vector3(), q: new THREE.Quaternion(), v: 95, thr: 0.65, crashed: 0 };
+const ctl = { pitch: 0, roll: 0, yaw: 0 };
+let invertPitch = false, assist = true, view = "chase", score = 0, ringPrevZ = null;
+const tmpQ = new THREE.Quaternion(), X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
+
+function reset(keepPlace) {
+  if (!keepPlace) P.pos.set(0, 0, 0);
+  P.pos.y = Math.max(height(P.pos.x, P.pos.z), 0) + 450;
+  const heading = keepPlace ? Math.atan2(fwd().x, -fwd().z) : 0;
+  P.q.setFromAxisAngle(Y, -heading);
+  P.v = 95; P.crashed = 0;
+  placeRing(true);
+  if (!keepPlace) score = 0;
+}
+const fwd = () => new THREE.Vector3(0, 0, -1).applyQuaternion(P.q);
+const upv = () => new THREE.Vector3(0, 1, 0).applyQuaternion(P.q);
+const rightv = () => new THREE.Vector3(1, 0, 0).applyQuaternion(P.q);
+
+function placeRing(first) {
+  const f = fwd(); f.y = 0; f.normalize();
+  const ang = (Math.random() - 0.5) * (first ? 0.3 : 1.4);
+  const dir = f.clone().applyAxisAngle(Y, ang);
+  const d = first ? 700 : 900 + Math.random() * 700;
+  const p = P.pos.clone().addScaledVector(dir, d);
+  const ground = Math.max(height(p.x, p.z), 0);
+  p.y = Math.max(ground + 160, Math.min(P.pos.y + (Math.random() - 0.4) * 260, ground + 700));
+  ring.position.copy(p);
+  ring.lookAt(p.clone().add(dir));
+  ring.updateMatrixWorld(true);
+  ringPrevZ = null;
+}
+
+const keys = {};
+addEventListener("keydown", (e) => {
+  const k = e.key.toLowerCase(); keys[k] = true;
+  if (k.startsWith("arrow")) e.preventDefault();
+  if (k === "c") toggleView();
+  if (k === "t") cycleTime();
+  if (k === "r") reset(false);
+});
+addEventListener("keyup", (e) => keys[e.key.toLowerCase()] = false);
+
+// drag to steer (mouse or touch)
+let drag = null;
+const glc = document.getElementById("gl");
+glc.addEventListener("pointerdown", (e) => { drag = { x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY }; glc.setPointerCapture(e.pointerId); });
+glc.addEventListener("pointermove", (e) => { if (drag) { drag.x = e.clientX; drag.y = e.clientY; } });
+glc.addEventListener("pointerup", () => drag = null);
+glc.addEventListener("pointercancel", () => drag = null);
+
+const approach = (cur, target, rate, dt) => cur + (target - cur) * (1 - Math.exp(-rate * dt));
+
+function step(dt) {
+  if (P.crashed) { P.crashed -= dt; if (P.crashed <= 0) reset(true); return; }
+
+  // ---- inputs
+  let tp = (keys.arrowup ? 1 : 0) - (keys.arrowdown ? 1 : 0);
+  if (invertPitch) tp = -tp;
+  let tr = (keys.arrowright ? 1 : 0) - (keys.arrowleft ? 1 : 0);
+  let ty = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
+  if (drag) {
+    const s = Math.min(innerWidth, innerHeight) * 0.25;
+    tr = Math.max(-1, Math.min(1, (drag.x - drag.x0) / s));
+    tp = Math.max(-1, Math.min(1, -(drag.y - drag.y0) / s));
+  }
+  if (keys.w) P.thr = Math.min(1, P.thr + dt * 0.45);
+  if (keys.s) P.thr = Math.max(0, P.thr - dt * 0.45);
+  thrEl.value = P.thr;
+  ctl.pitch = approach(ctl.pitch, tp, 6, dt);
+  ctl.roll = approach(ctl.roll, tr, 6, dt);
+  ctl.yaw = approach(ctl.yaw, ty, 4, dt);
+
+  // ---- rotations (control authority grows with airspeed)
+  const eff = Math.min(1, Math.max(0.25, P.v / 70));
+  tmpQ.setFromAxisAngle(X, ctl.pitch * 0.6 * eff * dt); P.q.multiply(tmpQ);
+  // speed stability (like a trimmed aircraft): slow → nose drops, fast → nose rises
+  // trim speed follows the throttle, so throttle mostly changes speed, not attitude
+  const vTrim = 0.75 * Math.sqrt(P.thr * 19 / 0.00135) + 0.25 * 95;
+  if (Math.abs(tp) < 0.05) { tmpQ.setFromAxisAngle(X, Math.max(-0.3, Math.min(0.3, (P.v - vTrim) * 0.005)) * dt); P.q.multiply(tmpQ); }
+  tmpQ.setFromAxisAngle(Z, -ctl.roll * 1.9 * eff * dt); P.q.multiply(tmpQ);
+  tmpQ.setFromAxisAngle(Y, -ctl.yaw * 0.35 * eff * dt); P.q.multiply(tmpQ);
+
+  const r = rightv(), u = upv();
+  const bank = Math.atan2(-r.y, u.y);            // + = right wing down
+  // banked turn: lift vector tilts, heading follows the bank
+  tmpQ.setFromAxisAngle(Y, -Math.sin(bank) * 0.55 * eff * dt); P.q.premultiply(tmpQ);
+  // gentle auto-level when hands are off
+  if (assist && Math.abs(tr) < 0.05 && !drag) {
+    tmpQ.setFromAxisAngle(Z, bank * 0.8 * dt); P.q.multiply(tmpQ);
+  }
+  P.q.normalize();
+
+  // ---- speed: thrust − drag − gravity along the flight path
+  const f = fwd();
+  P.v += (P.thr * 19 - 0.00135 * P.v * P.v - 9.81 * f.y) * dt;
+  P.v = Math.max(0, P.v);
+  P.pos.addScaledVector(f, P.v * dt);
+  // stall: below ~45 m/s lift fades, the nose drops and the jet sinks
+  if (P.v < 50) {
+    const k = (50 - P.v) / 50;
+    P.pos.y -= k * 25 * dt;
+    tmpQ.setFromAxisAngle(X, -k * 0.9 * dt); P.q.multiply(tmpQ);
+  }
+
+  // ---- ground / water contact
+  const ground = Math.max(height(P.pos.x, P.pos.z), 0);
+  if (P.pos.y < ground + 2.5) crash(ground > 0.5 ? "terrain" : "water");
+
+  // ---- rings
+  const local = ring.worldToLocal(P.pos.clone());
+  if (ringPrevZ !== null && ringPrevZ * local.z < 0 && Math.hypot(local.x, local.y) < 34) {
+    score++; flash("ring " + score); placeRing(false);
+  } else {
+    ringPrevZ = local.z;
+    const toRing = ring.position.clone().sub(P.pos);
+    if (toRing.length() > 3200) placeRing(false);
+  }
+}
+
+function crash(what) {
+  P.crashed = 2.2;
+  flash(what === "water" ? "splashdown" : "crashed", "respawning above the same spot…");
+}
+
+// ===================================================================
+//  camera, time of day, HUD
+// ===================================================================
+const TIMES = [
+  { name: "day",   sky: 0x9cc9ee, sun: 0xffffff, sunI: 0.9,  hemi: 0.75, sunPos: [-0.5, 0.8, -0.3], stars: false, water: 0x3f7fb3 },
+  { name: "dusk",  sky: 0xe7a27c, sun: 0xffb27a, sunI: 0.75, hemi: 0.5,  sunPos: [-0.9, 0.18, -0.4], stars: false, water: 0x5a6f94 },
+  { name: "night", sky: 0x0a1022, sun: 0x8aa6ff, sunI: 0.35, hemi: 0.18, sunPos: [0.4, 0.6, 0.5],   stars: true,  water: 0x13233d },
+  { name: "dawn",  sky: 0xf3c9d6, sun: 0xffd9b0, sunI: 0.7,  hemi: 0.55, sunPos: [0.9, 0.2, 0.3],    stars: false, water: 0x6f8fb8 },
+];
+let tIdx = 0;
+function applyTime() {
+  const t = TIMES[tIdx];
+  scene.background = new THREE.Color(t.sky); scene.fog.color.set(t.sky);
+  sun.color.set(t.sun); sun.intensity = t.sunI; sun.position.set(...t.sunPos);
+  hemi.intensity = t.hemi; stars.visible = t.stars; water.material.color.set(t.water);
+  cloudMat.color.set(tIdx === 2 ? 0x5a6378 : tIdx === 1 ? 0xffd6c2 : 0xffffff);
+  document.getElementById("tod").textContent = "time: " + t.name;
+}
+function cycleTime() { tIdx = (tIdx + 1) % TIMES.length; applyTime(); }
+function toggleView() {
+  view = view === "chase" ? "cockpit" : "chase";
+  document.getElementById("view").textContent = view === "chase" ? "cockpit view" : "chase view";
+}
+
+const camPos = new THREE.Vector3(), camUp = new THREE.Vector3(0, 1, 0);
+function updateCamera(dt) {
+  if (view === "cockpit") {
+    jet.visible = false;
+    camera.position.copy(P.pos).addScaledVector(upv(), 1.2).addScaledVector(fwd(), -4);
+    camera.quaternion.copy(P.q);
+    return;
+  }
+  jet.visible = true;
+  const target = P.pos.clone().addScaledVector(fwd(), -30).addScaledVector(upv(), 8);
+  target.y += 3;
+  if (camPos.lengthSq() === 0) camPos.copy(target);
+  camPos.lerp(target, 1 - Math.exp(-dt * 4.5));
+  const g = Math.max(height(camPos.x, camPos.z), 0) + 3;
+  if (camPos.y < g) camPos.y = g;
+  camera.position.copy(camPos);
+  camUp.lerp(new THREE.Vector3(0, 1, 0).lerp(upv(), 0.35), 1 - Math.exp(-dt * 3));
+  camera.up.copy(camUp);
+  camera.lookAt(P.pos.clone().addScaledVector(fwd(), 25));
+  if (P.crashed > 0) camera.position.add(new THREE.Vector3((Math.random() - .5) * 2, (Math.random() - .5) * 2, 0));
+}
+
+const hud = document.getElementById("hud"), hc = hud.getContext("2d");
+let flashT = 0, flashMsg = "";
+const banner = document.getElementById("banner");
+function flash(msg, sub) { banner.innerHTML = msg + (sub ? "<small>" + sub + "</small>" : ""); banner.style.opacity = 1; flashT = 1.6; }
+
+function drawHUD() {
+  const W = innerWidth, H = innerHeight;
+  hc.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  hc.clearRect(0, 0, W, H);
+  const f = fwd(), r = rightv(), u = upv();
+  const pitch = Math.asin(Math.max(-1, Math.min(1, f.y))), bank = Math.atan2(-r.y, u.y);
+  const hdg = ((Math.atan2(f.x, -f.z) * 180 / Math.PI) + 360) % 360;
+  const alt = Math.round(P.pos.y * 3.281), agl = Math.round((P.pos.y - Math.max(height(P.pos.x, P.pos.z), 0)) * 3.281);
+  const col = "rgba(224,179,90,.92)", soft = "rgba(255,255,255,.75)";
+  hc.font = "500 13px JetBrains Mono, monospace"; hc.lineWidth = 1.5;
+  hc.shadowColor = "rgba(0,0,0,.55)"; hc.shadowBlur = 4;
+
+  // pitch ladder / horizon
+  const cx = W / 2, cy = H / 2, pxr = H / 1.15;
+  hc.save(); hc.translate(cx, cy); hc.rotate(-bank);
+  hc.beginPath(); hc.rect(-150, -150, 300, 300); hc.clip();
+  hc.strokeStyle = col; hc.fillStyle = col;
+  for (let d = -40; d <= 40; d += 10) {
+    const y = (pitch - d * Math.PI / 180) * pxr;
+    const w = d === 0 ? 130 : 46;
+    hc.beginPath(); hc.moveTo(-w, y); hc.lineTo(-14, y); hc.moveTo(14, y); hc.lineTo(w, y); hc.stroke();
+    if (d) { hc.font = "11px JetBrains Mono, monospace"; hc.fillText(String(Math.abs(d)), w + 6, y + 4); }
+  }
+  hc.restore();
+  // aircraft symbol
+  hc.strokeStyle = soft; hc.beginPath();
+  hc.moveTo(cx - 34, cy); hc.lineTo(cx - 12, cy); hc.lineTo(cx - 6, cy + 7); hc.moveTo(cx + 34, cy); hc.lineTo(cx + 12, cy); hc.lineTo(cx + 6, cy + 7);
+  hc.stroke(); hc.beginPath(); hc.arc(cx, cy, 2, 0, 7); hc.stroke();
+
+  // readouts
+  hc.font = "500 13px JetBrains Mono, monospace"; hc.fillStyle = col; hc.textAlign = "right";
+  hc.fillText(Math.round(P.v * 1.944) + " KT", cx - 170, cy + 5);
+  hc.textAlign = "left";
+  hc.fillText(alt + " FT", cx + 170, cy + 5);
+  hc.fillStyle = soft; hc.font = "11px JetBrains Mono, monospace";
+  hc.fillText(agl + " AGL", cx + 170, cy + 22);
+  hc.textAlign = "center"; hc.fillStyle = col; hc.font = "500 13px JetBrains Mono, monospace";
+  hc.fillText(String(Math.round(hdg)).padStart(3, "0") + "°", cx, cy - 168);
+  if (P.v < 56 && !P.crashed) { hc.fillStyle = "#ff6b5a"; hc.fillText("STALL", cx, cy + 172); }
+  else if (agl < 400 && f.y < -0.25 && !P.crashed) { hc.fillStyle = "#ff6b5a"; hc.fillText("PULL UP", cx, cy + 172); }
+
+  // throttle + score (bottom right)
+  const bx = W - 34, by = H - 40, bh = 110;
+  hc.strokeStyle = soft; hc.strokeRect(bx, by - bh, 10, bh);
+  hc.fillStyle = col; hc.fillRect(bx, by - bh * P.thr, 10, bh * P.thr);
+  hc.textAlign = "right"; hc.fillStyle = soft; hc.font = "11px JetBrains Mono, monospace";
+  hc.fillText("THR " + Math.round(P.thr * 100) + "%", bx - 8, by);
+  hc.fillStyle = col; hc.font = "500 13px JetBrains Mono, monospace";
+  hc.fillText("◯ " + score, bx - 8, by - bh + 10);
+
+  // ring locator: arrow on screen edge when the ring is off screen
+  const v = ring.position.clone().project(camera);
+  const behind = v.z > 1;
+  let sx = (v.x * 0.5 + 0.5) * W, sy = (-v.y * 0.5 + 0.5) * H;
+  if (behind) { sx = W - sx; sy = H - sy; }
+  const m = 40, on = !behind && sx > m && sx < W - m && sy > m && sy < H - m;
+  const dist = Math.round(ring.position.distanceTo(P.pos));
+  hc.fillStyle = col; hc.strokeStyle = col;
+  if (on) {
+    hc.beginPath(); hc.arc(sx, sy, 6, 0, 7); hc.stroke();
+    hc.textAlign = "center"; hc.font = "11px JetBrains Mono, monospace"; hc.fillText(dist + " m", sx, sy - 12);
+  } else {
+    const ang = Math.atan2(sy - cy, sx - cx), ex = cx + Math.cos(ang) * (W / 2 - m), ey = cy + Math.sin(ang) * (H / 2 - m);
+    const px = Math.max(m, Math.min(W - m, ex)), py = Math.max(m, Math.min(H - m, ey));
+    hc.save(); hc.translate(px, py); hc.rotate(ang);
+    hc.beginPath(); hc.moveTo(12, 0); hc.lineTo(-6, -8); hc.lineTo(-6, 8); hc.closePath(); hc.fill(); hc.restore();
+  }
+  hc.shadowBlur = 0;
+}
+
+// ===================================================================
+//  loop + UI
+// ===================================================================
+function resize() {
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  hud.width = innerWidth * devicePixelRatio; hud.height = innerHeight * devicePixelRatio;
+}
+addEventListener("resize", resize);
+
+let last = performance.now(), blink = 0;
+function frame(t) {
+  const dt = Math.min(0.05, (t - last) / 1000); last = t;
+  step(dt);
+  updateChunks(P.pos.x, P.pos.z, false);
+  water.position.set(P.pos.x, 0, P.pos.z);
+  stars.position.copy(P.pos);
+  for (const c of clouds) {                       // wrap clouds around the aircraft
+    if (c.position.x - P.pos.x > 6000) c.position.x -= 12000; else if (P.pos.x - c.position.x > 6000) c.position.x += 12000;
+    if (c.position.z - P.pos.z > 6000) c.position.z -= 12000; else if (P.pos.z - c.position.z > 6000) c.position.z += 12000;
+  }
+  jet.position.copy(P.pos); jet.quaternion.copy(P.q);
+  blink += dt; jet.userData.lights.forEach((l) => l.visible = (blink % 1.2) < 0.9);
+  ring.rotation.z += dt * 0.6;
+  ringGlow.material.opacity = 0.14 + 0.08 * Math.sin(t * 0.004);
+  updateCamera(dt);
+  renderer.render(scene, camera);
+  drawHUD();
+  if (flashT > 0) { flashT -= dt; if (flashT <= 0) banner.style.opacity = 0; }
+  requestAnimationFrame(frame);
+}
+
+const thrEl = document.getElementById("thr");
+thrEl.oninput = () => P.thr = +thrEl.value;
+document.getElementById("view").onclick = toggleView;
+document.getElementById("tod").onclick = cycleTime;
+document.getElementById("inv").onclick = (e) => {
+  invertPitch = !invertPitch;
+  e.target.textContent = invertPitch ? "↑ = nose down" : "↑ = nose up";
+};
+document.getElementById("assist").onclick = (e) => { assist = !assist; e.target.classList.toggle("on", assist); };
+document.querySelectorAll(".panel button").forEach((b) => b.addEventListener("click", () => b.blur()));
+
+// the panel fades while flying, comes back on mouse movement
+let idle;
+function wake() {
+  document.getElementById("panel").classList.remove("hidden");
+  clearTimeout(idle);
+  idle = setTimeout(() => { if (!document.getElementById("panel").matches(":hover")) document.getElementById("panel").classList.add("hidden"); }, 5000);
+}
+addEventListener("mousemove", wake);
+
+// start in daylight, local hour picks dusk / night for flavour
+const hr = new Date().getHours();
+tIdx = hr >= 21 || hr < 6 ? 2 : hr >= 18 ? 1 : hr < 8 ? 3 : 0;
+applyTime();
+resize();
+reset(false);
+updateChunks(P.pos.x, P.pos.z, true);
+wake();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

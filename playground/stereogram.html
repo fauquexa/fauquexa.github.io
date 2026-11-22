@@ -1,0 +1,742 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stereogram Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<style>
+/* Control rail on the left, large viewing stage on the right; stacks on phones.
+   Dark palette shared with the rest of the playground. */
+:root {
+  --bg: #07080a;
+  --panel: #111317;
+  --ink: #e9e6df;
+  --muted: #9a9ea6;
+  --line: #24272e;
+  --accent: #e0b35a;
+  --accent-ink: #1a1406;
+  --stage: #000;
+  --red: rgba(255, 98, 90, .55);
+  --cyan: rgba(70, 214, 230, .55);
+  --check-a: #1d2026;
+  --check-b: #15171b;
+  --serif: "Source Serif 4", Georgia, serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font-family: var(--mono); font-size: 13px; line-height: 1.55;
+  padding: 24px 16px 40px;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.app { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+.top { display: flex; flex-direction: column; gap: 6px; }
+.back { color: var(--muted); font-size: 11.5px; }
+h1 {
+  font-family: var(--serif); font-weight: 600; font-size: clamp(28px, 4vw, 40px); line-height: 1.05;
+  margin: 0; letter-spacing: -.01em; text-shadow: -3px 0 var(--red), 3px 0 var(--cyan);
+}
+.lede { margin: 0; color: var(--muted); max-width: 70ch; }
+.grid { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 920px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+.rail { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column; }
+.group { padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--line); }
+.group:first-child { border-top: 0; }
+.group h2 {
+  margin: 0; font-weight: 500; font-size: 11.5px; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--muted); display: flex; gap: 8px; align-items: center;
+}
+.group h2 b { font-weight: 500; color: var(--accent); }
+
+.drop {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  border: 1.5px dashed var(--line); border-radius: 10px; padding: 16px 12px; text-align: center; cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.drop:hover, .drop.over, .drop:focus-within { border-color: var(--accent); background: rgba(224, 179, 90, .06); }
+.drop strong { font-weight: 500; }
+.drop span { color: var(--muted); font-size: 11.5px; }
+.drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+
+.previews { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.previews figure { margin: 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.previews .box {
+  aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; border: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: center; max-width: 100%;
+  background: repeating-conic-gradient(var(--check-a) 0 25%, var(--check-b) 0 50%) 0 0 / 14px 14px;
+}
+.previews .box img, .previews .box canvas { max-width: 100%; max-height: 100%; display: block; }
+.previews figcaption { font-size: 11px; color: var(--muted); }
+.note { font-size: 11.5px; color: var(--muted); margin: 0; }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label, .field .lbl { display: flex; justify-content: space-between; gap: 8px; }
+.field output { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.field small { color: var(--muted); font-size: 11.5px; }
+select, input[type="range"], input[type="text"] { width: 100%; accent-color: var(--accent); }
+select, input[type="text"] {
+  font: inherit; color: var(--ink); background: rgba(255,255,255,.04); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px;
+}
+select option { background: #15171b; }
+.check { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.check input { accent-color: var(--accent); margin-top: 3px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label { padding: 7px 8px; text-align: center; cursor: pointer; font-size: 12px; justify-content: center; }
+.seg input + label ~ label { border-left: 1px solid var(--line); }
+.seg input:checked + label { background: var(--accent); color: var(--accent-ink); }
+.seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -3px; }
+
+.stage { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.status { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+button {
+  font: inherit; font-size: 12px; border-radius: 8px; padding: 7px 12px; cursor: pointer;
+  border: 1px solid var(--line); background: rgba(255,255,255,.04); color: var(--ink);
+}
+button:hover { border-color: var(--accent); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button.on { border-color: var(--accent); color: var(--accent); }
+.viewer {
+  background: var(--stage); border: 1px solid var(--line); border-radius: 12px; padding: 12px;
+  display: flex; justify-content: center; align-items: center; overflow: hidden; min-height: 240px;
+}
+.viewer img { display: block; max-width: 100%; height: auto; border-radius: 4px; cursor: zoom-in; }
+.viewer:fullscreen { padding: 0; border: 0; border-radius: 0; }
+.viewer:fullscreen img { max-height: 100%; width: auto; border-radius: 0; cursor: zoom-out; }
+.hint { font-size: 11.5px; color: var(--muted); margin: 0; }
+
+.howto { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px 28px; }
+.howto h3 { margin: 0 0 6px; font-family: var(--serif); font-weight: 600; font-size: 17px; }
+.howto ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; max-width: 62ch; }
+.howto p { margin: 0; max-width: 62ch; }
+.error { color: #ff8a80; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <a class="back" href="../index.html">← home</a>
+    <h1>Stereogram Studio</h1>
+    <p class="lede">Hide a logo, a word or a shape in a random-dot 3D picture. Relax your eyes, look through the screen, and it floats out of the pattern.</p>
+  </header>
+
+  <main class="grid">
+    <aside class="rail" aria-label="Settings">
+      <section class="group">
+        <h2><b>1</b> What to hide</h2>
+        <div class="field">
+          <label for="source">Source</label>
+          <select id="source">
+            <option value="text">Text</option>
+            <option value="image">Logo or image</option>
+            <option value="sphere">Sphere</option>
+            <option value="torus">Torus</option>
+            <option value="ripple">Ripples</option>
+            <option value="stairs">Staircase pyramid</option>
+            <option value="julia">Today's Julia set</option>
+          </select>
+        </div>
+        <div class="field" id="textField">
+          <label for="text">Text</label>
+          <input type="text" id="text" value="hello" maxlength="24" aria-label="Text to hide">
+        </div>
+        <div class="drop" id="drop" hidden>
+          <strong>Drop a logo here</strong>
+          <span>or click to choose · you can also paste</span>
+          <input type="file" id="logoInput" accept="image/*" aria-label="Choose a logo image">
+        </div>
+        <div class="previews">
+          <figure><div class="box"><img id="logoThumb" alt="Source preview"></div><figcaption id="logoName">Text</figcaption></figure>
+          <figure><div class="box"><canvas id="depthThumb" aria-label="Depth map preview"></canvas></div><figcaption>Depth map · white is closer</figcaption></figure>
+        </div>
+        <p class="note" id="detectNote"></p>
+        <div id="cutoutFields" style="display:contents">
+          <div class="field">
+            <label for="mode">Shape</label>
+            <select id="mode">
+              <option value="round">Rounded, like a pillow</option>
+              <option value="flat">Flat cut-out</option>
+              <option value="bright">Brightness sets height</option>
+            </select>
+          </div>
+          <div class="field" id="thickField">
+            <label for="thick">Line thickness <output id="thickOut"></output></label>
+            <input type="range" id="thick" min="0" max="30" step="1" value="0">
+            <small>Turn this up for outline or line-art logos so thin strokes stay visible.</small>
+          </div>
+        </div>
+        <label class="check"><input type="checkbox" id="invert"> <span>Invert depth<br><small style="color:var(--muted)">Use this if the background pops out instead of the shape.</small></span></label>
+        <div class="field">
+          <label for="soft">Edge softness <output id="softOut"></output></label>
+          <input type="range" id="soft" min="0" max="12" step="1" value="0">
+        </div>
+      </section>
+
+      <section class="group">
+        <h2><b>2</b> Depth and viewing</h2>
+        <div class="field">
+          <span class="lbl">Viewing method</span>
+          <div class="seg" role="radiogroup" aria-label="Viewing method">
+            <input type="radio" name="view" id="viewParallel" value="parallel" checked><label for="viewParallel">Look through</label>
+            <input type="radio" name="view" id="viewCross" value="cross"><label for="viewCross">Cross-eyed</label>
+          </div>
+        </div>
+        <div class="field">
+          <label for="depth">Depth <output id="depthOut"></output></label>
+          <input type="range" id="depth" min="0.2" max="1" step="0.05" value="0.8">
+        </div>
+        <div class="field">
+          <label for="repeat">Pattern repeat <output id="repeatOut"></output></label>
+          <input type="range" id="repeat" min="70" max="360" step="2" value="120">
+          <small>Smaller is easier to fuse on a small screen; larger gives more depth on a big one. For A4 print, about 300 px (2.5 cm).</small>
+        </div>
+      </section>
+
+      <section class="group">
+        <h2><b>3</b> Pattern</h2>
+        <div class="field">
+          <label for="pattern">Texture</label>
+          <select id="pattern">
+            <option value="noise">Soft color noise</option>
+            <option value="color">Color dots</option>
+            <option value="mono">Black and white dots</option>
+            <option value="custom">My own image</option>
+          </select>
+        </div>
+        <div class="drop" id="texDrop" hidden>
+          <strong>Choose a texture image</strong>
+          <span>busy photos and patterns work best</span>
+          <input type="file" id="texInput" accept="image/*" aria-label="Choose a texture image">
+        </div>
+        <div class="field" id="grainField">
+          <label for="grain">Grain size <output id="grainOut"></output></label>
+          <input type="range" id="grain" min="1" max="6" step="1" value="2">
+        </div>
+      </section>
+
+      <section class="group">
+        <h2><b>4</b> Output</h2>
+        <div class="field">
+          <label for="size">Image size</label>
+          <select id="size">
+            <option value="1280x720">1280 × 720</option>
+            <option value="1600x900" selected>1600 × 900</option>
+            <option value="1920x1080">1920 × 1080</option>
+            <option value="2560x1440">2560 × 1440</option>
+            <option value="1200x1200">1200 × 1200 square</option>
+            <option value="2480x3508">A4 portrait, 300 dpi (2480 × 3508)</option>
+          </select>
+        </div>
+        <label class="check"><input type="checkbox" id="dots"> <span>Focus dots at the top</span></label>
+      </section>
+    </aside>
+
+    <section class="stage" aria-label="Stereogram">
+      <div class="toolbar">
+        <div class="actions">
+          <button type="button" id="dotsBtn" aria-pressed="false" title="Two dots at the top that help you lock your eyes in">Focus dots: off</button>
+          <button type="button" id="reseed">New pattern</button>
+          <button type="button" id="fs">Fullscreen</button>
+          <button type="button" id="exportHtml" title="Save a single .html file with the stereogram inside">Export HTML</button>
+          <button type="button" class="primary" id="download">Download PNG</button>
+        </div>
+      </div>
+      <span class="status" id="status">Rendering…</span>
+      <div class="viewer" id="viewer">
+        <img id="out" alt="Stereogram with a hidden shape">
+      </div>
+      <p class="hint">Double-click the image to go fullscreen. You can also drop or paste a logo straight onto it. Export HTML saves a single file with the stereogram inside that opens in any browser.</p>
+
+      <div class="howto">
+        <div>
+          <h3>Look through (default)</h3>
+          <ol>
+            <li>Go fullscreen, or make the image big.</li>
+            <li>Put your nose near the screen so everything is blurry, and stare as if looking at something far behind it.</li>
+            <li>Lean back slowly without refocusing. The two focus dots split into four; when the middle two merge into three, hold still.</li>
+            <li>The shape surfaces out of the pattern. Once it locks in, you can look around it.</li>
+          </ol>
+        </div>
+        <div>
+          <h3>Cross-eyed</h3>
+          <ol>
+            <li>Switch "Viewing method" to Cross-eyed.</li>
+            <li>Hold a fingertip halfway between your eyes and the screen and focus on it.</li>
+            <li>Move the finger until the focus dots behind it look like three, then shift your attention to the image while keeping that crossing.</li>
+          </ol>
+        </div>
+        <div>
+          <h3>What works best</h3>
+          <p>Bold, chunky shapes with clear edges. Thin lettering and fine lines tend to vanish. A logo on a transparent or plain background gives the cleanest cut-out; for gradients or shaded logos, try "Brightness sets height". The smooth shapes (sphere, ripples, Julia set) show off real depth rather than flat layers.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="../assets/julia-day.js"></script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const MU = 1 / 3; // depth of field as a fraction of viewing distance (Thimbleby, Inglis and Witten)
+  const state = { logo: null, logoInfo: null, upload: null, uploadName: '', texture: null, seed: 1, url: null, blob: null };
+  const PROCEDURAL = ['sphere', 'torus', 'ripple', 'stairs', 'julia'];
+
+  // ---------- helpers ----------
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function hsl(h, s, l) {
+    const k = (n) => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
+    const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+    return [f(0) * 255, f(8) * 255, f(4) * 255];
+  }
+  function boxBlur(src, W, H, r) {
+    if (r < 1) return src;
+    const tmp = new Float32Array(W * H), out = new Float32Array(W * H), inv = 1 / (2 * r + 1);
+    for (let y = 0; y < H; y++) {
+      const o = y * W; let acc = 0;
+      for (let i = -r; i <= r; i++) acc += src[o + Math.min(W - 1, Math.max(0, i))];
+      for (let x = 0; x < W; x++) {
+        tmp[o + x] = acc * inv;
+        acc += src[o + Math.min(W - 1, x + r + 1)] - src[o + Math.max(0, x - r)];
+      }
+    }
+    for (let x = 0; x < W; x++) {
+      let acc = 0;
+      for (let i = -r; i <= r; i++) acc += tmp[Math.min(H - 1, Math.max(0, i)) * W + x];
+      for (let y = 0; y < H; y++) {
+        out[y * W + x] = acc * inv;
+        acc += tmp[Math.min(H - 1, y + r + 1) * W + x] - tmp[Math.max(0, y - r) * W + x];
+      }
+    }
+    return out;
+  }
+  const blur3 = (a, W, H, r) => boxBlur(boxBlur(boxBlur(a, W, H, r), W, H, r), W, H, r);
+  const dims = (img) => [img.naturalWidth || img.width || 512, img.naturalHeight || img.height || 512];
+  const hex = (c) => '#' + c.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
+
+  // ---------- text source: black lettering on a transparent canvas ----------
+  function textImage(str) {
+    str = str.trim() || ' ';
+    const c = document.createElement('canvas'), g = c.getContext('2d');
+    const fs = 400, font = `900 ${fs}px "Arial Black", "Segoe UI Black", Impact, system-ui, sans-serif`;
+    g.font = font;
+    const w = Math.ceil(g.measureText(str).width) + 80;
+    c.width = Math.max(200, w); c.height = Math.round(fs * 1.3);
+    g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#111';
+    g.fillText(str, c.width / 2, c.height / 2 + fs * 0.04);
+    return c;
+  }
+
+  // ---------- procedural depth fields (0 = far, 1 = near) ----------
+  function proceduralDepth(kind, W, H) {
+    const z = new Float32Array(W * H), cx = W / 2, cy = H / 2, R = Math.min(W, H) * 0.36;
+    const js = kind === 'julia' ? JuliaDay.spec(JuliaDay.dateKey(new Date())) : null;
+    const jc = js && Math.cos(js.rot), jsn = js && Math.sin(js.rot);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const dx = (x - cx) / R, dy = (y - cy) / R, r2 = dx * dx + dy * dy;
+      let v = 0;
+      switch (kind) {
+        case 'sphere': v = r2 < 1 ? Math.sqrt(1 - r2) : 0; break;
+        case 'torus': { const a = Math.sqrt(r2) - 0.62, b = 0.3; v = Math.abs(a) < b ? Math.sqrt(b * b - a * a) / b : 0; break; }
+        case 'ripple': { const r = Math.sqrt(r2); v = 0.5 + 0.5 * Math.cos(r * 9) * Math.exp(-r * 1.1); break; }
+        case 'stairs': { const r = Math.max(Math.abs(dx), Math.abs(dy)); v = r < 1.15 ? Math.floor((1.15 - r) * 5) / 5 : 0; break; }
+        case 'julia': {
+          if (r2 > 2.6) break;
+          const sc = 1.5;
+          let zr = (dx * jc - dy * jsn) * sc, zi = (dx * jsn + dy * jc) * sc, n = 0;
+          for (; n < 80 && zr * zr + zi * zi < 16; n++) { const t = zr * zr - zi * zi + js.c[0]; zi = 2 * zr * zi + js.c[1]; zr = t; }
+          v = n >= 80 ? 1 : Math.pow(n / 80, 0.6); break;
+        }
+      }
+      z[y * W + x] = v;
+    }
+    return z;
+  }
+
+  // ---------- logo analysis: transparency or background color ----------
+  function analyze(img) {
+    const [sw, sh] = dims(img), s = Math.min(1, 200 / Math.max(sw, sh));
+    const w = Math.max(1, Math.round(sw * s)), h = Math.max(1, Math.round(sh * s));
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.drawImage(img, 0, 0, w, h);
+    const d = g.getImageData(0, 0, w, h).data;
+    let clear = 0;
+    for (let i = 3; i < d.length; i += 4) if (d[i] < 200) clear++;
+    const useAlpha = clear / (w * h) > 0.02;
+    const sum = [0, 0, 0]; let n = 0;
+    const edge = (x, y) => { const i = (y * w + x) * 4; if (d[i + 3] > 200) { sum[0] += d[i]; sum[1] += d[i + 1]; sum[2] += d[i + 2]; n++; } };
+    for (let x = 0; x < w; x++) { edge(x, 0); edge(x, h - 1); }
+    for (let y = 0; y < h; y++) { edge(0, y); edge(w - 1, y); }
+    const bg = n ? sum.map((v) => v / n) : [255, 255, 255];
+    return { useAlpha, bg };
+  }
+
+  // ---------- depth map ----------
+  function buildDepth(W, H) {
+    const source = $('source').value, invert = $('invert').checked, soft = +$('soft').value;
+    if (PROCEDURAL.includes(source)) {
+      let z = proceduralDepth(source, W, H);
+      if (invert) for (let i = 0; i < z.length; i++) z[i] = 1 - z[i];
+      const sScaled = Math.round(soft * W / 1600);
+      return sScaled > 0 ? blur3(z, W, H, sScaled) : z;
+    }
+    const img = state.logo, info = state.logoInfo, mode = $('mode').value;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    if (!info.useAlpha) { g.fillStyle = hex(info.bg); g.fillRect(0, 0, W, H); }
+    const [sw, sh] = dims(img), s = Math.min(W * 0.72 / sw, H * 0.72 / sh);
+    const dw = sw * s, dh = sh * s;
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(img, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    const d = g.getImageData(0, 0, W, H).data;
+    const m = new Float32Array(W * H);
+    const [br, bgc, bb] = info.bg;
+    for (let i = 0, p = 0; i < m.length; i++, p += 4) {
+      const a = d[p + 3] / 255;
+      let v;
+      if (mode === 'bright') {
+        let l = (0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2]) / 255;
+        if (invert) l = 1 - l;
+        v = info.useAlpha ? l * a : l;
+      } else {
+        if (info.useAlpha) v = a;
+        else {
+          const dr = d[p] - br, dg = d[p + 1] - bgc, db = d[p + 2] - bb;
+          v = Math.min(1, Math.max(0, (Math.sqrt(dr * dr + dg * dg + db * db) - 24) / 72));
+        }
+      }
+      m[i] = v;
+    }
+    let src = m;
+    if (mode !== 'bright') {
+      const thick = Math.round(+$('thick').value * W / 1600);
+      if (thick > 0) {
+        const b = blur3(m, W, H, thick);
+        src = new Float32Array(W * H);
+        for (let i = 0; i < src.length; i++) src[i] = Math.min(1, Math.max(m[i], b[i] * 3));
+      }
+      if (invert) for (let i = 0; i < src.length; i++) src[i] = 1 - src[i];
+    }
+    let z = src;
+    if (mode === 'round') {
+      const R = Math.max(4, Math.round(Math.min(W, H) * 0.03));
+      const dome = blur3(src, W, H, R);
+      z = new Float32Array(W * H);
+      for (let i = 0; i < z.length; i++) {
+        const t = Math.min(1, Math.max(0, (dome[i] - 0.5) * 2));
+        z[i] = src[i] * (0.45 + 0.55 * Math.sqrt(t));
+      }
+    }
+    const sScaled = Math.round(soft * W / 1600);
+    if (sScaled > 0) z = blur3(z, W, H, sScaled);
+    return z;
+  }
+
+  // ---------- texture sources ----------
+  function makeField(kind, W, H, grain, seed) {
+    const rnd = mulberry32(seed * 7919 + kind.charCodeAt(0));
+    const data = new Uint8ClampedArray(W * H * 4);
+    const baseHue = rnd() * 360;
+    const pick = () => {
+      if (kind === 'mono') { const v = rnd() < 0.5 ? 0 : 255; return [v, v, v]; }
+      if (kind === 'color') return hsl(rnd() * 360, 0.6 + 0.35 * rnd(), 0.3 + 0.4 * rnd());
+      return hsl(baseHue + (rnd() - 0.5) * 150, 0.55 + 0.35 * rnd(), 0.28 + 0.45 * rnd());
+    };
+    const cell = kind === 'noise' ? 2 + grain * 2 : grain;
+    const cw = Math.ceil(W / cell) + 2, ch = Math.ceil(H / cell) + 2;
+    const cells = new Float32Array(cw * ch * 3);
+    for (let i = 0; i < cw * ch; i++) { const c = pick(); cells[i * 3] = c[0]; cells[i * 3 + 1] = c[1]; cells[i * 3 + 2] = c[2]; }
+    for (let y = 0; y < H; y++) {
+      const fy = y / cell, cy = Math.floor(fy), ty = fy - cy;
+      for (let x = 0; x < W; x++) {
+        const p = (y * W + x) * 4, fx = x / cell, cx = Math.floor(fx);
+        if (kind === 'noise') {
+          const tx = fx - cx, j = rnd() * 36 - 18;
+          const i00 = (cy * cw + cx) * 3, i10 = i00 + 3, i01 = i00 + cw * 3, i11 = i01 + 3;
+          for (let k = 0; k < 3; k++) {
+            const top = cells[i00 + k] + (cells[i10 + k] - cells[i00 + k]) * tx;
+            const bot = cells[i01 + k] + (cells[i11 + k] - cells[i01 + k]) * tx;
+            data[p + k] = top + (bot - top) * ty + j;
+          }
+        } else {
+          const i = (cy * cw + cx) * 3;
+          data[p] = cells[i]; data[p + 1] = cells[i + 1]; data[p + 2] = cells[i + 2];
+        }
+        data[p + 3] = 255;
+      }
+    }
+    return { w: W, h: H, data };
+  }
+  function makeTile(img, tw) {
+    const [iw, ih] = dims(img), th = Math.max(1, Math.round(ih * tw / iw));
+    const c = document.createElement('canvas'); c.width = tw; c.height = th;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(img, 0, 0, tw, th);
+    return { w: tw, h: th, data: g.getImageData(0, 0, tw, th).data };
+  }
+
+  // ---------- autostereogram (Thimbleby, Inglis & Witten 1994, with hidden-surface removal) ----------
+  function stereogram(z, W, H, E, tex) {
+    const out = new ImageData(W, H), px = out.data, td = tex.data, tw = tex.w, th = tex.h;
+    const same = new Int32Array(W);
+    for (let y = 0; y < H; y++) {
+      const row = y * W;
+      for (let x = 0; x < W; x++) same[x] = x;
+      for (let x = 0; x < W; x++) {
+        const zx = z[row + x];
+        const s = Math.round((1 - MU * zx) * E / (2 - MU * zx));
+        let left = x - (s >> 1), right = left + s;
+        if (left < 0 || right >= W) continue;
+        let visible, t = 1, zt;
+        do {
+          zt = zx + 2 * (2 - MU * zx) * t / (MU * E);
+          const a = x - t, b = x + t;
+          visible = (a < 0 || z[row + a] < zt) && (b >= W || z[row + b] < zt);
+          t++;
+        } while (visible && zt < 1);
+        if (!visible) continue;
+        let l = same[left];
+        while (l !== left && l !== right) {
+          if (l < right) { left = l; l = same[left]; }
+          else { same[left] = right; left = right; l = same[left]; right = l; }
+        }
+        same[left] = right;
+      }
+      const ty = (y % th) * tw;
+      for (let x = W - 1; x >= 0; x--) {
+        const p = (row + x) * 4;
+        if (same[x] === x) {
+          const q = (ty + (x % tw)) * 4;
+          px[p] = td[q]; px[p + 1] = td[q + 1]; px[p + 2] = td[q + 2];
+        } else {
+          const q = (row + same[x]) * 4;
+          px[p] = px[q]; px[p + 1] = px[q + 1]; px[p + 2] = px[q + 2];
+        }
+        px[p + 3] = 255;
+      }
+    }
+    return out;
+  }
+
+  function drawDots(g, W, sBg) {
+    const r = Math.max(5, Math.round(W / 260)), y = r * 4;
+    for (const x of [W / 2 - sBg / 2, W / 2 + sBg / 2]) {
+      g.beginPath(); g.arc(x, y, r + 2.5, 0, Math.PI * 2); g.fillStyle = '#fff'; g.fill();
+      g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fillStyle = '#111'; g.fill();
+    }
+  }
+
+  // ---------- main pipeline ----------
+  const canvas = document.createElement('canvas');
+  function generate() {
+    const t0 = performance.now();
+    const source = $('source').value;
+    if (!PROCEDURAL.includes(source) && !state.logo) { $('status').textContent = 'Choose a logo to start.'; return; }
+    const [W, H] = $('size').value.split('x').map(Number);
+    const repeat = +$('repeat').value, E = repeat * 2, strength = +$('depth').value;
+    const cross = $('viewCross').checked;
+    const z = buildDepth(W, H);
+
+    // depth preview (white = closer, before cross-eyed flip)
+    const dt = $('depthThumb'), pw = 320, ph = Math.round(320 * H / W);
+    dt.width = pw; dt.height = ph;
+    const pd = new ImageData(pw, ph);
+    for (let y = 0; y < ph; y++) for (let x = 0; x < pw; x++) {
+      const v = z[Math.floor(y * H / ph) * W + Math.floor(x * W / pw)] * 255, p = (y * pw + x) * 4;
+      pd.data[p] = pd.data[p + 1] = pd.data[p + 2] = v; pd.data[p + 3] = 255;
+    }
+    dt.getContext('2d').putImageData(pd, 0, 0);
+    if (PROCEDURAL.includes(source)) $('logoThumb').src = dt.toDataURL();
+
+    for (let i = 0; i < z.length; i++) z[i] = (cross ? 1 - z[i] : z[i]) * strength;
+    const zb = z[0], sBg = Math.round((1 - MU * zb) * E / (2 - MU * zb));
+
+    const kind = $('pattern').value;
+    const tex = (kind === 'custom' && state.texture)
+      ? makeTile(state.texture, sBg)
+      : makeField(kind === 'custom' ? 'noise' : kind, W, H, +$('grain').value, state.seed);
+
+    const img = stereogram(z, W, H, E, tex);
+    canvas.width = W; canvas.height = H;
+    const g = canvas.getContext('2d');
+    g.putImageData(img, 0, 0);
+    if ($('dots').checked) drawDots(g, W, sBg);
+
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      if (state.url) URL.revokeObjectURL(state.url);
+      state.blob = blob;
+      state.url = URL.createObjectURL(blob);
+      $('out').src = state.url;
+    }, 'image/png');
+
+    $('status').textContent = `${W} × ${H} px · repeat ${sBg} px · ${Math.round(performance.now() - t0)} ms`;
+  }
+
+  let timer = 0;
+  function schedule() {
+    clearTimeout(timer);
+    $('status').textContent = 'Rendering…';
+    timer = setTimeout(() => {
+      try { generate(); }
+      catch (e) { $('status').innerHTML = '<span class="error">Could not render: ' + (e && e.message ? e.message : e) + '</span>'; }
+    }, 80);
+  }
+
+  function syncLabels() {
+    const source = $('source').value, procedural = PROCEDURAL.includes(source);
+    const dotsOn = $('dots').checked;
+    $('dotsBtn').textContent = 'Focus dots: ' + (dotsOn ? 'on' : 'off');
+    $('dotsBtn').setAttribute('aria-pressed', String(dotsOn));
+    $('dotsBtn').classList.toggle('on', dotsOn);
+    $('softOut').textContent = $('soft').value + ' px';
+    $('thickOut').textContent = $('thick').value === '0' ? 'off' : '+' + $('thick').value + ' px';
+    $('textField').hidden = source !== 'text';
+    $('drop').hidden = source !== 'image';
+    $('cutoutFields').style.display = procedural ? 'none' : 'contents';
+    $('thickField').hidden = $('mode').value === 'bright';
+    $('depthOut').textContent = Math.round(+$('depth').value * 100) + '%';
+    $('repeatOut').textContent = $('repeat').value + ' px';
+    $('grainOut').textContent = $('grain').value + ' px';
+    const custom = $('pattern').value === 'custom';
+    $('texDrop').hidden = !custom;
+    $('grainField').hidden = custom && !!state.texture;
+  }
+
+  function setLogo(img, name) {
+    state.logo = img;
+    state.logoInfo = analyze(img);
+    $('logoThumb').src = img instanceof HTMLCanvasElement ? img.toDataURL() : img.src;
+    $('logoName').textContent = name;
+    $('detectNote').textContent = state.logoInfo.useAlpha
+      ? 'Using the transparency to cut out the shape.'
+      : 'Background color detected as ' + hex(state.logoInfo.bg) + '; everything that differs from it is raised.';
+    schedule();
+  }
+
+  // switch what's hidden
+  const NAMES = { sphere: 'Sphere', torus: 'Torus', ripple: 'Ripples', stairs: 'Staircase pyramid' };
+  function applySource() {
+    const source = $('source').value;
+    syncLabels();
+    if (source === 'text') {
+      setLogo(textImage($('text').value), 'Text: “' + ($('text').value.trim() || ' ') + '”');
+    } else if (source === 'image') {
+      if (state.upload) setLogo(state.upload, state.uploadName);
+      else { state.logo = null; $('logoThumb').removeAttribute('src'); $('logoName').textContent = 'No logo yet'; $('detectNote').textContent = ''; schedule(); }
+    } else {
+      $('detectNote').textContent = source === 'julia'
+        ? 'Height follows how slowly each point escapes today’s Julia set.'
+        : 'A smooth surface, so you see real depth instead of flat layers.';
+      $('logoName').textContent = source === 'julia' ? 'Julia: “' + JuliaDay.spec(JuliaDay.dateKey(new Date())).name + '”' : NAMES[source];
+      schedule();
+    }
+  }
+
+  function loadImage(file, cb) {
+    if (!file || !/^image\//.test(file.type)) { $('detectNote').innerHTML = '<span class="error">That file isn’t an image. Try a PNG, JPG, SVG or WebP.</span>'; return; }
+    const img = new Image(), reader = new FileReader();
+    img.onload = () => cb(img);
+    img.onerror = () => { $('detectNote').innerHTML = '<span class="error">Couldn’t read that image. Try saving it as PNG and uploading again.</span>'; };
+    reader.onload = () => { img.src = reader.result; };
+    reader.onerror = img.onerror;
+    reader.readAsDataURL(file);
+  }
+  const takeLogo = (file) => loadImage(file, (img) => {
+    state.upload = img; state.uploadName = file.name || 'Pasted image';
+    $('source').value = 'image'; applySource();
+  });
+  const takeTexture = (file) => loadImage(file, (img) => { state.texture = img; syncLabels(); schedule(); });
+
+  function wireDrop(el, input, handler) {
+    input.addEventListener('change', () => { if (input.files[0]) handler(input.files[0]); input.value = ''; });
+    el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add('over'); });
+    el.addEventListener('dragleave', () => el.classList.remove('over'));
+    el.addEventListener('drop', (e) => { e.preventDefault(); el.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) handler(f); });
+  }
+  wireDrop($('drop'), $('logoInput'), takeLogo);
+  wireDrop($('texDrop'), $('texInput'), takeTexture);
+  $('viewer').addEventListener('dragover', (e) => e.preventDefault());
+  $('viewer').addEventListener('drop', (e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) takeLogo(f); });
+  document.addEventListener('paste', (e) => {
+    const item = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith('image/'));
+    if (item) takeLogo(item.getAsFile());
+  });
+
+  $('source').addEventListener('input', applySource);
+  let tt = 0;
+  $('text').addEventListener('input', () => { clearTimeout(tt); tt = setTimeout(applySource, 150); });
+  ['mode', 'invert', 'thick', 'soft', 'depth', 'repeat', 'pattern', 'grain', 'size', 'dots', 'viewParallel', 'viewCross'].forEach((id) =>
+    $(id).addEventListener('input', () => { syncLabels(); schedule(); }));
+
+  $('reseed').addEventListener('click', () => { state.seed++; schedule(); });
+  $('dotsBtn').addEventListener('click', () => {
+    $('dots').checked = !$('dots').checked;
+    $('dots').dispatchEvent(new Event('input'));
+  });
+
+  function offerFile(blob, name) {
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+  $('download').addEventListener('click', () => { if (state.blob) offerFile(state.blob, 'stereogram.png'); });
+
+  // A standalone page: the stereogram embedded as a data URL, plus viewing tips. No outside files needed.
+  async function exportHtml() {
+    if (!state.blob) return;
+    const dataUrl = await new Promise((res, rej) => {
+      const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(state.blob);
+    });
+    const tip = $('viewCross').checked
+      ? 'Cross your eyes slightly, as if looking at a finger held halfway to the screen, until the hidden image appears.'
+      : 'Relax your eyes and look through the screen, then lean back slowly until the hidden image appears.';
+    const html = '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+      + '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Stereogram</title><style>'
+      + 'html,body{margin:0;min-height:100%;background:#0b0c0e;color:#8b909a;font:14px/1.5 system-ui,sans-serif}'
+      + 'main{min-height:100vh;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px}'
+      + 'img{display:block;max-width:100%;max-height:calc(100vh - 90px);height:auto;cursor:zoom-in}'
+      + 'img.full{max-width:none;max-height:none;cursor:zoom-out}'
+      + 'p{margin:0;max-width:62ch;text-align:center}'
+      + '</style></head><body><main>'
+      + '<img id="s" alt="Stereogram" src="' + dataUrl + '">'
+      + '<p>' + tip + ' Click the image to switch between fit to screen and actual size.</p>'
+      + '</main><script>document.getElementById("s").onclick=function(){this.classList.toggle("full")}<\/script></body></html>';
+    offerFile(new Blob([html], { type: 'text/html' }), 'stereogram.html');
+  }
+  $('exportHtml').addEventListener('click', () => {
+    exportHtml().catch((e) => { $('status').innerHTML = '<span class="error">Export failed: ' + (e && e.message ? e.message : e) + '</span>'; });
+  });
+  const toggleFs = () => {
+    if (document.fullscreenElement) { document.exitFullscreen?.().catch(() => {}); return; }
+    const p = $('viewer').requestFullscreen?.();
+    if (p && p.catch) p.catch(() => { $('status').textContent = 'Fullscreen isn’t available here.'; });
+  };
+  $('fs').addEventListener('click', toggleFs);
+  $('out').addEventListener('dblclick', toggleFs);
+
+  applySource();
+})();
+</script>
+</body>
+</html>

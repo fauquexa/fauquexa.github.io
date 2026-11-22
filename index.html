@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Alain Fauquex</title>
+  <meta name="description" content="Alain Fauquex — physics PhD student at UC Berkeley building superconducting quantum sensors for dark matter and neutrino detection.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='44' fill='%2314161a'/><text x='50' y='66' font-size='46' text-anchor='middle' fill='%23e0b35a' font-family='Georgia'>ψ</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="assets/site.js"></script>
+  <script src="assets/julia-day.js"></script>
+</head>
+<body>
+<div class="layout">
+
+  <!-- ============ identity column ============ -->
+  <aside class="side">
+    <img class="portrait" src="assets/headshot.jpg" alt="Portrait of Alain Fauquex" width="148" height="148">
+    <div>
+      <h1>Alain Fauquex</h1>
+      <p class="tag">PhD student · Physics<br>UC Berkeley · Salemi group<br>quantum sensors for dark matter</p>
+    </div>
+
+    <nav aria-label="Sections">
+      <a href="#about">about</a>
+      <a href="#research">research</a>
+      <a href="#projects">projects</a>
+      <a href="#publications">publications</a>
+      <a href="#path">path</a>
+      <a href="#playground">playground</a>
+    </nav>
+
+    <a class="julia-chip" href="playground/julia.html" title="Today's Julia set">
+      <canvas id="julia-thumb" width="88" height="88"></canvas>
+      <span>today's julia set:<br><span id="julia-name" style="color:inherit">…</span></span>
+    </a>
+
+    <div class="links">
+      <a data-email href="#" aria-label="Email" title="Email">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 6 8.5 7 8.5-7"/></svg>
+      </a>
+      <a href="https://github.com/fauquexa" aria-label="GitHub" title="GitHub">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.42-2.7 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>
+      </a>
+      <a href="https://www.linkedin.com/in/alain-fauquex-3509b337a/" aria-label="LinkedIn" title="LinkedIn">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.03-3.04-1.85-3.04-1.86 0-2.14 1.45-2.14 2.94v5.67H9.34V9h3.42v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28ZM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13ZM7.12 20.45H3.56V9h3.56v11.45ZM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0Z"/></svg>
+      </a>
+    </div>
+  </aside>
+
+  <!-- ============ content column ============ -->
+  <main class="main">
+
+    <section id="about">
+      <h2>about</h2>
+      <p class="lead">I build <em>superconducting quantum sensors</em> that listen for very faint things: dark-matter axions and reactor neutrinos.</p>
+      <p>I'm a physics PhD student at UC Berkeley in the group of Prof. Chiara Salemi. I design, simulate, fabricate and operate superconducting devices that turn single tiny energy deposits into a measurable signal.</p>
+      <p class="soft">I came to physics sideways. I started with a design-engineering apprenticeship at Pilatus Aircraft, working on the PC-24 business jet. Then I spent six years building cryogenic infrastructure in the Quantum Device Lab at ETH Zürich, finishing high school in evening and weekend classes. After that came a BSc at ETH, with thesis work at the Paul Scherrer Institute and the University of Zürich. I still think like an engineer: if it doesn't fit in the cryostat, it doesn't exist.</p>
+    </section>
+
+    <section id="research">
+      <h2>research</h2>
+      <p><strong>Superconducting Quasiparticle Amplifying Transmons (SQUATs).</strong> These are transmon-based sensors that detect phonons and photons through the quasiparticles they create. I'm leading the work to scale them from a handful of devices to wafer-scale arrays with thousands of sensors. That involves hafnium-based Josephson junctions, machine-learning-assisted device and array design, and scalable multiplexed readout.</p>
+      <p class="soft">The goals: the BREAD axion dark-matter search, and reactor-neutrino detection for nuclear non-proliferation monitoring through a DARPA program.</p>
+    </section>
+
+    <section id="projects">
+      <h2>selected projects</h2>
+      <div class="projects">
+        <article class="project">
+          <div class="meta">2024 – 2025 · University of Zürich · LEGEND-200</div>
+          <h3>Machine-learning pulse-shape discrimination for germanium detectors</h3>
+          <p>I used gradient-boosted trees, twin neural networks and transformers to separate signal from background in HPGe detector waveforms. The focus was the low-energy region, which matters for axion-like dark matter.</p>
+          <a class="more" href="https://arxiv.org/abs/2603.06192">arXiv:2603.06192 ↗</a>
+        </article>
+        <article class="project">
+          <div class="meta">2021 – 2024 · drones &amp; dinosaurs</div>
+          <h3>3D drone mapping of the Lommiswil dinosaur tracksite</h3>
+          <p>For my high-school thesis I flew a quadcopter over a local tracksite and built a 3D model of it. That turned up more than 300 previously undocumented dinosaur footprints. The work was published, won the Pro Argovia Prize, and was covered on Swiss national news.</p>
+          <a class="more" href="https://www.srf.ch/wissen/natur-tiere/palaeontologie-von-oben-drohnen-enthuellen-schweizer-dinosaurierspuren-aus-der-luft">SRF feature ↗</a>
+        </article>
+        <article class="project">
+          <div class="meta">2019 – 2023 · ETH Zürich · Quantum Device Lab</div>
+          <h3>A 30 m cryogenic tunnel (~15 mK) linking two quantum computers</h3>
+          <p>I was responsible for the final design, production drawings, commissioning, transport and QA of 14 vacuum chambers with 4-layer copper shielding and a superconducting waveguide. The tunnel was used for the loophole-free Bell test with superconducting circuits.</p>
+          <a class="more" href="https://www.nature.com/articles/s41586-023-05885-0">Nature 617, 265 (2023) ↗</a>
+        </article>
+        <article class="project">
+          <div class="meta">2022 – 2023 · Paul Scherrer Institute</div>
+          <h3>Hydran: finding hydrides in nuclear fuel cladding</h3>
+          <p>Hydran is a Python and machine-learning pipeline that detects and analyses hydrided regions in microscope images of fuel cladding. It is now a standard tool in PSI's Analytics of Radioactive Materials group.</p>
+        </article>
+        <article class="project">
+          <div class="meta">2020 – 2024 · PSI Quantum Computing Center</div>
+          <h3>Three 100-qubit-capable dilution-refrigerator setups</h3>
+          <p>I installed Bluefors XLD dilution refrigerators and designed, built and commissioned the cryogenic and vacuum hardware around them, including large 5-axis-milled copper parts that sit inside the fridges.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="publications">
+      <h2>publications &amp; posters</h2>
+      <ol class="pubs">
+        <li>M. Babicz <i>et al.</i> (2026). <span class="title">Transformer-Based Pulse Shape Discrimination in HPGe Detectors with Masked Autoencoder Pre-training.</span> <a href="https://arxiv.org/abs/2603.06192">arXiv:2603.06192</a></li>
+        <li>A. Fauquex (2024). <span class="title">3D Drone Mapping and Analysis of the Lommiswil Dinosaur Tracksite.</span> Mitteilungen der Aargauischen Naturforschenden Gesellschaft 40. <a href="https://polybox.ethz.ch/index.php/s/JTX9pSaCN2DyM8Y">pdf</a></li>
+        <li>A. Fauquex <i>et al.</i> (2026). <span class="title">Superconducting Quasiparticle Amplifying Transmons (SQUATs).</span> Poster, Quantum Device Workshop, UCLA. <span class="mono" style="color:var(--accent-2)">★ best poster award</span></li>
+        <li>A. Fauquex <i>et al.</i> (2025). <span class="title">Enhancing Pulse Shape Discrimination with Gradient Boosted Decision Trees and Twin Neural Networks.</span> Poster, EuCAIF 2025, Sardinia.</li>
+        <li>A. Fauquex, R. Grabherr (2024). <span class="title">Hydran: A Machine Learning Software Pipeline for the Detection and Analysis of Hydrides in the Cross-Section of Nuclear Fuel Cladding.</span> Poster, NuMat 2024, Singapore. <a href="https://polybox.ethz.ch/index.php/s/ogk1shbiAealkC8">pdf</a></li>
+        <li>J. Schär <i>et al.</i> (2021). <span class="title">Extending Cryogenic Microwave Quantum Networks.</span> APS March Meeting 2021. <a href="https://meetings.aps.org/Meeting/MAR21/Session/Y31.5">abstract</a></li>
+      </ol>
+    </section>
+
+    <section id="path">
+      <h2>path so far</h2>
+      <ul class="entries">
+        <li><span class="when">2025 –</span><span class="what"><strong>PhD, Physics</strong><span class="where">UC Berkeley · Salemi group</span></span></li>
+        <li><span class="when">2021 – 2024</span><span class="what"><strong>BSc, Physics</strong><span class="where">ETH Zürich</span></span></li>
+        <li><span class="when">2019 – 2025</span><span class="what"><strong>Lab technician &amp; design engineer</strong><span class="where">ETH Zürich, Quantum Device Lab (Wallraff group)</span></span></li>
+        <li><span class="when">2018 – 2021</span><span class="what"><strong>Federal Matura</strong><span class="where">AME adult high school, evenings and weekends</span></span></li>
+        <li><span class="when">2018 – 2019</span><span class="what"><strong>Design engineer</strong><span class="where">Schonert SKH</span></span></li>
+        <li><span class="when">2013 – 2018</span><span class="what"><strong>Design engineer &amp; apprenticeship</strong><span class="where">Pilatus Aircraft · PC-24 rear fuselage &amp; wing</span></span></li>
+      </ul>
+      <p style="margin-top:22px"></p>
+      <ul class="skills" aria-label="Skills">
+        <li>cryogenics &amp; vacuum</li><li>superconducting devices</li><li>nanofabrication</li><li>Python · C++ · Matlab</li>
+        <li>machine learning</li><li>CAD &amp; production drawings</li><li>machining</li>
+      </ul>
+    </section>
+
+    <section id="playground">
+      <h2>playground</h2>
+      <p class="soft">Small things I made for fun. They all run in your browser.</p>
+      <div class="toys">
+        <a class="toy" href="playground/julia.html"><span class="glyph">❋</span><b>julia of the day</b><span class="d">A new fractal every day, picked by the calendar.</span></a>
+        <a class="toy" href="playground/stereogram.html"><span class="glyph">◎</span><b>stereogram</b><span class="d">Hide words and shapes in random dots. Cross your eyes.</span></a>
+        <a class="toy" href="playground/maze.html"><span class="glyph">▦</span><b>the maze</b><span class="d">A first-person maze that solves itself, screensaver-style.</span></a>
+        <a class="toy" href="playground/flight.html"><span class="glyph">✈</span><b>little flight sim</b><span class="d">A small jet over endless low-poly mountains. Fly through the rings.</span></a>
+      </div>
+    </section>
+
+    <footer>
+      <span>© <span id="yr"></span> Alain Fauquex · <a data-email="text" href="#">email</a></span>
+      <button class="theme-btn" type="button">☾ dark</button>
+    </footer>
+  </main>
+</div>
+
+<script>
+  document.getElementById("yr").textContent = new Date().getFullYear();
+  // Julia-of-the-day thumbnail
+  (function () {
+    const s = JuliaDay.spec(JuliaDay.dateKey(new Date()));
+    document.getElementById("julia-name").textContent = "“" + s.name + "”";
+    const cv = document.getElementById("julia-thumb");
+    requestAnimationFrame(() => JuliaDay.renderCPU(cv, s, { maxIt: 160 }));
+  })();
+</script>
+</body>
+</html>
