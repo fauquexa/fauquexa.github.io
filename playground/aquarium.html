@@ -910,6 +910,24 @@ function loachGeo() {
     const s = 0.12, ex = sd * K.w(s) * 0.42, ey = K.yc(s) + K.hu(s) * 0.85, ez = K.zz(s);
     blob(G, ex, ey, ez, 0.014, 0.012, 0.016, C.eye); blob(G, ex + sd * 0.004, ey + 0.006, ez, 0.009, 0.008, 0.01, C.pupil);
   }
+  { // underneath, a little stingray face: two nostrils and a smiling mouth on a pale sucker disc (best seen when he clings to the glass)
+    const bel = (s) => K.yc(s) - K.hl(s) - 0.002;                    // just below the flat belly
+    const lip = new THREE.Color(0xeadfc0), dk = new THREE.Color(0x2a170c), nos = new THREE.Color(0x5a3a22);
+    const flat = (cx, cz, rx, rz, y, col, n = 8) => {                // a flat oval facing down
+      const c = V(cx, y, cz);
+      for (let i = 0; i < n; i++) { const a0 = (i / n) * Math.PI * 2, a1 = ((i + 1) / n) * Math.PI * 2;
+        G.tri(c, V(cx + Math.cos(a1) * rx, y, cz + Math.sin(a1) * rz), V(cx + Math.cos(a0) * rx, y, cz + Math.sin(a0) * rz), col); }
+    };
+    const sM = 0.085, zM = K.zz(sM), yM = bel(sM);
+    flat(0, zM + 0.004, 0.05, 0.03, yM, lip, 12);                     // the sucker disc
+    const n = 8, hw = 0.032, th = 0.005;                              // the smile: ends toward the nose, middle further back
+    for (let i = 0; i < n; i++) {
+      const x0 = -hw + (2 * hw * i) / n, x1 = -hw + (2 * hw * (i + 1)) / n;
+      const z0 = zM + 0.014 * (x0 / hw) ** 2, z1 = zM + 0.014 * (x1 / hw) ** 2, y = yM - 0.0012;
+      G.quad(V(x0, y, z0 + th), V(x1, y, z1 + th), V(x1, y, z1 - th), V(x0, y, z0 - th), dk);
+    }
+    for (const sd of [-1, 1]) flat(sd * 0.022, K.zz(0.035), 0.008, 0.006, bel(0.035) - 0.0012, nos, 6);   // nostrils
+  }
   return G.build();
 }
 
