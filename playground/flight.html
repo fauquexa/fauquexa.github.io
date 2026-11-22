@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Little Flight Sim</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../assets/toy.css?v=20261122d">
+<title>Flight Simulator</title>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/toy.css?v=20261122f">
 <style>
   #gl, #hud { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
   #hud { pointer-events: none; }
@@ -54,7 +54,7 @@
   .modal td, .modal th { padding: 5px 4px; text-align: left; border-bottom: 1px solid var(--rule); }
   .modal th { color: var(--soft); font-weight: 400; }
   .modal td.n { text-align: right; color: var(--accent); }
-  .modal tr.me td { background: rgba(224,179,90,.12); }
+  .modal tr.me td { background: rgba(143,180,236,.14); }
   .modal .row { margin-top: 12px; }
 </style>
 </head>
@@ -63,13 +63,13 @@
 <canvas id="hud"></canvas>
 <div id="banner"></div>
 
-<button class="fab" id="openPanel" hidden>☰ settings</button>
+<button class="fab" id="openPanel" hidden>☰ Settings</button>
 <div id="touchThr">THR<br><input type="range" id="thrTouch" min="0" max="1" step="0.01" value="0" aria-label="Throttle"></div>
 
 <div class="panel" id="panel">
   <button class="close" id="closePanel" aria-label="Close settings" title="Close (H)">✕</button>
-  <a class="back" href="../index.html">← home</a>
-  <h1>little flight sim</h1>
+  <a class="back" href="../index.html">← Home</a>
+  <h1>Flight simulator</h1>
   <p class="sub">Pilatus aircraft and a helicopter over endless mountains. Watch your fuel and land on a runway to refuel. I helped design the PC-24's rear fuselage and wings.</p>
 
   <label>aircraft</label>

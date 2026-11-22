@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>3D Maze</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../assets/toy.css?v=20261122d">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/toy.css?v=20261122f">
 <style>
   .stage { image-rendering: pixelated; cursor: none; }
   body.awake .stage { cursor: default; }
@@ -22,24 +22,24 @@
 <div id="banner"></div>
 
 <div class="panel" id="panel">
-  <a class="back" href="maze.html">← maze lab</a>
-  <h1>the maze</h1>
+  <a class="back" href="maze.html">← Maze lab</a>
+  <h1>3D maze</h1>
   <p class="sub">A screensaver-style walk through a 3D maze. It follows the right-hand wall until it finds the exit, then a new maze is built.</p>
   <label>size</label>
   <select id="size">
-    <option value="6">small (6×6)</option>
-    <option value="10" selected>medium (10×10)</option>
-    <option value="16">large (16×16)</option>
-    <option value="24">enormous (24×24)</option>
+    <option value="6">Small (6×6)</option>
+    <option value="10" selected>Medium (10×10)</option>
+    <option value="16">Large (16×16)</option>
+    <option value="24">Enormous (24×24)</option>
   </select>
   <label>walking speed</label>
   <input type="range" id="speed" min="0.4" max="3" step="0.1" value="1">
   <label>world</label>
   <select id="theme">
-    <option value="cycle">cycle each maze</option>
-    <option value="0">brick dungeon</option>
-    <option value="1">copper cryostat</option>
-    <option value="2">hedge garden</option>
+    <option value="cycle">Cycle each maze</option>
+    <option value="0">Brick dungeon</option>
+    <option value="1">Copper cryostat</option>
+    <option value="2">Hedge garden</option>
   </select>
   <div class="row" style="margin-top:12px">
     <button id="map">map</button>

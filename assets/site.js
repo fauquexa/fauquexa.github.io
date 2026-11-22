@@ -12,7 +12,7 @@
         const dark = root.dataset.theme
           ? root.dataset.theme === "dark"
           : matchMedia("(prefers-color-scheme: dark)").matches;
-        btn.textContent = dark ? "☀ light" : "☾ dark";
+        btn.textContent = dark ? "Light mode" : "Dark mode";
       };
       label();
       btn.addEventListener("click", () => {
@@ -33,7 +33,7 @@
     });
 
     /* highlight nav entry for the section in view */
-    const links = [...document.querySelectorAll(".side nav a[href^='#']")];
+    const links = [...document.querySelectorAll(".side nav a[href^='#']")].filter((a) => a.getAttribute("href") !== "#play");   // the playground column is always on screen
     const map = new Map(links.map((a) => [a.getAttribute("href").slice(1), a]));
     if ("IntersectionObserver" in window && map.size) {
       const io = new IntersectionObserver((ents) => {
