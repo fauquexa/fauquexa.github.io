@@ -729,21 +729,21 @@ const PAT = {
 };
 
 const PK = ["hipY", "pitch", "roll", "bend", "fOff", "hOff", "up", "yaw", "tailBase", "tailX", "tailTip", "tailY", "sway", "swaySpd", "eye", "ear"];
-const BASE = { hipY: 0.225, pitch: 0, roll: 0, bend: 0, fOff: 0.015, hOff: -0.015, up: 0.05, yaw: 0, tailBase: 0.45, tailX: -0.07, tailTip: 0, tailY: 0, sway: 0.16, swaySpd: 1.6, eye: 1, ear: 0, k: 5 };
+const BASE = { hipY: 0.19, pitch: 0, roll: 0, bend: 0, fOff: 0.015, hOff: -0.015, up: 0.05, yaw: 0, tailBase: 0.45, tailX: -0.07, tailTip: 0, tailY: 0, sway: 0.16, swaySpd: 1.6, eye: 1, ear: 0, k: 5 };
 const POSES = {
   stand:   {},
   walk:    { up: -0.05, tailBase: 1.15, tailX: -0.02, tailTip: 0.3, sway: 0.1, swaySpd: 2.2 },
-  run:     { hipY: 0.21, up: 0.05, tailBase: 0.3, tailX: 0.0, sway: 0.12, swaySpd: 5, ear: 0.3, k: 7 },
+  run:     { hipY: 0.176, up: 0.05, tailBase: 0.3, tailX: 0.0, sway: 0.12, swaySpd: 5, ear: 0.3, k: 7 },
   sit:     { hipY: 0.075, pitch: 0.8, fOff: 0.0, hOff: 0.1, up: 0.05, tailBase: -0.9, tailX: 0.13, tailY: 0.22, sway: 0.05, swaySpd: 1.0 },
   loaf:    { hipY: 0.08, pitch: 0.06, fOff: -0.04, hOff: 0.05, up: 0.06, tailBase: -0.35, tailX: 0.05, tailY: 0.28, sway: 0.03, swaySpd: 0.8, eye: 0.55, k: 3 },
   sphinx:  { hipY: 0.08, pitch: 0.1, fOff: 0.15, hOff: 0.06, up: 0.12, tailBase: -0.35, tailX: 0.05, tailY: 0.2, sway: 0.04, swaySpd: 0.8, k: 3 },
   curl:    { hipY: 0.065, pitch: 0, roll: 0.4, bend: 0.8, fOff: 0, hOff: 0.03, up: -0.6, yaw: 1.9, tailBase: -1.0, tailX: 0.12, tailY: -0.32, sway: 0.015, swaySpd: 0.6, eye: 0, k: 2 },
-  stretch: { hipY: 0.24, pitch: -0.42, fOff: 0.24, hOff: -0.04, up: 0.55, tailBase: 1.35, tailX: -0.05, eye: 0.15, sway: 0.05, k: 4 },
-  eat:     { hipY: 0.195, pitch: -0.16, fOff: 0.04, hOff: 0.0, up: -1.05, tailBase: 0.05, tailX: -0.05, sway: 0.14, swaySpd: 1.4, eye: 0.7 },
-  crouch:  { hipY: 0.135, pitch: -0.05, fOff: 0.05, hOff: 0.03, up: 0.15, tailBase: 0.05, tailX: 0.02, sway: 0.35, swaySpd: 6, ear: 0.5, k: 8 },
+  stretch: { hipY: 0.2, pitch: -0.42, fOff: 0.24, hOff: -0.04, up: 0.55, tailBase: 1.35, tailX: -0.05, eye: 0.15, sway: 0.05, k: 4 },
+  eat:     { hipY: 0.16, pitch: -0.16, fOff: 0.04, hOff: 0.0, up: -1.05, tailBase: 0.05, tailX: -0.05, sway: 0.14, swaySpd: 1.4, eye: 0.7 },
+  crouch:  { hipY: 0.112, pitch: -0.05, fOff: 0.05, hOff: 0.03, up: 0.15, tailBase: 0.05, tailX: 0.02, sway: 0.35, swaySpd: 6, ear: 0.5, k: 8 },
   groom:   { hipY: 0.075, pitch: 0.8, fOff: 0.0, hOff: 0.1, up: -0.4, tailBase: -0.9, tailX: 0.13, tailY: 0.22, sway: 0.05, swaySpd: 1.0, eye: 0.5 },
-  knead:   { hipY: 0.16, pitch: 0.32, fOff: 0.05, hOff: 0.07, up: 0.12, tailBase: 0.2, tailX: -0.02, tailTip: 0.3, sway: 0.08, swaySpd: 1.2, eye: 0.3, k: 4 },
-  air:     { hipY: 0.22, tailBase: 0.4, tailX: 0, sway: 0.05, k: 10 },
+  knead:   { hipY: 0.135, pitch: 0.32, fOff: 0.05, hOff: 0.07, up: 0.12, tailBase: 0.2, tailX: -0.02, tailTip: 0.3, sway: 0.08, swaySpd: 1.2, eye: 0.3, k: 4 },
+  air:     { hipY: 0.182, tailBase: 0.4, tailX: 0, sway: 0.05, k: 10 },
 };
 for (const k in POSES) POSES[k] = Object.assign({}, BASE, POSES[k]);
 const POSE_STATUS = { stand: "looking around", walk: "exploring", sit: "sitting", loaf: "loafing", sphinx: "lying down", curl: "napping", stretch: "stretching", eat: "eating", crouch: "stalking", groom: "grooming", run: "playing", knead: "kneading" };
@@ -774,7 +774,7 @@ function buildCat(def, idx) {
     return geo;
   };
 
-  const spine = new THREE.Group(); spine.position.set(0, 0.225, -0.09); root.add(spine); c.spine = spine;
+  const spine = new THREE.Group(); spine.position.set(0, 0.185, -0.09); root.add(spine); c.spine = spine;
   const front = new THREE.Group(); front.position.set(0, 0, 0.1); spine.add(front); c.front = front;
   const rear = new THREE.Group(); rear.position.set(0, 0, 0.1); spine.add(rear); c.rear = rear;
   const g = def.girth;
@@ -856,10 +856,10 @@ function buildCat(def, idx) {
     const leg = { hip, knee, paw, L1, L2, s, front: isFront, x, y, z, parent, ph, runPh };
     c.legs.push(leg); return leg;
   };
-  makeLeg(front, -0.05, -0.035, 0.12, 0.1, 0.1, 0.03, 0.022, 0.018, -1, true, 0.25, 0.0);
-  makeLeg(front, 0.05, -0.035, 0.12, 0.1, 0.1, 0.03, 0.022, 0.018, -1, true, 0.75, 0.12);
-  makeLeg(rear, -0.055, -0.015, -0.115, 0.12, 0.112, 0.042, 0.025, 0.019, 1, false, 0.0, 0.5);
-  makeLeg(rear, 0.055, -0.015, -0.115, 0.12, 0.112, 0.042, 0.025, 0.019, 1, false, 0.5, 0.62);
+  makeLeg(front, -0.05, -0.035, 0.12, 0.08, 0.08, 0.034, 0.026, 0.02, -1, true, 0.25, 0.0);
+  makeLeg(front, 0.05, -0.035, 0.12, 0.08, 0.08, 0.034, 0.026, 0.02, -1, true, 0.75, 0.12);
+  makeLeg(rear, -0.055, -0.015, -0.115, 0.097, 0.09, 0.047, 0.029, 0.021, 1, false, 0.0, 0.5);
+  makeLeg(rear, 0.055, -0.015, -0.115, 0.097, 0.09, 0.047, 0.029, 0.021, 1, false, 0.5, 0.62);
   // tail: a chain of segments
   c.tail = [];
   const tailRoot = new THREE.Group(); tailRoot.position.set(0, 0.04, -0.205); rear.add(tailRoot); c.tailRoot = tailRoot;
@@ -2337,7 +2337,7 @@ function animate(c, dt, t) {
     else { sbF = smooth(0, 0.75, c.sb.t); if (c.sb.t > 0.75) c.sb = { ph: 0, t: 0 }; }
     sbDip = (1 - sbF) * 0.1;
   }
-  const lying = smooth(0.12, 0.07, P.hipY) * smooth(0.5, 0.2, P.pitch);
+  const lying = smooth(0.1, 0.07, P.hipY) * smooth(0.5, 0.2, P.pitch);
   c.headPivot.position.y = 0.09 - 0.04 * lying;
   c.headPivot.rotation.y = P.yaw + c.lookYaw - P.bend;
   c.headPivot.rotation.x = pitch - (P.up + c.lookUp + c.extraUp - sbDip);
