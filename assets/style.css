@@ -145,7 +145,14 @@ footer { font-size: 14px; color: var(--ink-faint); border-top: 1px solid var(--r
 .tile .t span { display: block; font-size: 13.5px; color: var(--ink-soft); line-height: 1.45; margin-top: 2px; }
 
 @media (min-width: 1280px) {
-  .layout { grid-template-columns: 300px minmax(0, 780px) minmax(300px, 1fr); }
+  /* on wide screens the three columns (300 + 780 + ~700 for the 640px tiles) stay together
+     in the middle: the dark side band grows to the left edge, and about the same gutter is
+     left on the right, past the tiles */
+  .layout {
+    --gut: max(0px, (100vw - 1780px) / 2);
+    grid-template-columns: calc(300px + var(--gut)) minmax(0, 780px) minmax(300px, 1fr);
+  }
+  .side { padding-left: calc(36px + var(--gut)); }
   .play { position: sticky; top: 0; height: 100vh; overflow-y: auto; border-left: 1px solid var(--rule); padding-left: 28px; }
   .tiles { max-width: 640px; }
 }
