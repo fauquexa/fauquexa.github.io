@@ -41,7 +41,7 @@
   <p class="sub">A new parameter every day, picked near the edge of the Mandelbrot set.</p>
   <div class="cval" id="cval">c = …</div>
   <p class="date" id="date">…</p>
-  <label>where c sits in the Mandelbrot set</label>
+  <label>where c sits in the Mandelbrot set today</label>
   <canvas id="mset" width="320" height="240" role="img" aria-label="Mandelbrot set with today's parameter marked"></canvas>
   <label>iterations <span id="itv"></span></label>
   <input type="range" id="iters" min="100" max="1000" step="50" value="300">
@@ -277,13 +277,16 @@ function renorm() {
     if (!ok) return;
     view.cx = px; view.cy = py; view.h *= D; view.rot += ang;
     dive.tx = tx; dive.ty = ty; dive.hAtTarget *= D;
+    // the drift velocity (in view units) turns with the picture: rotate it by the same angle
+    const ca = Math.cos(ang), sa = Math.sin(ang);
+    [dive.vx, dive.vy] = [dive.vx * ca - dive.vy * sa, dive.vx * sa + dive.vy * ca];
     nuOff += k; extraLog10 += Math.log10(D);
   }
 }
 const MIN_H = 1e-12;          // only reached where renormalisation is impossible
 
 // ---------- dive ----------
-const dive = { on: false, tx: 0, ty: 0, hAtTarget: 0 };
+const dive = { on: false, tx: 0, ty: 0, hAtTarget: 0, vx: 0, vy: 0 };
 const ZOOM_RATE = Math.log(2) / 1.6;      // the view halves every 1.6 s
 
 // distance from (x, y) to the Julia set, or -1 if the point does not escape
@@ -324,15 +327,25 @@ function setDive(on) {
   const b = document.getElementById("dive");
   b.classList.toggle("on", on); b.setAttribute("aria-pressed", on);
   b.textContent = on ? "stop dive" : "dive";
-  if (on) { pickTarget(true); stats.n = 0; stats.sum = 0; }
+  if (on) { pickTarget(true); dive.vx = dive.vy = 0; stats.n = 0; stats.sum = 0; }
   else if (rs !== 1) { rs = 1; resize(); }
   lastMove = performance.now(); didFinal = false; needs = true;
 }
+/* The centre glides toward the target on a critically damped spring, in screen units (multiples
+   of the view size), so a new target bends the path gently instead of kicking it sideways. */
+const DIVE_W = 0.9, DIVE_VMAX = 0.18;    // spring rate (1/s), top drift speed (view heights per s)
 function diveStep(dt) {
   if (view.h < dive.hAtTarget / 1.7) pickTarget(false);
-  const k = 1 - Math.exp(-2 * dt);
-  view.cx += (dive.tx - view.cx) * k; view.cy += (dive.ty - view.cy) * k;
-  view.h *= Math.exp(-ZOOM_RATE * dt);
+  for (let left = dt; left > 1e-6; ) {
+    const h = Math.min(left, 1 / 60); left -= h;
+    const ex = (dive.tx - view.cx) / view.h, ey = (dive.ty - view.cy) / view.h;
+    dive.vx += (DIVE_W * DIVE_W * ex - 2 * DIVE_W * dive.vx) * h;
+    dive.vy += (DIVE_W * DIVE_W * ey - 2 * DIVE_W * dive.vy) * h;
+    const sp = Math.hypot(dive.vx, dive.vy);
+    if (sp > DIVE_VMAX) { dive.vx *= DIVE_VMAX / sp; dive.vy *= DIVE_VMAX / sp; }
+    view.cx += dive.vx * view.h * h; view.cy += dive.vy * view.h * h;
+    view.h *= Math.exp(-ZOOM_RATE * h);
+  }
   renorm();
   if (view.h < MIN_H) setDive(false);
 }

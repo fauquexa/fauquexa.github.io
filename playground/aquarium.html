@@ -520,7 +520,7 @@ function removePellet(pl) { scene.remove(pl.m); pellets.splice(pellets.indexOf(p
 // ===================================================================
 const huntDelay = () => rand(42, 68);           // about one meal a minute; 7 meals ~ 7 minutes
 const H = { mode: "idle", next: huntDelay(), prey: null, t: 0, alone: 0, wait: 0, meals: 0 };
-let simT = 0;
+let simT = 0, autoFedAt = -1e9;
 const A = new THREE.Vector3(), T1 = new THREE.Vector3(), COH = new THREE.Vector3(), ALI = new THREE.Vector3(), ZERO = new THREE.Vector3(), UPV = new THREE.Vector3(0, 1, 0);
 const tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion();
 const headOf = (f, out = new THREE.Vector3()) => out.copy(f.g.position).addScaledVector(f.fwd, f.L * 0.48);
@@ -635,6 +635,11 @@ function step(dt) {
   }
   for (const f of fish.slice()) updateFish(f, dt, pred);
   for (const f of fish.slice()) if (f.dying > 0.35) removeFish(f);
+  // nobody stays hungry for long: if a fish has been hungry for ~2.5 minutes and there is no
+  // food in the water, a small pinch of pellets drops in by itself
+  let hungriest = 0;
+  for (const f of fish) { f.hungryT = f.full > 0 || f.dying >= 0 ? 0 : (f.hungryT || 0) + dt; hungriest = Math.max(hungriest, f.hungryT); }
+  if (hungriest > 150 && !pellets.length && simT - autoFedAt > 120) { dropFood(rand(-25, 25), rand(-10, 10), 8); autoFedAt = simT; }
   for (let i = pellets.length - 1; i >= 0; i--) {
     const pl = pellets[i], p = pl.m.position, fl = floorH(p.x, p.z) + 0.35; pl.age += dt;
     if (p.y > fl) { p.y = Math.max(fl, p.y + pl.vy * dt); p.x += Math.sin(simT * 1.5 + pl.ph) * dt * 0.5; pl.m.rotation.x += dt; }

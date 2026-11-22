@@ -108,8 +108,10 @@ button.small { font-size: 12px; padding: 4px 9px; }
   display: flex; justify-content: center; align-items: center; overflow: hidden; min-height: 240px;
 }
 .viewer img { display: block; max-width: 100%; height: auto; border-radius: 4px; cursor: zoom-in; }
+.viewer #live { display: block; width: min(var(--w, 100%), 100%); height: auto; border-radius: 4px; cursor: zoom-in; }
 .viewer:fullscreen { padding: 0; border: 0; border-radius: 0; }
 .viewer:fullscreen img { max-height: 100%; width: auto; border-radius: 0; cursor: zoom-out; }
+.viewer:fullscreen #live { width: min(var(--w, 100vw), 100vw, calc(100vh * var(--ar, 1.78))); border-radius: 0; cursor: zoom-out; }
 
 .howto {
   background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 16px 18px;
@@ -240,14 +242,15 @@ button.small { font-size: 12px; padding: 4px 9px; }
       <span class="status" id="status">Rendering…</span>
       <div class="actions">
         <button type="button" id="dotsBtn" aria-pressed="false" title="Two dots at the top that help you lock your eyes in">Focus dots: off</button>
+        <button type="button" id="jitterBtn" aria-pressed="false" title="The hidden shape drifts slowly, which makes it easier to find">Jitter mode</button>
         <button type="button" id="reseed">New pattern</button>
         <button type="button" id="fs">Fullscreen</button>
-        <button type="button" id="exportHtml" title="Save a single .html file with the stereogram inside">Export HTML</button>
         <button type="button" class="primary" id="download">Download PNG</button>
       </div>
     </div>
     <div class="viewer" id="viewer">
       <img id="out" alt="Stereogram with a hidden logo">
+      <canvas id="live" aria-label="Moving stereogram with a hidden logo" hidden></canvas>
     </div>
 
     <div class="howto">
@@ -281,7 +284,7 @@ button.small { font-size: 12px; padding: 4px 9px; }
   const SIZE_MIN = 400, SIZE_MAX = 6000;
   const state = {
     logo: null, logoInfo: null, mouse: null, upload: null, uploadName: '',
-    texture: null, seed: 1, random: null, texCache: null, url: null, blob: null,
+    texture: null, seed: 1, random: null, texCache: null, url: null, blob: null, depth: null, logoVer: 0,
   };
 
   // ---------- helpers ----------
@@ -332,23 +335,28 @@ button.small { font-size: 12px; padding: 4px 9px; }
   }
 
   // ---------- default logo: the Salemi group mouse ----------
-  // The SVG is line art. To give it real body in 3D, a filled silhouette (each path closed and filled)
-  // sits at mid height and the original strokes stand on top of it.
+  // The SVG is line art: drawn as the outline only (no fill), with a line 2.5 times the drawing's own,
+  // and the viewBox widened so the thicker line isn't clipped at the edges.
+  const MOUSE_STROKE = 12.5;
   async function loadMouse() {
-    const line = await loadImg(MOUSE_URL);
-    let filled = null;
+    let line = null;
     try {
       const txt = await (await fetch(MOUSE_URL)).text();
       const doc = new DOMParser().parseFromString(txt, 'image/svg+xml');
-      doc.querySelectorAll('path').forEach((p) => { p.style.fill = '#000'; });
+      const svg = doc.documentElement;
+      const vb = (svg.getAttribute('viewBox') || '0 0 185 200').trim().split(/[\s,]+/).map(Number), pad = MOUSE_STROKE;
+      svg.setAttribute('viewBox', [vb[0] - pad, vb[1] - pad, vb[2] + 2 * pad, vb[3] + 2 * pad].join(' '));
+      svg.setAttribute('width', vb[2] + 2 * pad); svg.setAttribute('height', vb[3] + 2 * pad);
+      doc.querySelectorAll('path').forEach((p) => {
+        Object.assign(p.style, { fill: 'none', stroke: '#000', strokeWidth: MOUSE_STROKE, strokeLinejoin: 'round', strokeLinecap: 'round' });
+      });
       const u = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(doc)], { type: 'image/svg+xml' }));
-      try { filled = await loadImg(u); } finally { URL.revokeObjectURL(u); }
-    } catch (e) { filled = null; }
+      try { line = await loadImg(u); } finally { URL.revokeObjectURL(u); }
+    } catch (e) { line = null; }
+    if (!line) line = await loadImg(MOUSE_URL);
     const [w0, h0] = dims(line), H = 900, W = Math.round(w0 * H / h0);
     const c = document.createElement('canvas'); c.width = W; c.height = H;
-    const g = c.getContext('2d');
-    if (filled) { g.globalAlpha = 0.7; g.drawImage(filled, 0, 0, W, H); g.globalAlpha = 1; }
-    g.drawImage(line, 0, 0, W, H);
+    c.getContext('2d').drawImage(line, 0, 0, W, H);
     return c;
   }
 
@@ -495,60 +503,68 @@ button.small { font-size: 12px; padding: 4px 9px; }
   }
   const recipeName = (r) => BG_NAMES[r.kind] + (r.pal && !['noise', 'color', 'mono'].includes(r.kind) ? ', ' + r.pal : '');
 
-  // dot fields: noise, color dots, black and white dots
+  // dot fields: noise, color dots, black and white dots. All are fine-grained on purpose: mid-sized
+  // blobs are what make the hidden shape show through as sheared texture, single dots hide it.
+  // Soft colour noise is fine coloured dots whose hue drifts slowly down the picture, in soft bands
+  // (the drift runs vertically only, so it never makes a seam where the pattern repeats).
   function makeField(kind, W, H, grain, seed) {
     const rnd = mulberry32(seed * 7919 + kind.charCodeAt(0));
     const data = new Uint8ClampedArray(W * H * 4);
     const baseHue = rnd() * 360;
-    const pick = () => {
-      if (kind === 'mono') { const v = rnd() < 0.5 ? 0 : 255; return [v, v, v]; }
-      if (kind === 'color') return hsl(rnd() * 360, 0.6 + 0.35 * rnd(), 0.3 + 0.4 * rnd());
-      return hsl(baseHue + (rnd() - 0.5) * 150, 0.55 + 0.35 * rnd(), 0.28 + 0.45 * rnd());
-    };
-    const cell = kind === 'noise' ? 2 + grain * 2 : grain;
-    const cw = Math.ceil(W / cell) + 2, ch = Math.ceil(H / cell) + 2;
-    const cells = new Float32Array(cw * ch * 3);
-    for (let i = 0; i < cw * ch; i++) { const c = pick(); cells[i * 3] = c[0]; cells[i * 3 + 1] = c[1]; cells[i * 3 + 2] = c[2]; }
-    for (let y = 0; y < H; y++) {
-      const fy = y / cell, cy = Math.floor(fy), ty = fy - cy;
-      for (let x = 0; x < W; x++) {
-        const p = (y * W + x) * 4, fx = x / cell, cx = Math.floor(fx);
-        if (kind === 'noise') {
-          const tx = fx - cx, j = rnd() * 36 - 18;
-          const i00 = (cy * cw + cx) * 3, i10 = i00 + 3, i01 = i00 + cw * 3, i11 = i01 + 3;
-          for (let k = 0; k < 3; k++) {
-            const top = cells[i00 + k] + (cells[i10 + k] - cells[i00 + k]) * tx;
-            const bot = cells[i01 + k] + (cells[i11 + k] - cells[i01 + k]) * tx;
-            data[p + k] = top + (bot - top) * ty + j;
-          }
-        } else {
-          const i = (cy * cw + cx) * 3;
-          data[p] = cells[i]; data[p + 1] = cells[i + 1]; data[p + 2] = cells[i + 2];
-        }
-        data[p + 3] = 255;
+    let drift = null;
+    if (kind === 'noise') {
+      const n = valueNoise(seed + 31), sc = 5.5 / H;
+      drift = (x, y) => fbm(n, 3.7, y * sc, 2);
+    }
+    const cell = grain, cw = Math.ceil(W / cell), ch = Math.ceil(H / cell);
+    const cells = new Uint8ClampedArray(cw * ch * 3);
+    for (let j = 0, i = 0; j < ch; j++) for (let k = 0; k < cw; k++, i++) {
+      let c;
+      if (kind === 'mono') { const v = rnd() < 0.5 ? 0 : 255; c = [v, v, v]; }
+      else if (kind === 'color') c = hsl(rnd() * 360, 0.6 + 0.35 * rnd(), 0.3 + 0.4 * rnd());
+      else {
+        const h = baseHue + (drift(k * cell, j * cell) - 0.5) * 260 + (rnd() - 0.5) * 70;
+        c = hsl((h % 360 + 360) % 360, 0.5 + 0.4 * rnd(), 0.22 + 0.5 * rnd());
+      }
+      cells[i * 3] = c[0]; cells[i * 3 + 1] = c[1]; cells[i * 3 + 2] = c[2];
+    }
+    for (let y = 0, p = 0; y < H; y++) {
+      const r = ((y / cell) | 0) * cw;
+      for (let x = 0; x < W; x++, p += 4) {
+        const i = (r + ((x / cell) | 0)) * 3;
+        data[p] = cells[i]; data[p + 1] = cells[i + 1]; data[p + 2] = cells[i + 2]; data[p + 3] = 255;
       }
     }
     return { w: W, h: H, data };
   }
 
-  // value noise and a 256-step palette ramp for the generated textures
+  // Value noise, optionally repeating every `per` lattice cells across (per ≤ 256), and a palette ramp.
   function valueNoise(seed) {
     const rnd = mulberry32(seed * 977 + 13), tab = new Float32Array(65536);
     for (let i = 0; i < tab.length; i++) tab[i] = rnd();
-    return (x, y) => {
+    return (x, y, per) => {
       const xi = Math.floor(x), yi = Math.floor(y);
       let fx = x - xi, fy = y - yi;
       fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
-      const x0 = xi & 255, x1 = (xi + 1) & 255, y0 = (yi & 255) << 8, y1 = ((yi + 1) & 255) << 8;
+      let x0, x1;
+      if (per) { x0 = ((xi % per) + per) % per; x1 = x0 + 1 === per ? 0 : x0 + 1; }
+      else { x0 = xi & 255; x1 = (xi + 1) & 255; }
+      const y0 = (yi & 255) << 8, y1 = ((yi + 1) & 255) << 8;
       const a = tab[x0 | y0], b = tab[x1 | y0], c = tab[x0 | y1], d = tab[x1 | y1];
       return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
     };
   }
-  function fbm(n, x, y, oct) {
+  // fractal noise; with `per` it repeats every `per` cells across (octaves double exactly to keep that)
+  function fbm(n, x, y, oct, per) {
     let s = 0, amp = 0.5, f = 1, norm = 0;
-    for (let o = 0; o < oct; o++) { s += amp * n(x * f + o * 17.31, y * f - o * 9.17); norm += amp; amp *= 0.5; f *= 2.03; }
+    for (let o = 0; o < oct; o++) {
+      s += amp * n(x * f + o * 17.31, y * f - o * 9.17, per ? per * f : 0);
+      norm += amp; amp *= 0.5; f *= per ? 2 : 2.03;
+    }
     return s / norm;
   }
+  // a noise scale close to `size` px that fits a whole number of times into the strip width P
+  const fitCells = (P, size) => Math.max(1, Math.min(32, Math.round(P / size)));
   function ramp(stops) {
     const cols = stops.map(rgb), lut = new Uint8ClampedArray(256 * 3);
     for (let i = 0; i < 256; i++) {
@@ -574,111 +590,127 @@ button.small { font-size: 12px; padding: 4px 9px; }
     }
     return data;
   }
-  // fine per-pixel grain so every texture has detail the eyes can lock onto
+  // fine per-pixel grain so every texture has detail the eyes can lock onto (seamless across the strip)
   function addGrain(data, W, H, amt, seed) {
-    const n = valueNoise(seed + 99), rnd = mulberry32(seed + 5);
+    const n = valueNoise(seed + 99), rnd = mulberry32(seed + 5), per = fitCells(W, 2.2), fx = per / W;
     for (let y = 0, p = 0; y < H; y++) for (let x = 0; x < W; x++, p += 4) {
-      const j = (n(x * 0.45, y * 0.45) - 0.5) * amt + (rnd() - 0.5) * amt * 0.6;
+      const j = (n(x * fx, y * 0.45, per) - 0.5) * amt + (rnd() - 0.5) * amt * 0.9;
       data[p] += j; data[p + 1] += j; data[p + 2] += j;
     }
   }
-  function canvasField(W, H, draw) {
-    const c = document.createElement('canvas'); c.width = W; c.height = H;
+  // draws on a strip P px wide; stamp(x, y, f) repeats a shape at x - P and x + P so the strip wraps seamlessly
+  function canvasField(P, H, draw) {
+    const c = document.createElement('canvas'); c.width = P; c.height = H;
     const g = c.getContext('2d', { willReadFrequently: true });
-    draw(g);
-    return g.getImageData(0, 0, W, H).data;
+    draw(g, (x, y, f) => { for (const ox of [-P, 0, P]) { g.save(); g.translate(x + ox, y); f(); g.restore(); } });
+    return g.getImageData(0, 0, P, H).data;
   }
   const shade = (c, k) => hex(c.map((v) => Math.max(0, Math.min(255, v * k))));
 
-  function makeTexture(r, W, H, unit) {
+  // Textures are made as a vertical strip exactly one background repeat (P px) wide that wraps seamlessly,
+  // so the repeats join without seams. Features are kept small (about the size of the depth shift):
+  // larger ones would bend visibly where the repeat changes and give the hidden shape away.
+  function makeTexture(r, P, H, unit) {
     const rnd = mulberry32(r.seed * 2654435761 + r.kind.length);
     const pal = PALETTES[r.pal] || PALETTES.stone;
     const cols = pal.map(rgb);
-    const u = Math.max(3, unit * r.scale);
+    const u = Math.max(3, unit * r.scale), TAU = 2 * Math.PI;
+    const kx = (k) => Math.round(k * P / TAU) * TAU / P; // a horizontal frequency that repeats every P
     let data;
     if (r.kind === 'marble') {
-      const n = valueNoise(r.seed), s = u * 4, ang = (rnd() - 0.5) * 1.4, ca = Math.cos(ang), sa = Math.sin(ang);
-      const freq = 1 / u, turb = 4 + rnd() * 3, n2 = valueNoise(r.seed + 7), lut = ramp(pal);
-      data = fieldFromFn(W, H, lut, (x, y) => {
-        const t = fbm(n, x / s, y / s, 4);
-        const v = Math.pow(Math.abs(Math.sin((x * ca + y * sa) * freq + turb * t)), 0.6);
-        return v * 0.62 + fbm(n2, x / (u * 0.6), y / (u * 0.6), 2) * 0.38;
+      const n = valueNoise(r.seed), n2 = valueNoise(r.seed + 7), lut = ramp(pal);
+      const c1 = fitCells(P, u * 4), c2 = fitCells(P, u * 0.6), ang = (rnd() - 0.5) * 1.4;
+      const fxs = kx(Math.cos(ang) / u), fys = Math.sin(ang) / u, turb = 4 + rnd() * 3;
+      data = fieldFromFn(P, H, lut, (x, y) => {
+        const t = fbm(n, x * c1 / P, y / (u * 4), 4, c1);
+        const v = Math.pow(Math.abs(Math.sin(x * fxs + y * fys + turb * t)), 0.6);
+        return v * 0.62 + fbm(n2, x * c2 / P, y / (u * 0.6), 2, c2) * 0.38;
       }, Math.max(1, Math.round(u / 8)));
     } else if (r.kind === 'waves') {
-      const n = valueNoise(r.seed), lut = ramp(pal), waves = [];
+      const n = valueNoise(r.seed), lut = ramp(pal), waves = [], c1 = fitCells(P, u * 3);
       for (let k = 0; k < 3; k++) {
         const a = (rnd() - 0.5) * 2.4, lam = u * (1.3 + rnd() * 1.5);
-        waves.push([Math.cos(a) * 2 * Math.PI / lam, Math.sin(a) * 2 * Math.PI / lam, rnd() * 6.28]);
+        waves.push([kx(Math.cos(a) * TAU / lam), Math.sin(a) * TAU / lam, rnd() * 6.28]);
       }
-      data = fieldFromFn(W, H, lut, (x, y) => {
-        const w = fbm(n, x / (u * 3), y / (u * 3), 3) * 5;
+      data = fieldFromFn(P, H, lut, (x, y) => {
+        const w = fbm(n, x * c1 / P, y / (u * 3), 3, c1) * 5;
         let s = 0;
         for (let k = 0; k < 3; k++) s += Math.sin(x * waves[k][0] + y * waves[k][1] + waves[k][2] + w);
         return 0.5 + s / 6;
       }, Math.max(1, Math.round(u / 8)));
     } else if (r.kind === 'foliage') {
-      data = canvasField(W, H, (g) => {
-        g.fillStyle = shade(cols[0], 0.7); g.fillRect(0, 0, W, H);
-        const L = u * 1.7, N = Math.ceil(W * H / (L * L) * 2.6);
+      data = canvasField(P, H, (g, stamp) => {
+        g.fillStyle = shade(cols[0], 0.7); g.fillRect(0, 0, P, H);
+        const L = u * 1.7, N = Math.ceil(P * H / (L * L) * 2.6);
         for (let i = 0; i < N; i++) {
           const len = L * (0.6 + 0.8 * rnd()), wid = len * (0.26 + 0.14 * rnd());
           const c = cols[1 + Math.floor(rnd() * (cols.length - 1))], k = 0.7 + 0.45 * rnd();
-          g.setTransform(1, 0, 0, 1, rnd() * (W + L) - L / 2, rnd() * (H + L) - L / 2);
-          g.rotate(rnd() * Math.PI * 2);
-          g.beginPath(); g.moveTo(-len / 2, 0);
-          g.quadraticCurveTo(0, -wid, len / 2, 0); g.quadraticCurveTo(0, wid, -len / 2, 0);
-          g.fillStyle = shade(c, k); g.fill();
-          g.beginPath(); g.moveTo(-len / 2, 0); g.lineTo(len * 0.42, 0);
-          g.lineWidth = Math.max(1, len / 28); g.strokeStyle = shade(c, k * 0.6); g.stroke();
+          const x = rnd() * P, y = rnd() * (H + L) - L / 2, rot = rnd() * TAU;
+          stamp(x, y, () => {
+            g.rotate(rot);
+            g.beginPath(); g.moveTo(-len / 2, 0);
+            g.quadraticCurveTo(0, -wid, len / 2, 0); g.quadraticCurveTo(0, wid, -len / 2, 0);
+            g.fillStyle = shade(c, k); g.fill();
+            g.beginPath(); g.moveTo(-len / 2, 0); g.lineTo(len * 0.42, 0);
+            g.lineWidth = Math.max(1, len / 28); g.strokeStyle = shade(c, k * 0.6); g.stroke();
+          });
         }
       });
     } else if (r.kind === 'pebbles') {
-      data = canvasField(W, H, (g) => {
-        g.fillStyle = shade(cols[0], 0.8); g.fillRect(0, 0, W, H);
-        const R0 = u * 0.75, N = Math.ceil(W * H / (R0 * R0) * 0.9);
+      data = canvasField(P, H, (g, stamp) => {
+        g.fillStyle = shade(cols[0], 0.8); g.fillRect(0, 0, P, H);
+        const R0 = u * 0.75, N = Math.ceil(P * H / (R0 * R0) * 0.9);
         for (let i = 0; i < N; i++) {
           const rr = R0 * (0.35 + 0.9 * rnd() * rnd()), asp = 0.65 + 0.35 * rnd();
           const c = cols[1 + Math.floor(rnd() * (cols.length - 1))], k = 0.75 + 0.35 * rnd();
-          g.setTransform(1, 0, 0, 1, rnd() * (W + rr * 2) - rr, rnd() * (H + rr * 2) - rr);
-          g.rotate(rnd() * Math.PI);
-          const gr = g.createRadialGradient(-rr * 0.35, -rr * 0.35 * asp, rr * 0.05, 0, 0, rr);
-          gr.addColorStop(0, shade(c, k * 1.3)); gr.addColorStop(0.55, shade(c, k)); gr.addColorStop(1, shade(c, k * 0.55));
-          g.beginPath(); g.ellipse(0, 0, rr, rr * asp, 0, 0, Math.PI * 2);
-          g.fillStyle = gr; g.fill();
+          const x = rnd() * P, y = rnd() * (H + rr * 2) - rr, rot = rnd() * Math.PI;
+          stamp(x, y, () => {
+            g.rotate(rot);
+            const gr = g.createRadialGradient(-rr * 0.35, -rr * 0.35 * asp, rr * 0.05, 0, 0, rr);
+            gr.addColorStop(0, shade(c, k * 1.3)); gr.addColorStop(0.55, shade(c, k)); gr.addColorStop(1, shade(c, k * 0.55));
+            g.beginPath(); g.ellipse(0, 0, rr, rr * asp, 0, 0, TAU);
+            g.fillStyle = gr; g.fill();
+          });
         }
       });
     } else { // terrazzo
-      data = canvasField(W, H, (g) => {
-        const base = cols[cols.length - 1];
-        g.fillStyle = hex(base); g.fillRect(0, 0, W, H);
-        const R0 = u * 0.55, N = Math.ceil(W * H / (R0 * R0) * 1.3);
+      data = canvasField(P, H, (g, stamp) => {
+        g.fillStyle = hex(cols[cols.length - 1]); g.fillRect(0, 0, P, H);
+        const R0 = u * 0.55, N = Math.ceil(P * H / (R0 * R0) * 1.3);
         for (let i = 0; i < N; i++) {
           const big = rnd() < 0.35, rr = R0 * (big ? 0.6 + 0.7 * rnd() : 0.15 + 0.35 * rnd());
           const c = cols[Math.floor(rnd() * (cols.length - 1))], sides = 3 + Math.floor(rnd() * 4);
-          g.setTransform(1, 0, 0, 1, rnd() * W, rnd() * H);
-          g.rotate(rnd() * Math.PI * 2);
-          g.beginPath();
+          const x = rnd() * P, y = rnd() * H, rot = rnd() * TAU, pts = [];
           for (let v = 0; v < sides; v++) {
-            const a = (v + rnd() * 0.6) / sides * Math.PI * 2, d = rr * (0.6 + 0.4 * rnd());
-            v ? g.lineTo(Math.cos(a) * d, Math.sin(a) * d) : g.moveTo(Math.cos(a) * d, Math.sin(a) * d);
+            const a = (v + rnd() * 0.6) / sides * TAU, d = rr * (0.6 + 0.4 * rnd());
+            pts.push(Math.cos(a) * d, Math.sin(a) * d);
           }
-          g.closePath(); g.fillStyle = shade(c, 0.85 + 0.3 * rnd()); g.fill();
+          const fill = shade(c, 0.85 + 0.3 * rnd());
+          stamp(x, y, () => {
+            g.rotate(rot);
+            g.beginPath(); g.moveTo(pts[0], pts[1]);
+            for (let v = 2; v < pts.length; v += 2) g.lineTo(pts[v], pts[v + 1]);
+            g.closePath(); g.fillStyle = fill; g.fill();
+          });
         }
       });
     }
-    addGrain(data, W, H, 34, r.seed);
-    return { w: W, h: H, data };
+    addGrain(data, P, H, 40, r.seed);
+    return { w: P, h: H, data };
   }
 
-  function backgroundTexture(r, W, H, sBg) {
+  // the background strip: one repeat (P px) wide and as tall as the picture
+  const TEX_UNIT = 10;
+  function backgroundTexture(r, P, H) {
     const grain = +$('grain').value, repeat = +$('repeat').value;
     const dots = ['noise', 'color', 'mono'].includes(r.kind);
-    const key = [r.kind, r.pal, r.scale, r.seed, W, H, grain, dots ? 0 : repeat].join('|');
+    const key = [r.kind, r.pal, r.scale, r.seed, P, H, grain, dots ? 0 : repeat].join('|');
     if (state.texCache && state.texCache.key === key) return state.texCache.tex;
     state.texCache = null; // let the old one go before allocating a new one
     const tex = dots
-      ? makeField(r.kind, W, H, grain, r.seed)
-      : makeTexture(r, W, H, repeat / 6 * grain / 2);
+      ? makeField(r.kind, P, H, grain, r.seed)
+      : makeTexture(r, P, H, repeat / TEX_UNIT * grain / 2);
+    opaque(tex.data);
     state.texCache = { key, tex };
     return tex;
   }
@@ -692,24 +724,55 @@ button.small { font-size: 12px; padding: 4px 9px; }
   }
 
   // ---------- autostereogram (Thimbleby, Inglis & Witten 1994, with hidden-surface removal) ----------
-  function stereogram(z, W, H, E, tex) {
-    const out = new ImageData(W, H), px = out.data, td = tex.data, tw = tex.w, th = tex.h;
-    const same = new Int32Array(W);
-    for (let y = 0; y < H; y++) {
-      const row = y * W;
-      for (let x = 0; x < W; x++) same[x] = x;
-      for (let x = 0; x < W; x++) {
-        const zx = z[row + x];
-        const s = Math.round((1 - MU * zx) * E / (2 - MU * zx));
+  // Linking is symmetric. Colours are seeded from the centre outward, so distortion spreads thinly to both
+  // sides instead of piling up on one: each linked group takes its colour at its member nearest the middle.
+  // The texture (a strip one background repeat P wide) is read at a phase that runs from the centre at
+  // P/s per pixel, s being the local repeat: where the shape shortens the repeat, the texture is squeezed
+  // evenly instead of torn at one seam. Each row's phase is then nudged to line up best with the rows
+  // that miss the shape. Unlinked pixels continue the phase, or get a fresh random dot in dot modes.
+  // z: w×h depth 0..1; E: eye separation in working px; rows of the texture are read at y·sc.
+  const rows = { n: 0 }, NQ = 4096, luts = { E: 0, P: 0 };
+  const COS = new Float64Array(256), SIN = new Float64Array(256);
+  for (let i = 0; i < 256; i++) { COS[i] = Math.cos(i * Math.PI / 128); SIN[i] = Math.sin(i * Math.PI / 128); }
+  function stereogram(z, w, h, E, tex, sc, freshSeed, out) {
+    if (rows.n !== w) {
+      rows.n = w;
+      for (const k of ['same', 'root', 'best', 'cnt', 'rep']) rows[k] = new Int32Array(w);
+      rows.phi = new Float64Array(w); rows.g = new Float64Array(w);
+    }
+    const P = tex.w, th = tex.h;
+    if (luts.E !== E || luts.P !== P) { // repeat and scan step per depth level, texture speed per repeat
+      luts.E = E; luts.P = P;
+      luts.s = new Int32Array(NQ + 1); luts.dz = new Float64Array(NQ + 1); luts.rate = new Float64Array(Math.ceil(E) + 2);
+      for (let i = 0; i <= NQ; i++) {
+        const zz = i / NQ;
+        luts.s[i] = Math.round((1 - MU * zz) * E / (2 - MU * zz));
+        luts.dz[i] = 2 * (2 - MU * zz) / (MU * E);
+      }
+      for (let i = 1; i < luts.rate.length; i++) luts.rate[i] = P / i;
+    }
+    const { same, root, best, cnt, rep, phi, g } = rows, sL = luts.s, dzL = luts.dz, rate = luts.rate;
+    const px = new Uint32Array(out.data.buffer), td = new Uint32Array(tex.data.buffer, tex.data.byteOffset, P * th);
+    const c = w >> 1, toAng = 128 / P;
+    const rate0 = rate[sL[Math.round(z[0] * NQ)]]; // background texture speed
+    for (let y = 0; y < h; y++) {
+      const row = y * w;
+      let zmax = 0; // nothing in this row can hide a point higher than this, so the check can stop there
+      for (let x = 0; x < w; x++) { same[x] = x; if (z[row + x] > zmax) zmax = z[row + x]; }
+      if (zmax > 1) zmax = 1;
+      for (let x = 0; x < w; x++) {
+        const zx = z[row + x], qi = (zx * NQ + 0.5) | 0, s = sL[qi];
+        rep[x] = s;
         let left = x - (s >> 1), right = left + s;
-        if (left < 0 || right >= W) continue;
-        let visible, t = 1, zt;
+        if (left < 0 || right >= w) continue;
+        const dz = dzL[qi];
+        let visible, t = 1, zt = zx;
         do {
-          zt = zx + 2 * (2 - MU * zx) * t / (MU * E);
+          zt += dz;
           const a = x - t, b = x + t;
-          visible = (a < 0 || z[row + a] < zt) && (b >= W || z[row + b] < zt);
+          visible = (a < 0 || z[row + a] < zt) && (b >= w || z[row + b] < zt);
           t++;
-        } while (visible && zt < 1);
+        } while (visible && zt < zmax);
         if (!visible) continue;
         let l = same[left];
         while (l !== left && l !== right) {
@@ -718,17 +781,34 @@ button.small { font-size: 12px; padding: 4px 9px; }
         }
         same[left] = right;
       }
-      const ty = (y % th) * tw;
-      for (let x = W - 1; x >= 0; x--) {
-        const p = (row + x) * 4;
-        if (same[x] === x) {
-          const q = (ty + (x % tw)) * 4;
-          px[p] = td[q]; px[p + 1] = td[q + 1]; px[p + 2] = td[q + 2];
-        } else {
-          const q = (row + same[x]) * 4;
-          px[p] = px[q]; px[p + 1] = px[q + 1]; px[p + 2] = px[q + 2];
-        }
-        px[p + 3] = 255;
+      // group every pixel by its rightmost member, then find each group's member nearest the centre
+      for (let x = w - 1; x >= 0; x--) { const r = same[x] === x ? x : root[same[x]]; root[x] = r; cnt[x] = 0; best[x] = -1; }
+      for (let x = 0; x < w; x++) {
+        const r = root[x], b = best[r];
+        cnt[r]++;
+        if (b < 0 || Math.abs(x - c) < Math.abs(b - c)) best[r] = x;
+      }
+      // texture phase, outward from the centre
+      phi[c] = 0;
+      for (let x = c + 1; x < w; x++) phi[x] = phi[x - 1] + rate[rep[x]];
+      for (let x = c - 1; x >= 0; x--) phi[x] = phi[x + 1] - rate[rep[x]];
+      let cs = 0, sn = 0;
+      for (let x = 0; x < w; x++) {
+        const r = root[x], v = cnt[r] > 1 ? phi[best[r]] : phi[x];
+        g[x] = v;
+        if ((x & 3) === 0) { const a = ((v - (x - c) * rate0) * toAng) & 255; cs += COS[a]; sn += SIN[a]; }
+      }
+      const shift = c - Math.atan2(sn, cs) * P / (2 * Math.PI) + P * 1024;
+      let ty = (y * sc) | 0;
+      ty = (ty < th ? ty : ty % th) * P;
+      for (let x = 0; x < w; x++) {
+        let col;
+        if (freshSeed && cnt[root[x]] === 1) {
+          let hh = Math.imul(x + 1, 0x27d4eb2d) ^ Math.imul(y + 7, 0x165667b1) ^ freshSeed;
+          hh = Math.imul(hh ^ (hh >>> 15), 0x2c1b3c6d); hh ^= hh >>> 12;
+          col = (hh >>> 0) % P;
+        } else col = ((g[x] + shift) | 0) % P;
+        px[row + x] = td[ty + col];
       }
     }
     return out;
@@ -748,16 +828,18 @@ button.small { font-size: 12px; padding: 4px 9px; }
     return [clampSize($('customW').value, 1600), clampSize($('customH').value, 900)];
   }
 
-  const canvas = document.createElement('canvas');
-  function generate() {
-    const t0 = performance.now();
+  // Smoothed depth at full size (0 = far, 1 = near), cached until a shape setting changes. The light blur
+  // (a few px, scaled to the output) turns hard steps into short ramps, so the pattern bends instead of
+  // tearing along the outline: no crisp ghost edges, while the fused shape stays sharp.
+  const SMOOTH = 3;
+  function depthBase(W, H) {
     const julia = $('source').value === 'julia';
-    if (!julia && !state.logo) { $('status').textContent = 'Loading the logo…'; return; }
-    const [W, H] = getSize();
-    const repeat = +$('repeat').value, E = repeat * 2, strength = +$('depth').value;
-    const cross = $('viewCross').checked;
-    const z = buildDepth(W, H);
-
+    const key = [julia ? 'j' + JuliaDay.dateKey(new Date()) : 'l' + state.logoVer, $('mode').value, $('thick').value,
+      $('soft').value, $('invert').checked, W, H].join('|');
+    if (state.depth && state.depth.key === key) return state.depth.z;
+    state.depth = null;
+    const z = blur3(buildDepth(W, H), W, H, Math.max(1, Math.round(SMOOTH * W / 1600)));
+    state.depth = { key, z };
     // depth preview (white = closer, before cross-eyed flip)
     const dt = $('depthThumb'), pw = 320, ph = Math.max(1, Math.round(320 * H / W));
     dt.width = pw; dt.height = ph;
@@ -768,19 +850,79 @@ button.small { font-size: 12px; padding: 4px 9px; }
     }
     dt.getContext('2d').putImageData(pd, 0, 0);
     if (julia) $('logoThumb').src = juliaThumb(W, H);
+    return z;
+  }
 
-    for (let i = 0; i < z.length; i++) z[i] = (cross ? 1 - z[i] : z[i]) * strength;
-    const zb = z[0], sBg = Math.round((1 - MU * zb) * E / (2 - MU * zb));
+  // Resamples the base depth into a w×h buffer, moved by (dx, dy) full-size px, as A + B·z.
+  function sampleDepth(base, W, H, dst, w, h, dx, dy, A, B) {
+    if (w === W && h === H && dx === 0 && dy === 0) {
+      for (let i = 0; i < dst.length; i++) dst[i] = A + B * base[i];
+      return;
+    }
+    const fx = W / w, fy = H / h;
+    if (!sampleDepth.xs || sampleDepth.xs.length !== w) { sampleDepth.xs = new Int32Array(w); sampleDepth.xt = new Float32Array(w); }
+    const xs = sampleDepth.xs, xt = sampleDepth.xt;
+    for (let x = 0; x < w; x++) {
+      let sx = (x + 0.5) * fx - 0.5 - dx;
+      sx = sx < 0 ? 0 : sx > W - 2 ? W - 2 : sx;
+      xs[x] = sx | 0; xt[x] = sx - (sx | 0);
+    }
+    for (let y = 0; y < h; y++) {
+      let sy = (y + 0.5) * fy - 0.5 - dy;
+      sy = sy < 0 ? 0 : sy > H - 1 ? H - 1 : sy;
+      const y0 = sy | 0, ty = sy - y0, r0 = y0 * W, r1 = Math.min(H - 1, y0 + 1) * W, o = y * w;
+      for (let x = 0; x < w; x++) {
+        const x0 = xs[x], tx = xt[x];
+        const a = base[r0 + x0] + (base[r0 + x0 + 1] - base[r0 + x0]) * tx;
+        const b = base[r1 + x0] + (base[r1 + x0 + 1] - base[r1 + x0]) * tx;
+        const v = A + B * (a + (b - a) * ty);
+        dst[o + x] = v < 0 ? 0 : v > 1 ? 1 : v;
+      }
+    }
+  }
 
-    const kind = $('pattern').value, recipe = currentRecipe();
-    const tex = (kind === 'custom' && state.texture) ? makeTile(state.texture, sBg) : backgroundTexture(recipe, W, H, sBg);
+  const opaque = (d) => { for (let i = 3; i < d.length; i += 4) d[i] = 255; };
+  const tileCache = { key: '', tile: null };
+  function tileFor(img, sBg) {
+    if (tileCache.img !== img || tileCache.key !== sBg) {
+      Object.assign(tileCache, { img, key: sBg, tile: makeTile(img, sBg) });
+      opaque(tileCache.tile.data);
+    }
+    return tileCache.tile;
+  }
 
-    const img = stereogram(z, W, H, E, tex);
-    canvas.width = W; canvas.height = H;
-    const g = canvas.getContext('2d');
-    g.putImageData(img, 0, 0);
-    if ($('dots').checked) drawDots(g, W, sBg);
+  // Renders one stereogram into canvas `cv` at `k` times the output size [W, H]. The shape is moved by
+  // (dx, dy) output px and its height scaled by `gain` around the background; the background is the same.
+  const work = { z: null, img: null };
+  function compose(cv, W, H, k, dx, dy, gain) {
+    const base = depthBase(W, H);
+    const w = k >= 1 ? W : Math.max(2, Math.round(W * k)), h = k >= 1 ? H : Math.max(2, Math.round(H * k));
+    const strength = +$('depth').value, cross = $('viewCross').checked, zbg = base[0];
+    const A0 = zbg * (1 - gain), A = cross ? strength * (1 - A0) : strength * A0, B = (cross ? -strength : strength) * gain;
+    if (!work.z || work.z.length !== w * h) work.z = new Float32Array(w * h);
+    sampleDepth(base, W, H, work.z, w, h, dx, dy, A, B);
+    const E = +$('repeat').value * 2, zb = cross ? strength * (1 - zbg) : strength * zbg;
+    const sBg = Math.round((1 - MU * zb) * E / (2 - MU * zb));
+    const kind = $('pattern').value, recipe = currentRecipe(), custom = kind === 'custom' && state.texture;
+    const tex = custom ? tileFor(state.texture, sBg) : backgroundTexture(recipe, sBg, H);
+    const fresh = !custom && (recipe.kind === 'color' || recipe.kind === 'mono') ? (recipe.seed * 2654435761) | 1 : 0;
+    if (!work.img || work.img.width !== w || work.img.height !== h) work.img = new ImageData(w, h);
+    stereogram(work.z, w, h, E * w / W, tex, W / w, fresh, work.img);
+    if (cv.width !== w) cv.width = w;
+    if (cv.height !== h) cv.height = h;
+    const g = cv.getContext('2d');
+    g.putImageData(work.img, 0, 0);
+    if ($('dots').checked) drawDots(g, w, sBg * w / W);
+    return { w, h, sBg, recipe, kind };
+  }
 
+  const canvas = document.createElement('canvas');
+  const sourceReady = () => $('source').value === 'julia' || !!state.logo;
+  function generate() {
+    const t0 = performance.now();
+    if (!sourceReady()) { $('status').textContent = 'Loading the logo…'; return; }
+    const [W, H] = getSize();
+    const { sBg, recipe, kind } = compose(canvas, W, H, 1, 0, 0, 1);
     canvas.toBlob((blob) => {
       if (!blob) return;
       if (state.url) URL.revokeObjectURL(state.url);
@@ -788,20 +930,89 @@ button.small { font-size: 12px; padding: 4px 9px; }
       state.url = URL.createObjectURL(blob);
       $('out').src = state.url;
     }, 'image/png');
-
     const bg = kind === 'random' ? ' · ' + recipeName(recipe) : '';
     $('status').textContent = `${W} × ${H} px · repeat ${sBg} px${bg} · ${Math.round(performance.now() - t0)} ms`;
   }
+  // the still image replaces the moving one only once it has loaded, so nothing flashes
+  $('out').addEventListener('load', () => { if (!jit.on) { $('live').hidden = true; $('out').hidden = false; } });
 
   let timer = 0;
   function schedule(delay = 80) {
     clearTimeout(timer);
-    $('status').textContent = 'Rendering…';
+    if (!jit.on) $('status').textContent = 'Rendering…';
     timer = setTimeout(() => {
+      if (jit.on) { jit.size = getSize(); return; } // the running animation picks the change up
       try { generate(); }
       catch (e) { $('status').innerHTML = '<span class="error">Could not render: ' + (e && e.message ? e.message : e) + '</span>'; }
     }, delay);
   }
+
+  // ---------- jitter mode: the shape drifts in a slow small circle and gently bobs in depth ----------
+  // Each frame is a new stereogram over the same background, at a reduced working size, scaled up by CSS.
+  const coarse = matchMedia('(pointer: coarse)').matches;
+  const jit = {
+    on: false, raf: 0, last: 0, t: 0, amp: 0, size: [1600, 900], q: 1, cost: 0, n: 0, frames: 0, fpsAt: 0,
+    dx: 0, dy: 0, gain: 1,
+    frameMs: coarse ? 50 : 1000 / 30,     // 20 fps on phones, 30 on computers
+    budget: coarse ? 150000 : 360000,     // working pixels per frame
+  };
+  function jitterScale(W, H) {
+    const shown = ($('viewer').clientWidth || 800) * Math.min(2, devicePixelRatio || 1);
+    return Math.min(1, shown / W, Math.sqrt(jit.budget / (W * H))) * jit.q;
+  }
+  function tick(now) {
+    jit.raf = requestAnimationFrame(tick);
+    if (now - jit.last < jit.frameMs - 3) return;
+    const dt = Math.min(100, now - jit.last);
+    jit.last = now;
+    if (!sourceReady()) return;
+    jit.t += dt / 1000;
+    jit.amp = Math.min(1, jit.amp + dt / 1500);
+    const [W, H] = jit.size, R = 0.025 * W * jit.amp, a = jit.t * 2 * Math.PI / 7;
+    jit.dx = R * Math.sin(a); jit.dy = 0.8 * R * (1 - Math.cos(a));
+    jit.gain = 1 - 0.18 * jit.amp * (0.5 - 0.5 * Math.cos(jit.t * 2 * Math.PI / 3.7));
+    const live = $('live');
+    if (live.dataset.size !== W + 'x' + H) {
+      live.dataset.size = W + 'x' + H;
+      live.style.setProperty('--w', W + 'px'); live.style.setProperty('--ar', W / H);
+    }
+    const t0 = performance.now();
+    try { compose(live, W, H, jitterScale(W, H), jit.dx, jit.dy, jit.gain); }
+    catch (e) { stopJitter(); $('status').innerHTML = '<span class="error">Could not render: ' + (e && e.message ? e.message : e) + '</span>'; return; }
+    if (live.hidden) { live.hidden = false; $('out').hidden = true; }
+    // keep the frame rate: lower the working size if frames get slow, raise it again when there's room
+    const cost = Math.min(performance.now() - t0, jit.frameMs * 2); // a one-off rebuild after a setting change doesn't count fully
+    jit.cost = jit.n ? jit.cost * 0.85 + cost * 0.15 : cost;
+    if (++jit.n % 20 === 0) {
+      if (jit.cost > jit.frameMs * 0.7 && jit.q > 0.4) jit.q *= 0.85;
+      else if (jit.cost < jit.frameMs * 0.3 && jit.q < 1) jit.q = Math.min(1, jit.q / 0.9);
+    }
+    jit.frames++;
+    if (now - jit.fpsAt >= 1000) {
+      const fps = Math.round(jit.frames * 1000 / (now - jit.fpsAt));
+      $('status').textContent = `${W} × ${H} px · jitter · ${live.width} × ${live.height} working · ${fps} fps`;
+      jit.frames = 0; jit.fpsAt = now;
+    }
+  }
+  function runJitter() {
+    cancelAnimationFrame(jit.raf);
+    if (!jit.on || document.hidden) return;
+    jit.last = jit.fpsAt = performance.now() - jit.frameMs; jit.frames = 0;
+    jit.raf = requestAnimationFrame(tick);
+  }
+  function stopJitter() {
+    jit.on = false;
+    cancelAnimationFrame(jit.raf);
+    syncLabels();
+  }
+  $('jitterBtn').addEventListener('click', () => {
+    if (jit.on) { stopJitter(); schedule(0); return; }
+    clearTimeout(timer);
+    Object.assign(jit, { on: true, t: 0, amp: 0, q: 1, n: 0, size: getSize() });
+    syncLabels();
+    runJitter();
+  });
+  document.addEventListener('visibilitychange', runJitter);
 
   function syncLabels() {
     const julia = $('source').value === 'julia';
@@ -809,6 +1020,8 @@ button.small { font-size: 12px; padding: 4px 9px; }
     $('dotsBtn').textContent = 'Focus dots: ' + (dotsOn ? 'on' : 'off');
     $('dotsBtn').setAttribute('aria-pressed', String(dotsOn));
     $('dotsBtn').classList.toggle('on', dotsOn);
+    $('jitterBtn').setAttribute('aria-pressed', String(jit.on));
+    $('jitterBtn').classList.toggle('on', jit.on);
     $('softOut').textContent = $('soft').value === '0' ? 'off' : $('soft').value + ' px';
     $('thickOut').textContent = $('thick').value === '0' ? 'off' : '+' + $('thick').value + ' px';
     $('drop').hidden = julia;
@@ -827,6 +1040,7 @@ button.small { font-size: 12px; padding: 4px 9px; }
 
   function setLogo(img, name) {
     state.logo = img;
+    state.logoVer++;
     state.logoInfo = analyze(img);
     $('logoThumb').src = img instanceof HTMLCanvasElement ? img.toDataURL() : img.src;
     $('logoName').textContent = name;
@@ -935,33 +1149,15 @@ button.small { font-size: 12px; padding: 4px 9px; }
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
-  $('download').addEventListener('click', () => { if (state.blob) offerFile(state.blob, 'stereogram.png'); });
-
-  // A standalone page: the stereogram embedded as a data URL, plus viewing tips. No outside files needed.
-  async function exportHtml() {
-    if (!state.blob) return;
-    const dataUrl = await new Promise((res, rej) => {
-      const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(state.blob);
-    });
-    const tip = $('viewCross').checked
-      ? 'Cross your eyes slightly, as if looking at a finger held halfway to the screen, until the hidden image appears.'
-      : 'Relax your eyes and look through the screen, then lean back slowly until the hidden image appears.';
-    const html = '<!doctype html><html lang="en"><head><meta charset="utf-8">'
-      + '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Stereogram</title><style>'
-      + 'html,body{margin:0;min-height:100%;background:#0b0c0e;color:#8b909a;font:14px/1.5 system-ui,sans-serif}'
-      + 'main{min-height:100vh;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px}'
-      + 'img{display:block;max-width:100%;max-height:calc(100vh - 90px);height:auto;cursor:zoom-in}'
-      + 'img.full{max-width:none;max-height:none;cursor:zoom-out}'
-      + 'p{margin:0;max-width:62ch;text-align:center}'
-      + '</style></head><body><main>'
-      + '<img id="s" alt="Stereogram" src="' + dataUrl + '">'
-      + '<p>' + tip + ' Click the image to switch between fit to screen and actual size.</p>'
-      + '</main><script>document.getElementById("s").onclick=function(){this.classList.toggle("full")}<\/script></body></html>';
-    offerFile(new Blob([html], { type: 'text/html' }), 'stereogram.html');
-  }
-  $('exportHtml').addEventListener('click', () => {
-    exportHtml().catch((e) => { $('status').innerHTML = '<span class="error">Export failed: ' + (e && e.message ? e.message : e) + '</span>'; });
+  // while jittering, the frame on screen is saved, rendered again at full size
+  $('download').addEventListener('click', () => {
+    if (!jit.on) { if (state.blob) offerFile(state.blob, 'stereogram.png'); return; }
+    if (!sourceReady()) return;
+    const [W, H] = jit.size, c = document.createElement('canvas');
+    compose(c, W, H, 1, jit.dx, jit.dy, jit.gain);
+    c.toBlob((blob) => { if (blob) offerFile(blob, 'stereogram.png'); }, 'image/png');
   });
+
   const toggleFs = () => {
     if (document.fullscreenElement) { document.exitFullscreen?.().catch(() => {}); return; }
     const p = $('viewer').requestFullscreen?.();
@@ -969,6 +1165,7 @@ button.small { font-size: 12px; padding: 4px 9px; }
   };
   $('fs').addEventListener('click', toggleFs);
   $('out').addEventListener('dblclick', toggleFs);
+  $('live').addEventListener('dblclick', toggleFs);
 
   applySource();
   loadMouse().then((c) => {

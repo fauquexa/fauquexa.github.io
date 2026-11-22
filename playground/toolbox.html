@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Lab toolbox</title>
+<title>Quantum device toolbox</title>
 <meta name="description" content="Small calculators for the lab: coplanar waveguide impedance, CPW resonators, dew point before opening a cryostat, unit conversions and inch threads.">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/toy.css?v=20261122k">
@@ -124,13 +124,36 @@
   table.data.cmp td, table.data.cmp th { white-space: normal; }
   table.data.cmp td.num { white-space: nowrap; }
   .card .res + h3, .card dl.res + h3 { margin-top: 16px; }
+  /* dimension diagrams: flat, theme colours; the dimension of the focused input lights up */
+  svg.dia { display: block; width: 100%; height: auto; max-height: 200px; margin: 0 auto 14px; }
+  svg.dia.small { max-width: 440px; margin-left: 0; }
+  @media (max-width: 780px) { svg.dia { max-height: 165px; } }
+  svg.dia .metal { fill: var(--accent); fill-opacity: .42; }
+  svg.dia .metal2 { fill: var(--accent); fill-opacity: .7; }
+  svg.dia .trace { fill: none; stroke: var(--accent); stroke-opacity: .6; }
+  svg.dia .sub { fill: var(--ink); fill-opacity: .07; stroke: var(--rule); }
+  svg.dia .oxide { fill: var(--ink); fill-opacity: .4; }
+  svg.dia .area { fill: var(--ink); fill-opacity: .28; }
+  svg.dia .jx { stroke: var(--ink); stroke-width: 1.4; fill: none; }
+  svg.dia .dim { fill: none; stroke: var(--soft); stroke-width: 1; }
+  svg.dia .ext { fill: none; stroke: var(--soft); stroke-width: .8; stroke-dasharray: 3 3; opacity: .7; }
+  svg.dia text { fill: var(--soft); font-family: var(--mono); font-size: 12px; }
+  svg.dia text.sym { fill: var(--ink); font-family: var(--serif); font-style: italic; font-size: 16px; }
+  svg.dia text.nm { font-size: 11px; opacity: .8; }
+  svg.dia [data-for] { cursor: pointer; }
+  svg.dia .hl .dim, svg.dia .hl .ext { stroke: var(--accent); stroke-width: 2; opacity: 1; }
+  svg.dia .hl text, svg.dia .hl text.sym { fill: var(--accent); }
+  svg.dia .hl .metal { fill-opacity: .8; }
+  svg.dia .hl .trace { stroke-opacity: 1; }
+  svg.dia .hl .sub { fill: var(--accent); fill-opacity: .16; }
+  svg.dia .hl .area { fill: var(--accent); fill-opacity: .9; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <a class="back" href="../index.html">← Home</a>
-  <h1>Lab toolbox</h1>
-  <p class="lede">Small calculators I keep reaching for in the lab. Everything runs in your browser and updates as you type. Formulas, assumptions and references are under each tool.</p>
+  <h1>Alain’s superconducting quantum device toolbox</h1>
+  <p class="lede">Calculators for designing and measuring superconducting quantum devices, plus a few lab conveniences. Everything runs in your browser and updates as you type; formulas, assumptions and references are under each tool.</p>
 
   <nav class="tabs" id="tabs" aria-label="Tools">
     <button data-tab="cpw">CPW impedance</button>
@@ -141,7 +164,6 @@
     <button data-tab="jj">Josephson junction</button>
     <button data-tab="sc">Superconductor</button>
     <button data-tab="lc">Lumped elements</button>
-    <button data-tab="rf">RF power</button>
     <button data-tab="dew">Dew point</button>
     <button data-tab="units">Unit converter</button>
     <button data-tab="threads">Inch threads</button>
@@ -154,27 +176,16 @@
     <div class="cols">
       <div>
         <div class="card">
-          <svg class="xs" viewBox="0 0 380 118" role="img" aria-label="Cross-section of a coplanar waveguide: centre conductor of width w between two ground planes, separated by gaps s, on a substrate of thickness h">
-            <rect x="8" y="44" width="364" height="60" fill="rgba(255,255,255,.06)" stroke="rgba(255,255,255,.14)"/>
-            <rect x="8" y="37" width="118" height="7" fill="#8fb4ec"/>
-            <rect x="158" y="37" width="64" height="7" fill="#8fb4ec"/>
-            <rect x="254" y="37" width="118" height="7" fill="#8fb4ec"/>
-            <g stroke="#a0a3a9" stroke-width="1" fill="none">
-              <path d="M158 22 H222 M158 18 V26 M222 18 V26"/>
-              <path d="M126 22 H158 M126 18 V26"/>
-              <path d="M222 22 H254 M254 18 V26"/>
-              <path d="M360 44 V104 M356 44 H364 M356 104 H364"/>
-              <path d="M100 37 V44" />
-            </g>
-            <g fill="#ececea" font-family="Newsreader, Georgia, serif" font-style="italic" font-size="15" text-anchor="middle">
-              <text x="190" y="15">w</text><text x="142" y="15">s</text><text x="238" y="15">s</text>
-              <text x="346" y="79">h</text><text x="92" y="32" font-size="13">t</text>
-            </g>
-            <g fill="#a0a3a9" font-family="Public Sans, Arial, sans-serif" font-size="11" text-anchor="middle">
-              <text x="67" y="62">ground</text><text x="190" y="62">signal</text><text x="313" y="62">ground</text>
-              <text x="160" y="92">substrate, ε<tspan font-size="8" dy="3">r</tspan></text>
-              <text x="190" y="116">vacuum below</text>
-            </g>
+          <svg class="dia" viewBox="0 0 400 162" role="img" aria-label="Coplanar waveguide cross-section: centre width w, gaps s, substrate thickness h, metal thickness t and substrate permittivity">
+            <g data-for="cpw-er cpw-sub"><rect class="sub" x="10" y="74" width="380" height="64"/><text x="24" y="104">substrate</text><text class="sym" x="24" y="126">ε<tspan font-size="10" dy="3">r</tspan></text></g>
+            <rect class="metal" x="10" y="66" width="120" height="8"/><rect class="metal2" x="160" y="66" width="80" height="8"/><rect class="metal" x="270" y="66" width="120" height="8"/>
+            <text x="62" y="60" text-anchor="middle">ground</text><text x="330" y="60" text-anchor="middle">ground</text><text x="200" y="96" text-anchor="middle">signal</text>
+            <text x="200" y="156" text-anchor="middle">vacuum below (no backside metal)</text>
+            <g data-for="cpw-tot"><path class="dim" d="M130 20H270M130 16v8M270 16v8"/><text x="200" y="14" text-anchor="middle">w + 2s</text></g>
+            <g data-for="cpw-w"><path class="ext" d="M160 64V38M240 64V38"/><path class="dim" d="M160 44H240M160 40v8M240 40v8"/><text class="sym" x="200" y="39" text-anchor="middle">w</text></g>
+            <g data-for="cpw-s"><path class="ext" d="M130 64V38M270 64V38"/><path class="dim" d="M130 44H160M130 40v8M160 40v8M240 44H270M240 40v8M270 40v8"/><text class="sym" x="145" y="39" text-anchor="middle">s</text><text class="sym" x="255" y="39" text-anchor="middle">s</text></g>
+            <g data-for="cpw-h"><path class="dim" d="M372 74V138M368 74h8M368 138h8"/><text class="sym" x="362" y="112" text-anchor="end">h</text></g>
+            <g data-for="cpw-t"><path class="dim" d="M118 66V74M114 66h8M114 74h8"/><text class="sym" x="110" y="62" text-anchor="end">t</text></g>
           </svg>
 
           <div class="seg" id="cpw-mode">
@@ -253,13 +264,17 @@
       <p>w = 10 µm, s = 6 µm on 525 µm silicon (ε<sub>r</sub> = 11.45, t = 0) gives Z<sub>0</sub> = 50.94 Ω and ε<sub>eff</sub> = 6.225, matching an independent evaluation with SciPy’s elliptic integrals.</p>
       <h4>References</h4>
       <ul class="refs">
-        <li>R. N. Simons, <i>Coplanar Waveguide Circuits, Components, and Systems</i> (Wiley, 2001), ch. 2.</li>
-        <li>K. C. Gupta, R. Garg, I. Bahl and P. Bhartia, <i>Microstrip Lines and Slotlines</i>, 2nd ed. (Artech House, 1996): thickness correction.</li>
-        <li>J. Gao, <i>The Physics of Superconducting Microwave Resonators</i>, PhD thesis, Caltech (2008): kinetic inductance and CPW geometric factor (after R. E. Collin, <i>Foundations for Microwave Engineering</i>).</li>
-        <li>A. J. Annunziata et al., Nanotechnology 21, 445202 (2010): L<sub>k</sub> = ħR<sub>n</sub>/(πΔ).</li>
-        <li>J. Krupka et al., Meas. Sci. Technol. 10, 387 (1999): sapphire permittivity at cryogenic temperatures.</li>
-        <li>J. Krupka et al., IEEE Trans. Microw. Theory Tech. 54, 3995 (2006): high-resistivity silicon permittivity.</li>
-        <li>Physical constants: CODATA 2018.</li>
+        <li><b>Z<sub>0</sub>, ε<sub>eff</sub>, C′ and L′ of a CPW on a finite substrate (conformal mapping):</b> R. N. Simons, <i>Coplanar Waveguide Circuits, Components, and Systems</i> (Wiley-Interscience, 2001), ch. 2. <a href="https://doi.org/10.1002/0471224758" target="_blank" rel="noopener noreferrer">doi:10.1002/0471224758</a></li>
+        <li><b>Metal-thickness correction Δ and ε<sub>eff,t</sub>:</b> K. C. Gupta, R. Garg, I. Bahl and P. Bhartia, <i>Microstrip Lines and Slotlines</i>, 2nd ed. (Artech House, 1996), ISBN 0-89006-766-X. Checked through software documentation that cites this book (Qucs technical notes); the book page itself was not seen.</li>
+        <li><b>K(k) by the arithmetic–geometric mean:</b> M. Abramowitz and I. A. Stegun, <i>Handbook of Mathematical Functions</i>, NBS Applied Mathematics Series 55 (1964), §17.6; equivalently NIST DLMF <a href="https://dlmf.nist.gov/19.8.E5" target="_blank" rel="noopener noreferrer">eq. 19.8.5</a>.</li>
+        <li><b>Equivalent isotropic substrate √(ε<sub>x</sub>ε<sub>y</sub>) with height h√(ε<sub>x</sub>/ε<sub>y</sub>):</b> B. T. Szentkuti, “Simple analysis of anisotropic microstrip lines by a transform method,” <i>Electron. Lett.</i> <b>12</b>, 672 (1976). <a href="https://doi.org/10.1049/el:19760515" target="_blank" rel="noopener noreferrer">doi:10.1049/el:19760515</a> The transform method is confirmed from the abstract; the explicit expressions could not be checked in the paper text, so treat them as unverified.</li>
+        <li><b>Sapphire ε<sub>⊥</sub> = 9.27 and ε<sub>∥</sub> = 11.35 near 4 K (9.2725 and 11.3486 at 4.2 K):</b> J. Krupka, K. Derzakowski, A. Abramowicz, M. E. Tobar and R. G. Geyer, “Use of whispering-gallery modes for complex permittivity determinations of ultra-low-loss dielectric materials,” <i>IEEE Trans. Microw. Theory Tech.</i> <b>47</b>, 752 (1999). <a href="https://doi.org/10.1109/22.769347" target="_blank" rel="noopener noreferrer">doi:10.1109/22.769347</a></li>
+        <li><b>Silicon ε<sub>r</sub> = 11.45 at cryogenic temperature:</b> J. Krupka, J. Breeze, A. Centeno, N. Alford, T. Claussen and L. Jensen, “Measurements of permittivity, dielectric loss tangent, and resistivity of float-zone silicon at microwave frequencies,” <i>IEEE Trans. Microw. Theory Tech.</i> <b>54</b>, 3995 (2006). <a href="https://doi.org/10.1109/TMTT.2006.883655" target="_blank" rel="noopener noreferrer">doi:10.1109/TMTT.2006.883655</a> The 11.45 value (near 10 K) is quoted from this work by later papers; it was not seen in the paper text itself.</li>
+        <li><b>Δ = 1.764 k<sub>B</sub>T<sub>c</sub>:</b> J. Bardeen, L. N. Cooper and J. R. Schrieffer, “Theory of superconductivity,” <i>Phys. Rev.</i> <b>108</b>, 1175 (1957). <a href="https://doi.org/10.1103/PhysRev.108.1175" target="_blank" rel="noopener noreferrer">doi:10.1103/PhysRev.108.1175</a></li>
+        <li><b>L<sub>s</sub> = ħR<sub>s</sub>/(πΔ) in the thin-film limit (eq. 6, with the tanh temperature factor):</b> A. J. Annunziata, D. F. Santavicca, L. Frunzio, G. Catelani, M. J. Rooks, A. Frydman and D. E. Prober, “Tunable superconducting nanoinductors,” <i>Nanotechnology</i> <b>21</b>, 445202 (2010). <a href="https://doi.org/10.1088/0957-4484/21/44/445202" target="_blank" rel="noopener noreferrer">doi:10.1088/0957-4484/21/44/445202</a></li>
+        <li><b>λ = √(ħρ<sub>n</sub>/(πμ<sub>0</sub>Δ)) with its tanh temperature factor (eq. 2.5), and Z<sub>s</sub> = √(iωμ<sub>0</sub>/σ) coth(√(iωμ<sub>0</sub>σ) t) (eq. 2.3), whose superconducting limit is L<sub>s</sub> = μ<sub>0</sub>λ coth(t/λ):</b> R. L. Kautz, “Miniaturization of normal-state and superconducting striplines,” <i>J. Res. Natl. Bur. Stand.</i> <b>84</b>, 247 (1979). <a href="https://doi.org/10.6028/jres.084.010" target="_blank" rel="noopener noreferrer">doi:10.6028/jres.084.010</a></li>
+        <li><b>CPW kinetic-inductance geometric factor g = g<sub>c</sub> + g<sub>g</sub> (eq. 3.49; stated to about 10 % for t &lt; 0.05w and k &lt; 0.8):</b> J. Gao, <i>The Physics of Superconducting Microwave Resonators</i>, PhD thesis, California Institute of Technology (2008). <a href="https://doi.org/10.7907/RAT0-VM75" target="_blank" rel="noopener noreferrer">doi:10.7907/RAT0-VM75</a> Gao attributes it to R. E. Collin, <i>Foundations for Microwave Engineering</i>, 2nd ed. (McGraw-Hill, 1992; Wiley-IEEE Press, 2001). <a href="https://doi.org/10.1109/9780470544662" target="_blank" rel="noopener noreferrer">doi:10.1109/9780470544662</a></li>
+        <li><b>Physical constants:</b> E. Tiesinga, P. J. Mohr, D. B. Newell and B. N. Taylor, “CODATA recommended values of the fundamental physical constants: 2018,” <i>Rev. Mod. Phys.</i> <b>93</b>, 025010 (2021). <a href="https://doi.org/10.1103/RevModPhys.93.025010" target="_blank" rel="noopener noreferrer">doi:10.1103/RevModPhys.93.025010</a></li>
       </ul>
     </details>
   </section>
@@ -270,6 +285,15 @@
     <p class="intro">Resonance frequency of a quarter-wave or half-wave transmission-line resonator from its length, or the length for a target frequency. Kinetic inductance is included through the phase velocity.</p>
     <div class="cols">
       <div class="card">
+        <svg class="dia" viewBox="0 0 400 178" role="img" aria-label="Top view of a quarter-wave resonator: an elbow at its open end couples capacitively to the feedline; the line of length l ends in a short to ground (open for a half-wave resonator)">
+          <text x="12" y="20">feedline</text>
+          <path class="trace" stroke-width="6" d="M10 30H390"/>
+          <g data-for="res-cc"><path class="dim" d="M120 34V45M116 34h8M116 45h8"/><text class="sym" x="128" y="46">C<tspan font-size="10" dy="3">c</tspan></text></g>
+          <text x="64" y="52" text-anchor="end">open end</text>
+          <g data-for="res-l res-fz"><path class="trace" stroke-width="5" d="M70 48H170V100H330V142"/><text class="sym" x="250" y="92" text-anchor="middle">ℓ</text><text x="250" y="120" text-anchor="middle">length along the line</text></g>
+          <g id="res-dia-short"><path class="metal" d="M300 142h60v10h-60z"/><path class="dim" d="M304 152l-6 8M316 152l-6 8M328 152l-6 8M340 152l-6 8M352 152l-6 8"/><text x="366" y="151">short</text><text x="330" y="174" text-anchor="middle">to ground (λ/4)</text></g>
+          <g id="res-dia-open" class="hide"><text x="338" y="146">open end (λ/2)</text></g>
+        </svg>
         <div class="seg" id="res-type">
           <button data-v="4" class="on">Quarter-wave (λ/4)</button>
           <button data-v="2">Half-wave (λ/2)</button>
@@ -314,9 +338,9 @@
       <p class="eq"><i>C</i> = <i>C</i>′ℓ/2, &nbsp; <i>L</i> = 8<i>L</i>′ℓ/π² (λ/4) or 2<i>L</i>′ℓ/π² (λ/2).</p>
       <p><b>Bare frequency.</b> <i>f</i><sub>0</sub> is the frequency of an isolated resonator with an ideal open (and, for λ/4, an ideal short). The coupling capacitor, the open-end fringing field and the junction at the shorted end all pull it down. With C<sub>c</sub> to a low-impedance feedline the estimate is <i>f</i> ≈ <i>f</i><sub>0</sub>/√(1 + <i>C</i><sub>c</sub>/<i>C</i>); for a λ/2 resonator coupled at both ends, enter the sum of the two capacitances. Expect a few per cent lower frequencies in practice; simulate the final layout.</p>
       <ul class="refs">
-        <li>M. Göppl et al., J. Appl. Phys. 104, 113904 (2008): lumped-element equivalent of a CPW resonator.</li>
-        <li>D. M. Pozar, <i>Microwave Engineering</i>, 4th ed. (Wiley, 2012), ch. 6: transmission-line resonators.</li>
-        <li>J. Gao, PhD thesis, Caltech (2008): kinetic inductance fraction and frequency shift.</li>
+        <li><b>f<sub>0</sub> = v/(4ℓ) and v/(2ℓ); transmission-line resonators in general:</b> D. M. Pozar, <i>Microwave Engineering</i>, 4th ed. (Wiley, 2012), ISBN 978-0-470-63155-3, ch. 6. The λ/4 values C = π/(4ω<sub>0</sub>Z<sub>0</sub>) = C′ℓ/2 and L = 8L′ℓ/π² follow from the input impedance of a shorted λ/4 line; Pozar works the analogous λ/2 cases explicitly.</li>
+        <li><b>Half-wave lumped equivalent L<sub>n</sub> = 2L′ℓ/(n²π²), C = C′ℓ/2 (eqs. 11–12) and the loaded frequency with coupling capacitors (eqs. 15 and 18; one capacitor into a low-impedance line gives f<sub>0</sub>/√(1 + C<sub>c</sub>/C)):</b> M. Göppl, A. Fragner, M. Baur, R. Bianchetti, S. Filipp, J. M. Fink, P. J. Leek, G. Puebla, L. Steffen and A. Wallraff, “Coplanar waveguide resonators for circuit quantum electrodynamics,” <i>J. Appl. Phys.</i> <b>104</b>, 113904 (2008). <a href="https://doi.org/10.1063/1.3010859" target="_blank" rel="noopener noreferrer">doi:10.1063/1.3010859</a></li>
+        <li><b>Kinetic inductance fraction α = L<sub>k</sub>/L (eq. 3.38) and the resulting f = f<sub>geo</sub>√(1 − α):</b> J. Gao, <i>The Physics of Superconducting Microwave Resonators</i>, PhD thesis, California Institute of Technology (2008). <a href="https://doi.org/10.7907/RAT0-VM75" target="_blank" rel="noopener noreferrer">doi:10.7907/RAT0-VM75</a></li>
       </ul>
     </details>
   </section>
@@ -354,7 +378,9 @@
       <p>A part condenses water if 0 °C ≤ <i>T</i><sub>part</sub> &lt; <i>T</i><sub>d</sub> and collects frost if <i>T</i><sub>part</sub> &lt; 0 °C and below the frost point (frost forms before dew when the dew point is below freezing). The recommended temperature is the onset temperature plus your margin. Absolute humidity uses ρ<sub>v</sub> = <i>e</i>/(<i>R</i><sub>v</sub><i>T</i>) with <i>R</i><sub>v</sub> = 461.5 J kg<sup>−1</sup> K<sup>−1</sup>. Check: 20 °C and 50 % give a dew point of 9.3 °C.</p>
       <p>In practice: the plate thermometers lag the parts that actually see the air (radiation shields, cold fingers, the sample stage), so give a margin, vent with dry nitrogen or helium gas rather than room air, and keep the cans closed until everything is above the dew point.</p>
       <ul class="refs">
-        <li>O. A. Alduchov and R. E. Eskridge, J. Appl. Meteorol. 35, 601 (1996): improved Magnus form approximation of saturation vapor pressure.</li>
+        <li><b>Magnus form of the saturation vapour pressure:</b> G. Magnus, “Versuche über die Spannkräfte des Wasserdampfs,” <i>Ann. Phys.</i> <b>137</b>, 225 (1844). <a href="https://doi.org/10.1002/andp.18441370202" target="_blank" rel="noopener noreferrer">doi:10.1002/andp.18441370202</a></li>
+        <li><b>Constants 6.1094 hPa, 17.625, 243.04 °C (water) and 6.1121 hPa, 22.587, 273.86 °C (ice):</b> O. A. Alduchov and R. E. Eskridge, “Improved Magnus form approximation of saturation vapor pressure,” <i>J. Appl. Meteorol.</i> <b>35</b>, 601 (1996). <a href="https://doi.org/10.1175/1520-0450(1996)035%3C0601:IMFAOS%3E2.0.CO;2" target="_blank" rel="noopener noreferrer">doi:10.1175/1520-0450(1996)035&lt;0601:IMFAOS&gt;2.0.CO;2</a></li>
+        <li><b>Absolute humidity ρ<sub>v</sub> = e/(R<sub>v</sub>T), with R<sub>v</sub> = R/M<sub>w</sub> = 461.5 J kg<sup>−1</sup> K<sup>−1</sup> (ideal gas):</b> E. Tiesinga, P. J. Mohr, D. B. Newell and B. N. Taylor, “CODATA recommended values of the fundamental physical constants: 2018,” <i>Rev. Mod. Phys.</i> <b>93</b>, 025010 (2021). <a href="https://doi.org/10.1103/RevModPhys.93.025010" target="_blank" rel="noopener noreferrer">doi:10.1103/RevModPhys.93.025010</a> No reference found for M<sub>w</sub> = 18.015 g/mol beyond the standard molar mass of water.</li>
       </ul>
     </details>
   </section>
@@ -362,12 +388,14 @@
   <!-- ============================== Units ============================== -->
   <section class="tool" id="tool-units">
     <h2>Unit converter</h2>
-    <p class="intro">Type a value, pick its unit, and read it in every other unit. Click a row to convert from that unit instead.</p>
+    <p class="intro">Type a value, pick its unit, and read it in every other unit. Click a row to convert from that unit instead. The RF power category converts between dBm, watts, voltages across an impedance and photon flux.</p>
     <div class="chips" id="u-cats"></div>
     <div class="card">
       <div class="toolbar">
         <div class="f"><label for="u-val">Value</label><input type="text" autocomplete="off" inputmode="decimal" id="u-val" value="1"></div>
         <div class="f"><label for="u-from">Unit</label><select autocomplete="off" id="u-from"></select></div>
+        <div class="f hide u-rf" style="flex:0 1 150px"><label for="u-z">Impedance</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="u-z" value="50"><span class="u">Ω</span></div></div>
+        <div class="f hide u-rf" style="flex:0 1 150px"><label for="u-f">Frequency</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="u-f" value="6"><span class="u">GHz</span></div></div>
       </div>
       <div class="tablewrap">
         <table class="data conv"><thead><tr><th>Unit</th><th style="text-align:right">Value</th><th>Note</th></tr></thead><tbody id="u-body"></tbody></table>
@@ -375,7 +403,7 @@
       <p class="msg" id="u-msg"></p>
     </div>
     <details class="ref">
-      <summary>Definitions and references</summary>
+      <summary>Formulas, assumptions and references</summary>
       <ul>
         <li>Length: 1 in = 25.4 mm exactly; 1 mil = 1 thou = 0.001 in = 25.4 µm; 1 ft = 12 in.</li>
         <li>Pressure: 1 atm = 101 325 Pa; 1 Torr = 1/760 atm (≈ 1 mmHg); 1 bar = 10<sup>5</sup> Pa = 1000 mbar = 1000 hPa; 1 psi = 6894.757 Pa.</li>
@@ -383,7 +411,12 @@
         <li>Energy equivalents use E = <i>hf</i> = <i>k</i><sub>B</sub><i>T</i> = <i>hc</i>ν̃ = ħω = <i>hc</i>/λ with exact SI values of <i>h</i>, <i>k</i><sub>B</sub>, <i>e</i> and <i>c</i>: 1 K ≙ 20.837 GHz ≙ 86.17 µeV, 1 GHz ≙ 4.1357 µeV ≙ 48.0 mK, 1 meV ≙ 8.0655 cm<sup>−1</sup> ≙ 0.2418 THz.</li>
         <li>Magnetic field: 1 T = 10<sup>4</sup> G. Oe and A/m are converted as fields in vacuum (B = μ<sub>0</sub>H). Φ<sub>0</sub>/µm² is the field that puts one flux quantum Φ<sub>0</sub> = <i>h</i>/2<i>e</i> through 1 µm².</li>
       </ul>
-      <ul class="refs"><li>CODATA 2018 recommended values; BIPM, <i>The International System of Units</i>, 9th ed. (2019); NIST SP 811.</li></ul>
+      <ul class="refs">
+        <li><b>h, k<sub>B</sub>, e, c (exact), μ<sub>0</sub> and Φ<sub>0</sub> = h/2e:</b> E. Tiesinga, P. J. Mohr, D. B. Newell and B. N. Taylor, “CODATA recommended values of the fundamental physical constants: 2018,” <i>Rev. Mod. Phys.</i> <b>93</b>, 025010 (2021). <a href="https://doi.org/10.1103/RevModPhys.93.025010" target="_blank" rel="noopener noreferrer">doi:10.1103/RevModPhys.93.025010</a></li>
+        <li><b>SI prefixes and units, energy–frequency–temperature equivalence:</b> BIPM, <i>The International System of Units (SI)</i>, 9th ed. (2019; later updated versions of the 9th edition exist), <a href="https://www.bipm.org/en/publications/si-brochure" target="_blank" rel="noopener noreferrer">bipm.org</a>.</li>
+        <li><b>Inch, foot, pound, ounce, torr, atmosphere, psi and gauss/oersted conversion factors:</b> A. Thompson and B. N. Taylor, <i>Guide for the Use of the International System of Units (SI)</i>, NIST Special Publication 811 (2008). <a href="https://doi.org/10.6028/NIST.SP.811e2008" target="_blank" rel="noopener noreferrer">doi:10.6028/NIST.SP.811e2008</a></li>
+        <li><b>RF power: dBm, P = V<sub>rms</sub>²/Z, V<sub>peak</sub> = √2 V<sub>rms</sub>:</b> D. M. Pozar, <i>Microwave Engineering</i>, 4th ed. (Wiley, 2012), ISBN 978-0-470-63155-3, ch. 2.</li>
+      </ul>
     </details>
   </section>
 
@@ -391,6 +424,12 @@
   <section class="tool" id="tool-threads">
     <h2>Inch threads (UNC and UNF)</h2>
     <p class="intro">Unified inch screw threads from #0-80 to 1 inch, with tap drills for about 75 % thread engagement, clearance holes and the closest ISO metric coarse thread. Search for “4-40”, “1/4”, “UNF” or “M3”.</p>
+    <svg class="dia small" viewBox="0 0 420 108" role="img" aria-label="Unified thread profile: 60 degree flanks, pitch P equal to one over threads per inch, major diameter at the crests and minor diameter at the roots">
+      <path class="metal" d="M20,80 L40,45.4 L60,80 L80,45.4 L100,80 L120,45.4 L140,80 L160,45.4 L180,80 L200,45.4 L220,80 L240,45.4 L260,80 L280,45.4 L300,80 V100 H20 Z"/>
+      <path class="ext" d="M20 45.4H308M20 80H308"/><text x="312" y="49">major Ø (crests)</text><text x="312" y="84">minor Ø (roots)</text>
+      <path class="dim" d="M100 30H140M100 26v8M140 26v8"/><text x="120" y="22" text-anchor="middle">P = 1/TPI</text>
+      <text x="180" y="72" text-anchor="middle">60°</text>
+    </svg>
     <div class="toolbar">
       <div class="f"><label for="th-q">Search</label><input type="text" autocomplete="off" id="th-q" placeholder="e.g. 4-40, 1/4-20, M3"></div>
       <div class="f" style="flex:0 1 170px"><label for="th-ser">Series</label><select autocomplete="off" id="th-ser"><option value="">UNC and UNF</option><option value="UNC">UNC (coarse)</option><option value="UNF">UNF (fine)</option></select></div>
@@ -406,7 +445,7 @@
     </div>
     <p class="count" id="th-count"></p>
     <details class="ref">
-      <summary>Notes and references</summary>
+      <summary>Formulas, assumptions and references</summary>
       <ul>
         <li>Major diameters and threads per inch follow ASME B1.1. Numbered sizes have major diameter 0.060 in + 0.013 in × N. Pitch = 25.4 mm / TPI.</li>
         <li>Tap drills give roughly 75 % thread engagement, the usual shop recommendation; for hard materials or deep holes one size larger is common. Number and letter drills are converted to mm exactly from their inch sizes.</li>
@@ -414,9 +453,10 @@
         <li>The nearest metric thread is the ISO coarse thread (ISO 261/262) with the closest major diameter. It is a size guide only; the threads are not interchangeable.</li>
       </ul>
       <ul class="refs">
-        <li>ASME B1.1, <i>Unified Inch Screw Threads (UN, UNR, and UNJ Thread Forms)</i>.</li>
-        <li>E. Oberg et al., <i>Machinery’s Handbook</i> (Industrial Press): tap drill and clearance hole tables.</li>
-        <li>ISO 261 and ISO 262, ISO general purpose metric screw threads.</li>
+        <li><b>Major diameters and threads per inch:</b> ASME B1.1-2019, <i>Unified Inch Screw Threads (UN, UNR, and UNJ Thread Forms)</i> (a 2024 edition now exists).</li>
+        <li><b>Number and letter drill diameters:</b> ASME B94.11M-1993, <i>Twist Drills</i>.</li>
+        <li><b>Tap drills (about 75 % thread) and close/free clearance holes:</b> E. Oberg et al., <i>Machinery’s Handbook</i>, 32nd ed. (Industrial Press, 2024). Every entry was cross-checked against the <a href="https://littlemachineshop.com/reference/tapdrill.php" target="_blank" rel="noopener noreferrer">LittleMachineShop tap drill chart</a>.</li>
+        <li><b>ISO metric coarse threads:</b> ISO 261:1998 and ISO 262:1998 (ISO 262 has since been replaced by ISO 262:2023).</li>
       </ul>
     </details>
   </section>
@@ -487,10 +527,11 @@
       <h4>Example and check</h4>
       <p>The example is generated in the page from the model above with f<sub>0</sub> = 6.0123457 GHz, Q<sub>i</sub> = 250 000, |Q<sub>c</sub>| = 120 000, φ = −0.2 rad, a = 0.0316, α = 2.0 rad, τ = 62 ns, 1001 points over ±8 linewidths, and Gaussian noise of 0.6 % of <i>a</i> on each quadrature (new noise each time). The true values are printed under the result so you can compare.</p>
       <ul class="refs">
-        <li>S. Probst, F. B. Song, P. A. Bushev, A. V. Ustinov and M. Weides, Rev. Sci. Instrum. 86, 024706 (2015): circle-fit procedure.</li>
-        <li>M. S. Khalil, M. J. A. Stoutimore, F. C. Wellstood and K. D. Osborn, J. Appl. Phys. 111, 054510 (2012): diameter-correction method.</li>
-        <li>G. Taubin, IEEE Trans. Pattern Anal. Mach. Intell. 13, 1115 (1991), and N. Chernov, <i>Circular and Linear Regression</i> (CRC Press, 2010): algebraic circle fit.</li>
-        <li>Citation details are written from memory.</li>
+        <li><b>Notch model with environment and delay; circle-fit procedure:</b> S. Probst, F. B. Song, P. A. Bushev, A. V. Ustinov and M. Weides, “Efficient and robust analysis of complex scattering data under noise in microwave resonators,” <i>Rev. Sci. Instrum.</i> <b>86</b>, 024706 (2015). <a href="https://doi.org/10.1063/1.4907935" target="_blank" rel="noopener noreferrer">doi:10.1063/1.4907935</a></li>
+        <li><b>Diameter-correction method, 1/Q<sub>i</sub> = 1/Q<sub>l</sub> − Re(1/Q̂<sub>c</sub>):</b> M. S. Khalil, M. J. A. Stoutimore, F. C. Wellstood and K. D. Osborn, “An analysis method for asymmetric resonator transmission applied to superconducting devices,” <i>J. Appl. Phys.</i> <b>111</b>, 054510 (2012). <a href="https://doi.org/10.1063/1.3692073" target="_blank" rel="noopener noreferrer">doi:10.1063/1.3692073</a></li>
+        <li><b>Algebraic circle fit:</b> G. Taubin, “Estimation of planar curves, surfaces, and nonplanar space curves defined by implicit equations with applications to edge and range image segmentation,” <i>IEEE Trans. Pattern Anal. Mach. Intell.</i> <b>13</b>, 1115 (1991). <a href="https://doi.org/10.1109/34.103273" target="_blank" rel="noopener noreferrer">doi:10.1109/34.103273</a> Also N. Chernov, <i>Circular and Linear Regression: Fitting Circles and Lines by Least Squares</i> (CRC Press, 2010). <a href="https://doi.org/10.1201/EBK1439835906" target="_blank" rel="noopener noreferrer">doi:10.1201/EBK1439835906</a></li>
+        <li><b>Levenberg–Marquardt least squares (phase fit and geometric circle polish):</b> K. Levenberg, “A method for the solution of certain non-linear problems in least squares,” <i>Q. Appl. Math.</i> <b>2</b>, 164 (1944). <a href="https://doi.org/10.1090/qam/10666" target="_blank" rel="noopener noreferrer">doi:10.1090/qam/10666</a> D. W. Marquardt, “An algorithm for least-squares estimation of nonlinear parameters,” <i>J. Soc. Ind. Appl. Math.</i> <b>11</b>, 431 (1963). <a href="https://doi.org/10.1137/0111030" target="_blank" rel="noopener noreferrer">doi:10.1137/0111030</a></li>
+        <li><b>± values from the linearised covariance σ²(JᵀJ)<sup>−1</sup>:</b> standard least-squares error propagation; no reference found that we could verify for this exact use.</li>
       </ul>
     </details>
   </section>
@@ -537,8 +578,8 @@
       </ul>
       <p>The notch formula is also often written as 4Q<sub>l</sub>²P<sub>in</sub>/(Q<sub>c</sub>ħω<sub>0</sub>²); that is a factor of two higher than the input–output result for the Q<sub>c</sub> convention above, so check which definition a paper uses before comparing photon numbers. Assumes a drive exactly on resonance, a linear resonator (no bifurcation or power-dependent Q), and that P<sub>in</sub> is the power arriving at the coupling port.</p>
       <ul class="refs">
-        <li>C. W. Gardiner and M. J. Collett, Phys. Rev. A 31, 3761 (1985): input–output theory.</li>
-        <li>A. Bruno et al., Appl. Phys. Lett. 106, 182601 (2015): the notch-resonator expression with the factor 2 (from memory).</li>
+        <li><b>n̄ = (4κ<sub>in</sub>/κ²)P<sub>in</sub>/(ħω<sub>0</sub>) and the reflection and transmission variants:</b> C. W. Gardiner and M. J. Collett, “Input and output in damped quantum systems: Quantum stochastic differential equations and the master equation,” <i>Phys. Rev. A</i> <b>31</b>, 3761 (1985). <a href="https://doi.org/10.1103/PhysRevA.31.3761" target="_blank" rel="noopener noreferrer">doi:10.1103/PhysRevA.31.3761</a></li>
+        <li><b>Notch form n̄ = 2Q<sub>l</sub>²P<sub>in</sub>/(Q<sub>c</sub>ħω<sub>0</sub>²) (called an estimated upper limit there):</b> A. Bruno, G. de Lange, S. Asaad, K. L. van der Enden, N. K. Langford and L. DiCarlo, “Reducing intrinsic loss in superconducting resonators by surface treatment and deep etching of silicon substrates,” <i>Appl. Phys. Lett.</i> <b>106</b>, 182601 (2015), supplementary material. <a href="https://doi.org/10.1063/1.4919761" target="_blank" rel="noopener noreferrer">doi:10.1063/1.4919761</a></li>
       </ul>
     </details>
   </section>
@@ -549,6 +590,13 @@
     <p class="intro">Energy levels of a single-junction transmon (or Cooper-pair box) from an exact diagonalisation of H = 4E<sub>C</sub>(n − n<sub>g</sub>)² − E<sub>J</sub> cos φ in the charge basis, with the transmon-regime approximations alongside for comparison.</p>
     <div class="cols">
       <div class="card">
+        <svg class="dia" viewBox="0 0 400 150" role="img" aria-label="Two-island transmon top view: two pads connected by a Josephson junction; C sigma is the total capacitance between the pads">
+          <rect class="metal" x="30" y="30" width="140" height="90"/><rect class="metal" x="230" y="30" width="140" height="90"/>
+          <text x="100" y="80" text-anchor="middle">island 1</text><text x="300" y="80" text-anchor="middle">island 2</text>
+          <path class="trace" stroke-width="3" d="M170 75H191M209 75H230"/>
+          <g data-for="tr-c tr-ec tr-ecsrc"><path class="dim" d="M170 48H230M170 44v8M230 44v8"/><text class="sym" x="200" y="42" text-anchor="middle">C<tspan font-size="10" dy="3">Σ</tspan></text></g>
+          <g data-for="tr-rn tr-gap tr-ej tr-ejsrc"><rect class="metal2" x="191" y="68" width="18" height="14"/><path class="jx" d="M191 68l18 14M209 68l-18 14"/><path class="dim" d="M200 84V128"/><text x="200" y="142" text-anchor="middle">Josephson junction: E<tspan font-size="10" dy="3">J</tspan> from R<tspan font-size="10" dy="3">N</tspan> and Δ</text></g>
+        </svg>
         <div class="fields">
           <div class="f wide"><label for="tr-ecsrc">Charging energy from</label>
             <select autocomplete="off" id="tr-ecsrc"><option value="c">Total capacitance C<sub>Σ</sub></option><option value="ec">E<sub>C</sub> directly</option></select></div>
@@ -588,8 +636,10 @@
       <p class="eq">f<sub>01</sub> ≈ √(8E<sub>J</sub>E<sub>C</sub>) − E<sub>C</sub>, &nbsp; f<sub>12</sub> − f<sub>01</sub> ≈ −E<sub>C</sub>, &nbsp; ε<sub>m</sub> ≈ (−1)<sup>m</sup> E<sub>C</sub> (2<sup>4m+5</sup>/m!) √(2/π) (E<sub>J</sub>/2E<sub>C</sub>)<sup>m/2 + 3/4</sup> e<sup>−√(8E<sub>J</sub>/E<sub>C</sub>)</sup></p>
       <p>Not included: coupling to a readout resonator (dispersive shifts), junction asymmetry or flux tuning, and higher Josephson harmonics.</p>
       <ul class="refs">
-        <li>J. Koch et al., Phys. Rev. A 76, 042319 (2007): transmon Hamiltonian, asymptotic levels and charge dispersion.</li>
-        <li>V. Ambegaokar and A. Baratoff, Phys. Rev. Lett. 10, 486 (1963).</li>
+        <li><b>Transmon Hamiltonian, E<sub>C</sub> = e²/2C<sub>Σ</sub>, ε<sub>m</sub> definition (eq. 2.4) and asymptotic ε<sub>m</sub> (eq. 2.5), f<sub>01</sub> ≈ √(8E<sub>J</sub>E<sub>C</sub>) − E<sub>C</sub>, α ≈ −E<sub>C</sub>:</b> J. Koch, T. M. Yu, J. Gambetta, A. A. Houck, D. I. Schuster, J. Majer, A. Blais, M. H. Devoret, S. M. Girvin and R. J. Schoelkopf, “Charge-insensitive qubit design derived from the Cooper pair box,” <i>Phys. Rev. A</i> <b>76</b>, 042319 (2007). <a href="https://doi.org/10.1103/PhysRevA.76.042319" target="_blank" rel="noopener noreferrer">doi:10.1103/PhysRevA.76.042319</a></li>
+        <li><b>I<sub>c</sub>R<sub>N</sub> = πΔ/2e (Ambegaokar–Baratoff):</b> V. Ambegaokar and A. Baratoff, “Tunneling between superconductors,” <i>Phys. Rev. Lett.</i> <b>10</b>, 486 (1963); erratum <b>11</b>, 104 (1963). <a href="https://doi.org/10.1103/PhysRevLett.10.486" target="_blank" rel="noopener noreferrer">doi:10.1103/PhysRevLett.10.486</a> <a href="https://doi.org/10.1103/PhysRevLett.11.104" target="_blank" rel="noopener noreferrer">doi:10.1103/PhysRevLett.11.104</a></li>
+        <li><b>E<sub>J</sub> = ħI<sub>c</sub>/2e:</b> B. D. Josephson, “Possible new effects in superconductive tunnelling,” <i>Phys. Lett.</i> <b>1</b>, 251 (1962). <a href="https://doi.org/10.1016/0031-9163(62)91369-0" target="_blank" rel="noopener noreferrer">doi:10.1016/0031-9163(62)91369-0</a></li>
+        <li><b>Eigenvalues of the tridiagonal matrix by Sturm-sequence bisection:</b> W. Barth, R. S. Martin and J. H. Wilkinson, “Calculation of the eigenvalues of a symmetric tridiagonal matrix by the method of bisection,” <i>Numer. Math.</i> <b>9</b>, 386 (1967). <a href="https://doi.org/10.1007/BF02162154" target="_blank" rel="noopener noreferrer">doi:10.1007/BF02162154</a></li>
       </ul>
     </details>
   </section>
@@ -600,6 +650,14 @@
     <p class="intro">Critical current, Josephson energy and inductance of a tunnel junction from its normal-state resistance, or the resistance you need for a target value. Also junction area from a resistance-area product.</p>
     <div class="cols">
       <div class="card">
+        <svg class="dia" viewBox="0 0 400 162" role="img" aria-label="Overlap Josephson junction: top view of two crossing aluminium electrodes with overlap area w by l, and a cross-section showing the oxide tunnel barrier">
+          <rect class="metal" x="20" y="72" width="180" height="30"/><rect class="metal" x="95" y="16" width="32" height="134"/>
+          <text x="22" y="66">bottom Al</text><text x="133" y="34">top Al</text><text x="22" y="158">top view</text>
+          <g data-for="jj-area jj-ra jj-amode"><rect class="area" x="95" y="72" width="32" height="30"/><path class="dim" d="M95 8H127M95 4v8M127 4v8"/><text class="sym" x="133" y="13">w</text><path class="ext" d="M200 72H216M200 102H216"/><path class="dim" d="M210 72V102M206 72h8M206 102h8"/><text class="sym" x="218" y="92">l</text><text x="133" y="128">A = w × l</text></g>
+          <rect class="metal" x="250" y="112" width="140" height="12"/><rect class="metal2" x="300" y="92" width="90" height="14"/>
+          <g data-for="jj-val jj-from"><rect class="oxide" x="250" y="106" width="140" height="6"/><text x="250" y="70">AlOₓ barrier → R<tspan font-size="10" dy="3">N</tspan></text></g>
+          <text x="302" y="140">bottom Al</text><text x="320" y="86">top Al</text><text x="300" y="158">cross-section</text>
+        </svg>
         <div class="fields">
           <div class="f"><label for="jj-tc">Critical temperature T<sub>c</sub></label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="jj-tc" value="1.2"><span class="u">K</span></div></div>
           <div class="f"><label for="jj-t">Operating temperature</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="jj-t" value="20"><span class="u">mK</span></div></div>
@@ -629,8 +687,10 @@
       <p class="eq">A = RA/R<sub>N</sub>, &nbsp; J<sub>c</sub> = I<sub>c</sub>/A</p>
       <p>Ambegaokar–Baratoff for a tunnel junction between identical BCS superconductors, using the low-temperature gap; the tanh factor is the only temperature dependence kept, so the result is valid well below T<sub>c</sub>. L<sub>J</sub> is the small-signal inductance at zero bias current. Measured critical currents are often somewhat below this value, so calibrate against your own junctions. R<sub>N</sub> is the room-temperature resistance corrected to low temperature (it typically rises by roughly 10–20 % on cooling; check for your process).</p>
       <ul class="refs">
-        <li>V. Ambegaokar and A. Baratoff, Phys. Rev. Lett. 10, 486 (1963).</li>
-        <li>M. Tinkham, <i>Introduction to Superconductivity</i>, 2nd ed. (McGraw-Hill, 1996).</li>
+        <li><b>I<sub>c</sub>R<sub>N</sub> = (πΔ/2e) tanh(Δ/2k<sub>B</sub>T):</b> V. Ambegaokar and A. Baratoff, “Tunneling between superconductors,” <i>Phys. Rev. Lett.</i> <b>10</b>, 486 (1963); erratum <b>11</b>, 104 (1963). <a href="https://doi.org/10.1103/PhysRevLett.10.486" target="_blank" rel="noopener noreferrer">doi:10.1103/PhysRevLett.10.486</a> <a href="https://doi.org/10.1103/PhysRevLett.11.104" target="_blank" rel="noopener noreferrer">doi:10.1103/PhysRevLett.11.104</a></li>
+        <li><b>E<sub>J</sub> = ħI<sub>c</sub>/2e and L<sub>J</sub> = Φ<sub>0</sub>/(2πI<sub>c</sub>):</b> B. D. Josephson, “Possible new effects in superconductive tunnelling,” <i>Phys. Lett.</i> <b>1</b>, 251 (1962). <a href="https://doi.org/10.1016/0031-9163(62)91369-0" target="_blank" rel="noopener noreferrer">doi:10.1016/0031-9163(62)91369-0</a> Textbook treatment: M. Tinkham, <i>Introduction to Superconductivity</i>, 2nd ed. (McGraw-Hill, 1996; Dover reprint, 2004), ISBN 0-486-43503-2.</li>
+        <li><b>Δ = 1.764 k<sub>B</sub>T<sub>c</sub>:</b> J. Bardeen, L. N. Cooper and J. R. Schrieffer, “Theory of superconductivity,” <i>Phys. Rev.</i> <b>108</b>, 1175 (1957). <a href="https://doi.org/10.1103/PhysRev.108.1175" target="_blank" rel="noopener noreferrer">doi:10.1103/PhysRev.108.1175</a></li>
+        <li><b>A = RA/R<sub>N</sub>:</b> definition of the resistance-area product; no reference needed.</li>
       </ul>
     </details>
   </section>
@@ -673,10 +733,16 @@
       <p class="eq">σ<sub>1</sub>/σ<sub>n</sub> ≈ (4Δ/ħω) e<sup>−Δ/k<sub>B</sub>T</sup> sinh(ξ) K<sub>0</sub>(ξ), &nbsp; σ<sub>2</sub>/σ<sub>n</sub> ≈ (πΔ/ħω) tanh(Δ/2k<sub>B</sub>T), &nbsp; ξ = ħω/2k<sub>B</sub>T</p>
       <p>which are shown for comparison (K<sub>0</sub> from Abramowitz and Stegun 9.8.5–9.8.6). The film’s surface impedance in the local limit is Z<sub>s</sub> = √(iωμ<sub>0</sub>/σ) coth(√(iωμ<sub>0</sub>σ) t) with σ = σ<sub>1</sub> − iσ<sub>2</sub>; L<sub>s</sub> = Im Z<sub>s</sub>/ω, and λ = 1/√(μ<sub>0</sub>ωσ<sub>2</sub>). Clean films (long mean free path, such as thick Al or Nb) are outside the local limit, so treat λ and L<sub>s</sub> there as estimates.</p>
       <ul class="refs">
-        <li>D. C. Mattis and J. Bardeen, Phys. Rev. 111, 412 (1958).</li>
-        <li>J. Gao, PhD thesis, Caltech (2008): Mattis–Bardeen integrals, surface impedance and approximations.</li>
-        <li>M. Tinkham, <i>Introduction to Superconductivity</i>, 2nd ed. (1996): BCS gap.</li>
-        <li>N<sub>0</sub> = 1.72 × 10<sup>10</sup> eV<sup>−1</sup> µm<sup>−3</sup> for aluminium is the value commonly used in the kinetic-inductance-detector literature (from memory).</li>
+        <li><b>Δ<sub>0</sub> = 1.764 k<sub>B</sub>T<sub>c</sub>:</b> J. Bardeen, L. N. Cooper and J. R. Schrieffer, “Theory of superconductivity,” <i>Phys. Rev.</i> <b>108</b>, 1175 (1957). <a href="https://doi.org/10.1103/PhysRev.108.1175" target="_blank" rel="noopener noreferrer">doi:10.1103/PhysRev.108.1175</a></li>
+        <li><b>Δ(T) ≈ Δ<sub>0</sub> tanh(1.74√(T<sub>c</sub>/T − 1)):</b> F. Gross, B. S. Chandrasekhar, D. Einzel, K. Andres, P. J. Hirschfeld, H. R. Ott, J. Beuers, Z. Fisk and J. L. Smith, “Anomalous temperature dependence of the magnetic field penetration depth in superconducting UBe<sub>13</sub>,” <i>Z. Phys. B</i> <b>64</b>, 175 (1986), eq. (3.11) with BCS values. <a href="https://doi.org/10.1007/BF01303700" target="_blank" rel="noopener noreferrer">doi:10.1007/BF01303700</a></li>
+        <li><b>x<sub>qp</sub> and n<sub>qp</sub> = 2N<sub>0</sub>√(2πk<sub>B</sub>TΔ) e<sup>−Δ/k<sub>B</sub>T</sup> (eq. 1), and N<sub>0</sub> = 1.72 × 10<sup>10</sup> eV<sup>−1</sup> µm<sup>−3</sup> for Al:</b> P. J. de Visser, J. J. A. Baselmans, P. Diener, S. J. C. Yates, A. Endo and T. M. Klapwijk, “Number fluctuations of sparse quasiparticles in a superconductor,” <i>Phys. Rev. Lett.</i> <b>106</b>, 167004 (2011). <a href="https://doi.org/10.1103/PhysRevLett.106.167004" target="_blank" rel="noopener noreferrer">doi:10.1103/PhysRevLett.106.167004</a></li>
+        <li><b>σ<sub>1</sub> and σ<sub>2</sub> integrals:</b> D. C. Mattis and J. Bardeen, “Theory of the anomalous skin effect in normal and superconducting metals,” <i>Phys. Rev.</i> <b>111</b>, 412 (1958). <a href="https://doi.org/10.1103/PhysRev.111.412" target="_blank" rel="noopener noreferrer">doi:10.1103/PhysRev.111.412</a></li>
+        <li><b>σ<sub>1</sub>/σ<sub>n</sub> ≈ (4Δ/ħω) e<sup>−Δ/k<sub>B</sub>T</sup> sinh ξ K<sub>0</sub>(ξ) (eq. 2.91):</b> J. Gao, <i>The Physics of Superconducting Microwave Resonators</i>, PhD thesis, California Institute of Technology (2008). <a href="https://doi.org/10.7907/RAT0-VM75" target="_blank" rel="noopener noreferrer">doi:10.7907/RAT0-VM75</a></li>
+        <li><b>σ<sub>2</sub>/σ<sub>n</sub> ≈ (πΔ/ħω) tanh(Δ/2k<sub>B</sub>T) (eq. 5, after Tinkham):</b> A. J. Annunziata, D. F. Santavicca, L. Frunzio, G. Catelani, M. J. Rooks, A. Frydman and D. E. Prober, “Tunable superconducting nanoinductors,” <i>Nanotechnology</i> <b>21</b>, 445202 (2010). <a href="https://doi.org/10.1088/0957-4484/21/44/445202" target="_blank" rel="noopener noreferrer">doi:10.1088/0957-4484/21/44/445202</a></li>
+        <li><b>K<sub>0</sub> polynomial approximations:</b> M. Abramowitz and I. A. Stegun, <i>Handbook of Mathematical Functions</i>, NBS Applied Mathematics Series 55 (1964), eqs. 9.8.5–9.8.6.</li>
+        <li><b>Z<sub>s</sub> = √(iωμ<sub>0</sub>/σ) coth(√(iωμ<sub>0</sub>σ) t) (eq. 2.3):</b> R. L. Kautz, “Miniaturization of normal-state and superconducting striplines,” <i>J. Res. Natl. Bur. Stand.</i> <b>84</b>, 247 (1979). <a href="https://doi.org/10.6028/jres.084.010" target="_blank" rel="noopener noreferrer">doi:10.6028/jres.084.010</a></li>
+        <li><b>T = 0 closed form of the pair-breaking σ<sub>1</sub>:</b> no reference found that we could check; the page only shows that the numerical integral reproduces it.</li>
+        <li><b>Material presets (T<sub>c</sub>, ρ<sub>n</sub>):</b> typical film values; no reference found, so use your own measured values.</li>
       </ul>
     </details>
   </section>
@@ -688,6 +754,15 @@
     <div class="cards2">
       <div class="card">
         <h3>Interdigitated capacitor</h3>
+        <svg class="dia" viewBox="0 0 400 208" role="img" aria-label="Interdigitated capacitor top view: N fingers of width W and gap G overlapping over a length l between two bus bars">
+          <rect class="metal" x="30" y="20" width="198" height="14"/><rect class="metal" x="30" y="156" width="198" height="14"/>
+          <g data-for="lc-in"><rect class="metal" x="40" y="34" width="18" height="102"/><rect class="metal" x="72" y="54" width="18" height="102"/><rect class="metal" x="104" y="34" width="18" height="102"/><rect class="metal" x="136" y="54" width="18" height="102"/><rect class="metal" x="168" y="34" width="18" height="102"/><rect class="metal" x="200" y="54" width="18" height="102"/><text x="129" y="13" text-anchor="middle">N fingers (6 drawn)</text></g>
+          <g data-for="lc-il"><path class="ext" d="M218 54H246M222 136H246"/><path class="dim" d="M240 54V136M236 54h8M236 136h8"/><text class="sym" x="250" y="100">ℓ</text><text x="262" y="100">overlap</text></g>
+          <g data-for="lc-iw"><path class="ext" d="M168 138V192M186 138V192"/><path class="dim" d="M168 186H186M168 182v8M186 182v8"/><text class="sym" x="164" y="202" text-anchor="end">W</text></g>
+          <g data-for="lc-ig"><path class="ext" d="M200 172V192"/><path class="dim" d="M186 186H200M186 182v8M200 182v8"/><text class="sym" x="204" y="202">G</text></g>
+          <path class="dim" d="M226 34V54M222 34h8M222 54h8"/><text class="nm" x="234" y="44">end gap (not modelled)</text>
+          <g data-for="lc-ie"><text x="262" y="186">substrate</text><text class="sym" x="330" y="186">ε<tspan font-size="10" dy="3">r</tspan></text></g>
+        </svg>
         <div class="fields">
           <div class="f"><label for="lc-in">Number of fingers N</label><input type="text" autocomplete="off" inputmode="numeric" id="lc-in" value="20"></div>
           <div class="f"><label for="lc-il">Finger length (overlap)</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-il" value="300"><span class="u">µm</span></div></div>
@@ -699,6 +774,15 @@
       </div>
       <div class="card">
         <h3>Parallel-plate capacitor</h3>
+        <svg class="dia" viewBox="0 0 400 184" role="img" aria-label="Parallel-plate capacitor: two plates of given width and length separated by a dielectric of thickness d and permittivity epsilon r">
+          <path class="metal2" d="M70 140H270V146H70zM270 140L340 95V101L270 146z"/>
+          <g data-for="lc-pe lc-pd"><path class="sub" d="M70 116H270V140H70zM270 116L340 71V95L270 140z"/><text class="sym" x="170" y="135" text-anchor="middle">ε<tspan font-size="10" dy="3">r</tspan></text><text x="350" y="90">dielectric</text></g>
+          <path class="metal" d="M70 110H270L340 65H140z"/><path class="metal2" d="M70 110H270V116H70zM270 110L340 65V71L270 116z"/>
+          <text x="196" y="92" text-anchor="middle">top plate</text>
+          <g data-for="lc-pw"><path class="ext" d="M70 148V170M270 148V170"/><path class="dim" d="M70 164H270M70 160v8M270 160v8"/><text x="170" y="181" text-anchor="middle">width</text></g>
+          <g data-for="lc-pl"><path class="dim" d="M284 114L354 69M281 109l6 9M351 64l6 9"/><text x="350" y="124">length</text></g>
+          <g data-for="lc-pt"><path class="ext" d="M70 116H48M70 140H48"/><path class="dim" d="M54 116V140M50 116h8M50 140h8"/><text class="sym" x="44" y="133" text-anchor="end">d</text></g>
+        </svg>
         <div class="fields">
           <div class="f"><label for="lc-pw">Width</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-pw" value="20"><span class="u">µm</span></div></div>
           <div class="f"><label for="lc-pl">Length</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-pl" value="20"><span class="u">µm</span></div></div>
@@ -710,6 +794,14 @@
       </div>
       <div class="card">
         <h3>Meander inductor</h3>
+        <svg class="dia" viewBox="0 0 400 186" role="img" aria-label="Meander inductor top view: N parallel strips of given length, line width w and centre-to-centre pitch p">
+          <g data-for="lc-mn"><path class="trace" stroke-width="9" d="M50 162V30H84V140H118V30H152V140H186V30H220V140H254V30H290"/><text x="152" y="15" text-anchor="middle">N strips (7 drawn)</text></g>
+          <g data-for="lc-ml"><path class="ext" d="M258 140H306"/><path class="dim" d="M300 30V140M296 30h8M296 140h8"/><text x="308" y="90">strip length</text></g>
+          <g data-for="lc-mw"><path class="dim" d="M147.5 85H156.5M147.5 81v8M156.5 81v8"/><text class="sym" x="161" y="90">w</text></g>
+          <g data-for="lc-mp"><path class="ext" d="M84 145V182M118 145V182"/><path class="dim" d="M84 176H118M84 172v8M118 172v8"/><text class="sym" x="122" y="180">p</text><text x="134" y="180">pitch</text></g>
+          <g data-for="lc-mt"><text x="300" y="160">t: film thickness</text></g>
+          <g data-for="lc-mls"><text x="300" y="176">L<tspan font-size="10" dy="3">s</tspan>: per square</text></g>
+        </svg>
         <div class="fields">
           <div class="f"><label for="lc-mn">Number of strips N</label><input type="text" autocomplete="off" inputmode="numeric" id="lc-mn" value="20"></div>
           <div class="f"><label for="lc-ml">Strip length</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-ml" value="200"><span class="u">µm</span></div></div>
@@ -722,6 +814,15 @@
       </div>
       <div class="card">
         <h3>Square spiral inductor</h3>
+        <svg class="dia" viewBox="0 0 400 204" role="img" aria-label="Square spiral inductor: n turns, outer size d out, line width w, spacing s; the inner size d in follows from these">
+          <g data-for="lc-sn"><path class="trace" stroke-width="8" d="M44 196V24H196V176H62V42H178V158H80V60H160V140H98"/><text x="232" y="44">n turns (3 drawn)</text></g>
+          <path class="ext" d="M98 140V196"/><text class="nm" x="104" y="198">return over an air bridge (not modelled)</text>
+          <g data-for="lc-sd"><path class="ext" d="M40 20V4M200 20V4"/><path class="dim" d="M40 9H98M142 9H200M40 5v8M200 5v8"/><text class="sym" x="120" y="14" text-anchor="middle">d<tspan font-size="10" dy="3">out</tspan></text></g>
+          <path class="dim" d="M84 100H156M84 96v8M156 96v8"/><text class="nm" x="120" y="94" text-anchor="middle">d<tspan font-size="10" dy="3">in</tspan></text><text class="nm" x="120" y="118" text-anchor="middle">computed</text>
+          <g data-for="lc-sw"><path class="dim" d="M192 86H200M192 82v8M200 82v8"/><text class="sym" x="208" y="91">w</text></g>
+          <g data-for="lc-ss"><path class="dim" d="M182 112H192M182 108v8M192 108v8"/><text class="sym" x="208" y="117">s</text></g>
+          <g data-for="lc-sls"><text x="232" y="160">L<tspan font-size="10" dy="3">s</tspan>: per square</text></g>
+        </svg>
         <div class="fields">
           <div class="f"><label for="lc-sn">Turns n</label><input type="text" autocomplete="off" inputmode="decimal" id="lc-sn" value="5"></div>
           <div class="f"><label for="lc-sd">Outer size d<sub>out</sub></label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="lc-sd" value="200"><span class="u">µm</span></div></div>
@@ -753,7 +854,7 @@
       <h4>Interdigitated capacitor</h4>
       <p class="eq">C = (N − 3) C<sub>I</sub>/2 + 2C<sub>I</sub>C<sub>E</sub>/(C<sub>I</sub> + C<sub>E</sub>), &nbsp; C<sub>I,E</sub> = ε<sub>0</sub>(ε<sub>r</sub> + 1) ℓ K(k<sub>I,E</sub>)/K(k′<sub>I,E</sub>)<br>
         k<sub>I</sub> = sin(πη/2), &nbsp; k<sub>E</sub> = 2√η/(1 + η), &nbsp; η = W/(W + G)</p>
-      <p>Igreja–Silva conformal mapping for a substrate much thicker than the finger period, with air above; finger-end gaps, bus bars and nearby ground planes are ignored. The Alley/Bahl closed form C = (ε<sub>r</sub> + 1) ℓ[(N − 3)A<sub>1</sub> + A<sub>2</sub>], A<sub>1</sub> = 4.409 × 10<sup>−6</sup> pF/µm, A<sub>2</sub> = 9.92 × 10<sup>−6</sup> pF/µm (W = G, thick substrate) is shown as a cross-check; for W = G the interior terms agree to 0.4 %.</p>
+      <p>Igreja–Dias conformal mapping for a substrate much thicker than the finger period, with air above; finger-end gaps, bus bars and nearby ground planes are ignored. The Alley/Bahl closed form C = (ε<sub>r</sub> + 1) ℓ[(N − 3)A<sub>1</sub> + A<sub>2</sub>], A<sub>1</sub> = 4.409 × 10<sup>−6</sup> pF/µm, A<sub>2</sub> = 9.92 × 10<sup>−6</sup> pF/µm (W = G, thick substrate) is shown as a cross-check; for W = G the interior terms agree to 0.4 %.</p>
       <h4>Parallel-plate capacitor</h4>
       <p class="eq">C = ε<sub>0</sub>ε<sub>r</sub>A/d</p>
       <p>No fringing fields (fine when the plate is much wider than d). Dielectric constants are typical deposited-film values and depend on the process.</p>
@@ -767,36 +868,20 @@
         Current sheet: L = (μ<sub>0</sub>n²d<sub>avg</sub> · 1.27/2)[ln(2.07/ρ) + 0.18ρ + 0.13ρ²]</p>
       <p>Mohan et al. report errors of a few per cent against field solvers for typical spirals without a ground plane. The kinetic term uses the wire length 4n d<sub>avg</sub>. The air bridge or crossover that returns the inner end is not included.</p>
       <ul class="refs">
-        <li>R. Igreja and C. J. Dias, Sensors and Actuators A 112, 291 (2004): interdigitated-electrode capacitance by conformal mapping (author list and details from memory; the method is often cited as Igreja–Silva).</li>
-        <li>G. D. Alley, IEEE Trans. Microw. Theory Tech. 18, 1028 (1970), and I. Bahl, <i>Lumped Elements for RF and Microwave Circuits</i> (Artech House, 2003): closed-form IDC coefficients.</li>
-        <li>S. S. Mohan, M. del Mar Hershenson, S. P. Boyd and T. H. Lee, IEEE J. Solid-State Circuits 34, 1419 (1999): modified Wheeler and current-sheet formulas.</li>
-        <li>F. W. Grover, <i>Inductance Calculations</i> (Van Nostrand, 1946; Dover reprint): self and mutual inductance of straight conductors.</li>
+        <li><b>Interdigitated capacitor, C = (N − 3)C<sub>I</sub>/2 + 2C<sub>I</sub>C<sub>E</sub>/(C<sub>I</sub> + C<sub>E</sub>), k<sub>I</sub> = sin(πη/2), k<sub>E</sub> = 2√η/(1 + η):</b> R. Igreja and C. J. Dias, “Analytical evaluation of the interdigital electrodes capacitance for a multi-layered structure,” <i>Sens. Actuators A</i> <b>112</b>, 291 (2004). <a href="https://doi.org/10.1016/j.sna.2004.01.040" target="_blank" rel="noopener noreferrer">doi:10.1016/j.sna.2004.01.040</a> The paper itself is paywalled; the formulas were checked in later work that reproduces them from it.</li>
+        <li><b>Closed-form coefficients A<sub>1</sub> = 4.409 × 10<sup>−6</sup> and A<sub>2</sub> = 9.92 × 10<sup>−6</sup> pF/µm (thick-substrate limit of the tanh-fitted form):</b> I. Bahl, <i>Lumped Elements for RF and Microwave Circuits</i> (Artech House, 2003), ISBN 1-58053-309-4. Original IDC analysis: G. D. Alley, “Interdigital capacitors and their application to lumped-element microwave integrated circuits,” <i>IEEE Trans. Microw. Theory Tech.</i> <b>18</b>, 1028 (1970). <a href="https://doi.org/10.1109/TMTT.1970.1127407" target="_blank" rel="noopener noreferrer">doi:10.1109/TMTT.1970.1127407</a> The coefficient values could not be checked in either text, so treat them as unverified.</li>
+        <li><b>C = ε<sub>0</sub>ε<sub>r</sub>A/d:</b> D. J. Griffiths, <i>Introduction to Electrodynamics</i>, 4th ed. (Cambridge University Press, 2017). <a href="https://doi.org/10.1017/9781108333511" target="_blank" rel="noopener noreferrer">doi:10.1017/9781108333511</a></li>
+        <li><b>SiO<sub>2</sub> 3.9 and Si<sub>3</sub>N<sub>4</sub> 7.5:</b> S. M. Sze and K. K. Ng, <i>Physics of Semiconductor Devices</i>, 3rd ed. (Wiley-Interscience, 2007). <a href="https://doi.org/10.1002/0470068329" target="_blank" rel="noopener noreferrer">doi:10.1002/0470068329</a></li>
+        <li><b>a-Si:H ε ≈ 9.5–11:</b> B. T. Buijtendorp, J. Bueno, D. J. Thoen, V. Murugesan, P. M. Sberna, J. J. A. Baselmans, S. Vollebregt and A. Endo, “Characterization of low-loss hydrogenated amorphous silicon films for superconducting resonators,” <i>J. Astron. Telesc. Instrum. Syst.</i> <b>8</b>, 028006 (2022). <a href="https://doi.org/10.1117/1.JATIS.8.2.028006" target="_blank" rel="noopener noreferrer">doi:10.1117/1.JATIS.8.2.028006</a></li>
+        <li><b>ALD Al<sub>2</sub>O<sub>3</sub> ≈ 8:</b> reported values range from about 7 to 9 depending on deposition; no single reference verified.</li>
+        <li><b>Meander: self-inductance of a straight rectangular bar:</b> E. B. Rosa, “The self and mutual inductances of linear conductors,” <i>Bull. Bur. Stand.</i> <b>4</b>, 301 (1908), eq. (21). <a href="https://doi.org/10.6028/bulletin.088" target="_blank" rel="noopener noreferrer">doi:10.6028/bulletin.088</a></li>
+        <li><b>Meander: mutual inductance of two equal parallel filaments:</b> F. W. Grover, <i>Inductance Calculations: Working Formulas and Tables</i> (Van Nostrand, 1946; Dover reprint, 2004), ISBN 0-486-49577-9. (also Rosa 1908 above). Checked only through a secondary source quoting Grover.</li>
+        <li><b>Square spiral: modified Wheeler (K<sub>1</sub> = 2.34, K<sub>2</sub> = 2.75) and current-sheet (c<sub>1</sub>–c<sub>4</sub> = 1.27, 2.07, 0.18, 0.13) formulas:</b> S. S. Mohan, M. del Mar Hershenson, S. P. Boyd and T. H. Lee, “Simple accurate expressions for planar spiral inductances,” <i>IEEE J. Solid-State Circuits</i> <b>34</b>, 1419 (1999). <a href="https://doi.org/10.1109/4.792620" target="_blank" rel="noopener noreferrer">doi:10.1109/4.792620</a></li>
+        <li><b>f = 1/(2π√(LC)):</b> D. M. Pozar, <i>Microwave Engineering</i>, 4th ed. (Wiley, 2012), ISBN 978-0-470-63155-3, ch. 6.</li>
       </ul>
     </details>
   </section>
 
-  <!-- ============================== RF power ============================== -->
-  <section class="tool" id="tool-rf">
-    <h2>RF power converter</h2>
-    <p class="intro">Convert between dBm, watts, voltages across a given impedance and photon flux. Click a row to convert from that unit.</p>
-    <div class="card">
-      <div class="toolbar">
-        <div class="f"><label for="rf-val">Value</label><input type="text" autocomplete="off" inputmode="decimal" id="rf-val" value="-90"></div>
-        <div class="f"><label for="rf-from">Unit</label><select autocomplete="off" id="rf-from"></select></div>
-        <div class="f" style="flex:0 1 150px"><label for="rf-z">Impedance</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="rf-z" value="50"><span class="u">Ω</span></div></div>
-        <div class="f" style="flex:0 1 150px"><label for="rf-f">Frequency</label><div class="inp"><input type="text" autocomplete="off" inputmode="decimal" id="rf-f" value="6"><span class="u">GHz</span></div></div>
-      </div>
-      <div class="tablewrap">
-        <table class="data conv"><thead><tr><th>Unit</th><th style="text-align:right">Value</th><th>Note</th></tr></thead><tbody id="rf-body"></tbody></table>
-      </div>
-      <p class="msg" id="rf-msg"></p>
-    </div>
-    <details class="ref">
-      <summary>Formulas, assumptions and references</summary>
-      <p class="eq">P = 1 mW · 10<sup>dBm/10</sup>, &nbsp; P = V<sub>rms</sub>²/Z, &nbsp; V<sub>peak</sub> = √2 V<sub>rms</sub>, &nbsp; V<sub>pp</sub> = 2V<sub>peak</sub>, &nbsp; dBV = 20 log<sub>10</sub>(V<sub>rms</sub>/1 V), &nbsp; Ṅ = P/(hf)</p>
-      <p>Voltages are for a sine wave delivered into a matched, purely resistive load Z. Check: 0 dBm into 50 Ω is 223.6 mV rms, 316.2 mV peak and 632.5 mV peak to peak.</p>
-    </details>
-  </section>
 </div>
 
 <div id="peek" class="off" aria-hidden="true"><span class="cap"></span><span class="val"></span></div>
@@ -1291,13 +1376,27 @@ const UNITS = {
     { name: "nm (wavelength)", to: x => HP * C0 / (x * 1e-9), from: y => HP * C0 / y / 1e-9, note: "λ = hc/E" },
     lin("J", 1), lin("zJ", 1e-21, "10⁻²¹ J"),
   ],
+  "RF power": (() => {   // base unit W; voltages across the impedance u-z, photon flux at frequency u-f
+    const Z = () => num("u-z"), F = () => num("u-f") * 1e9;
+    const v = (name, k, note) => ({ name, to: x => (x * k) ** 2 / Z(), from: W => Math.sqrt(W * Z()) / k, note: note || "" });
+    return [
+      { name: "dBm", to: x => 1e-3 * Math.pow(10, x / 10), from: W => 10 * Math.log10(W / 1e-3), note: "dB relative to 1 mW" },
+      { name: "dBW", to: x => Math.pow(10, x / 10), from: W => 10 * Math.log10(W), note: "dB relative to 1 W" },
+      lin("W", 1), lin("mW", 1e-3), lin("µW", 1e-6), lin("nW", 1e-9), lin("pW", 1e-12), lin("fW", 1e-15), lin("aW", 1e-18),
+      v("V rms", 1, "across the impedance"), v("mV rms", 1e-3), v("µV rms", 1e-6), v("nV rms", 1e-9),
+      v("V peak", 1 / Math.SQRT2, "sine amplitude"), v("mV peak", 1e-3 / Math.SQRT2, "sine amplitude"),
+      v("V peak-to-peak", 1 / (2 * Math.SQRT2), "sine"), v("mV peak-to-peak", 1e-3 / (2 * Math.SQRT2), "sine"),
+      { name: "dBV", to: x => Math.pow(10, x / 10) / Z(), from: W => 10 * Math.log10(W * Z()), note: "dB relative to 1 V rms" },
+      { name: "photons/s", to: x => x * HP * F(), from: W => W / (HP * F()), note: "P/hf at the frequency above" },
+    ];
+  })(),
   "Magnetic field": [
     lin("T", 1), lin("mT", 1e-3), lin("µT", 1e-6), lin("nT", 1e-9), lin("G", 1e-4, "gauss"), lin("mG", 1e-7),
     lin("Oe", 1e-4, "H in vacuum, B = μ<sub>0</sub>H"), lin("A/m", MU0, "H in vacuum, B = μ<sub>0</sub>H"), lin("kA/m", MU0 * 1e3, "H in vacuum"),
     lin("Φ₀/µm²", PHI0 / 1e-12, "one flux quantum per µm²"),
   ],
 };
-const UNIT_DEFAULTS = { "Length": "µm", "Pressure": "mbar", "Temperature": "K", "Mass": "g", "Energy and frequency": "GHz", "Magnetic field": "mT" };
+const UNIT_DEFAULTS = { "Length": "µm", "Pressure": "mbar", "Temperature": "K", "Mass": "g", "Energy and frequency": "GHz", "RF power": "dBm", "Magnetic field": "mT" };
 let uCat = "Energy and frequency";
 function initUnits() {
   $("u-cats").innerHTML = Object.keys(UNITS).map(c => `<button data-c="${c}">${c}</button>`).join("");
@@ -1313,7 +1412,8 @@ function setCat(c, resetVal) {
   $("u-cats").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.c === c));
   $("u-from").innerHTML = UNITS[c].map(u => `<option value="${u.name}">${u.name}</option>`).join("");
   $("u-from").value = UNIT_DEFAULTS[c];
-  if (resetVal) $("u-val").value = c === "Temperature" ? "4.2" : "1";
+  if (resetVal) $("u-val").value = c === "Temperature" ? "4.2" : c === "RF power" ? "-90" : "1";
+  document.querySelectorAll(".u-rf").forEach(e => e.classList.toggle("hide", c !== "RF power"));
   renderUnits();
 }
 function renderUnits() {
@@ -1323,6 +1423,10 @@ function renderUnits() {
   let msg = "";
   if (uCat === "Temperature" && base < 0) msg = "That is below absolute zero.";
   if (src.name.startsWith("nm") && x <= 0) msg = "Wavelength must be positive.";
+  if (uCat === "RF power") {
+    if (!(num("u-z") > 0 && num("u-f") > 0)) { $("u-body").innerHTML = ""; $("u-msg").className = "msg err"; $("u-msg").textContent = "Enter a positive impedance and frequency."; return; }
+    if (!(base > 0)) msg = "Power must be positive.";
+  }
   $("u-msg").className = "msg err"; $("u-msg").textContent = msg;
   $("u-body").innerHTML = list.map(u => {
     const y = u.from(base);
@@ -1419,7 +1523,9 @@ function keyMatch(r, t) {
 /* ======================================================================
    tabs and wiring
    ====================================================================== */
+const TAB_ALIAS = { rf: "units", rfpower: "units", power: "units" };   // the RF power tab now lives in the unit converter
 function showTab(id) {
+  if (TAB_ALIAS[id]) { if (uCat !== "RF power") setCat("RF power", true); id = TAB_ALIAS[id]; }
   if (!document.getElementById("tool-" + id)) id = "cpw";
   document.querySelectorAll(".tool").forEach(s => s.classList.toggle("active", s.id === "tool-" + id));
   document.querySelectorAll("#tabs button").forEach(b => { b.classList.toggle("on", b.dataset.tab === id); b.setAttribute("aria-pressed", b.dataset.tab === id); });
@@ -1457,10 +1563,11 @@ $("tool-res").addEventListener("click", () => setTimeout(updatePeek));
 $("tool-dew").addEventListener("input", () => { renderDew(); updatePeek(); });
 $("u-val").addEventListener("input", renderUnits);
 $("u-from").addEventListener("change", renderUnits);
+["u-z", "u-f"].forEach(id => $(id).addEventListener("input", renderUnits));
 updateAll(); renderDew();
 showTab(location.hash.slice(1) || "cpw");
 </script>
-<script src="../assets/toolbox/more.js?v=20261122b"></script>
+<script src="../assets/toolbox/more.js?v=20261123a"></script>
 <script>/* links to other websites open in a new tab */ document.querySelectorAll("a[href]").forEach((a) => { if (/^https?:$/.test(a.protocol) && a.origin !== location.origin) { a.target = "_blank"; a.rel = "noopener noreferrer"; } });</script>
 </body>
 </html>

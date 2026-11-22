@@ -7,7 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/toy.css?v=20261122k">
 <style>
-  html, body { background: #e9eee0; }
+  html, body { background: #f6efe0; }
   #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
   #gl.grabbing { cursor: grabbing; }
   .toggle-panel { display: none; }
@@ -18,6 +18,7 @@
     font-size: 14px; line-height: 1; border-radius: 50%;
   }
   .panel .sub { margin-bottom: 10px; }
+  .panel .row { margin-bottom: 10px; }
   .panel .hint { margin: 0; }
   .fab {
     position: fixed; top: max(12px, env(safe-area-inset-top)); left: 12px; z-index: 12;
@@ -30,19 +31,40 @@
     font-size: 11.5px; color: #f4f2ea; background: rgba(30, 34, 28, .45); padding: 5px 11px; border-radius: 999px;
     transition: opacity 1s; pointer-events: none; white-space: nowrap; max-width: calc(100vw - 24px); overflow: hidden; text-overflow: ellipsis;
   }
+  /* cinema mode: no UI at all, only a small exit button that shows up on a tap or mouse move */
+  body.cinema .panel, body.cinema #hintbar, body.cinema #openPanel { display: none !important; }
+  body.cinema #gl { cursor: none; }
+  #cinemaExit { left: auto; right: max(12px, env(safe-area-inset-right)); opacity: 0; transition: opacity .4s; }
+  #cinemaExit.show { opacity: 1; }
+  .birdlist { list-style: none; margin: 0 0 10px; padding: 0; }
+  .birdlist li { display: grid; grid-template-columns: 14px auto 1fr; gap: 10px; align-items: center; padding: 5px 6px; margin: 0 -6px; border-radius: 6px; cursor: pointer; }
+  .birdlist li:hover { background: rgba(255, 255, 255, .06); }
+  .birdlist .sw { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .22); }
+  .birdlist .nm { font-weight: 500; white-space: nowrap; }
+  .birdlist .st { color: var(--soft); font-size: 12px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .birdlabel { position: fixed; left: 0; top: 0; z-index: 4; pointer-events: none; background: var(--panel); border: 1px solid var(--rule);
+    border-radius: 999px; padding: 3px 10px; font-size: 12px; white-space: nowrap; opacity: 0; transition: opacity .25s; will-change: transform; }
+  .birdlabel.on { opacity: 1; }
+  body.cinema .birdlabel { display: none !important; }
+  #gl.onbird { cursor: pointer; }
+  #dip { position: fixed; inset: 0; background: #f6efe0; opacity: 0; pointer-events: none; transition: opacity .5s ease; z-index: 5; }
 </style>
 </head>
 <body>
 <canvas id="gl"></canvas>
+<div id="dip"></div>
 <div id="hintbar">Drag to look around · click the grass to throw feed</div>
 <button class="fab" id="openPanel" hidden>☰ Menu</button>
+<button class="fab" id="cinemaExit" hidden>✕ Exit cinema</button>
 
 <div class="panel hidden" id="panel">
   <button class="close" id="closePanel" aria-label="Close panel" title="Close (H)">✕</button>
   <a class="back" href="../index.html">← Home</a>
   <h1>Chickens</h1>
-  <p class="sub">Six hens and a rooster in the back garden. Click the grass to throw some feed.</p>
-  <p class="hint">Drag to look around, scroll or pinch to zoom. <kbd>H</kbd> hides this panel.</p>
+  <p class="sub">The chicken run from when I was little: Heinrich, five hens, and the little tree I planted. Click the grass to throw some feed.</p>
+  <ul class="birdlist" id="birdList"></ul>
+  <div class="row"><button id="cinemaBtn">Cinema mode</button></div>
+  <p class="hint">Drag to look around, scroll or pinch to zoom. Hover or click a bird to see its name. <kbd>H</kbd> hides this panel, <kbd>V</kbd> starts cinema mode (<kbd>V</kbd> or <kbd>Esc</kbd> to leave).</p>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -70,27 +92,31 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
-const HORIZON = 0xeef0dc, SKY = 0x9fcbea;
+const HORIZON = 0xf6efe0, SKY = 0xa6d1ef;
 scene.background = new THREE.Color(HORIZON);
-scene.fog = new THREE.Fog(HORIZON, 22, 70);
+scene.fog = new THREE.Fog(HORIZON, 24, 62);
 const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 500);
 
-// warm, gentle light
-const hemi = new THREE.HemisphereLight(0xdfeeff, 0x9c8a5a, 0.62);
-const amb = new THREE.AmbientLight(0xfff1dc, 0.1);
-const sun = new THREE.DirectionalLight(0xffe8c4, 0.78);
-sun.position.set(5.5, 10, 7.5);
+// warm golden key light, sky-blue / warm-bounce hemisphere, a touch of ambient so shadows never go black
+const hemi = new THREE.HemisphereLight(0xcfe6ff, 0xe2c79f, 0.56);
+const amb = new THREE.AmbientLight(0xfff4e4, 0.1);
+const sun = new THREE.DirectionalLight(0xffdcaa, 0.78);
+sun.position.set(0.4 + 5.5, 10, -2.8 + 7.5); sun.target.position.set(0.4, 0, -2.8);
 sun.castShadow = true;
 sun.shadow.mapSize.set(smallScreen ? 1024 : 2048, smallScreen ? 1024 : 2048);
-Object.assign(sun.shadow.camera, { left: -6.5, right: 6.5, top: 6.5, bottom: -6.5, near: 0.5, far: 40 });
-sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.015;
+Object.assign(sun.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12, near: 0.5, far: 50 });
+sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.02;
 scene.add(hemi, amb, sun, sun.target);
 
-// sky dome
+// sky dome: light blue overhead fading to warm near-white at the horizon and below
 {
-  const g = new THREE.SphereGeometry(220, 24, 12), p = g.attributes.position, col = new Float32Array(p.count * 3);
-  const top = new THREE.Color(SKY), hor = new THREE.Color(HORIZON), c = new THREE.Color();
-  for (let i = 0; i < p.count; i++) { const t = Math.pow(clamp(p.getY(i) / 220, 0, 1), 0.55); c.copy(hor).lerp(top, t); col.set([c.r, c.g, c.b], i * 3); }
+  const g = new THREE.SphereGeometry(220, 24, 14), p = g.attributes.position, col = new Float32Array(p.count * 3);
+  const top = new THREE.Color(SKY), hor = new THREE.Color(HORIZON), low = new THREE.Color(0xf3e7d4), c = new THREE.Color();
+  for (let i = 0; i < p.count; i++) {
+    const y = p.getY(i) / 220;
+    if (y >= 0) c.copy(hor).lerp(top, Math.pow(y, 0.42)); else c.copy(hor).lerp(low, Math.min(1, -y * 2));
+    col.set([c.r, c.g, c.b], i * 3);
+  }
   g.setAttribute("color", new THREE.BufferAttribute(col, 3));
   scene.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false })));
 }
@@ -103,18 +129,31 @@ const _o = new THREE.Object3D(), _a = new THREE.Vector3(), _b = new THREE.Vector
 function mat4(x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) {
   _o.position.set(x, y, z); _o.rotation.set(rx, ry, rz); _o.scale.set(sx, sy, sz); _o.updateMatrix(); return _o.matrix.clone();
 }
+// flat-shaded Phong (Lambert ignores flatShading in r128), vertex colours, a faint sheen
+const FLAT = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, shininess: 10, specular: 0x141210 });
+// nudge a vertex by a few millimetres, the same way wherever it appears, so shared corners stay shut
+const fr = (v) => v - Math.floor(v);
+function wobble(v, amp) {
+  const kx = Math.round(v.x * 400), ky = Math.round(v.y * 400), kz = Math.round(v.z * 400);
+  v.x += (fr(Math.sin(kx * 12.9898 + ky * 78.233 + kz * 37.719) * 43758.5453) - 0.5) * 2 * amp;
+  if (Math.abs(v.y) > 0.01) v.y += (fr(Math.sin(kx * 39.346 + ky * 11.135 + kz * 83.155) * 24634.634) - 0.5) * 2 * amp;
+  v.z += (fr(Math.sin(kx * 73.156 + ky * 52.235 + kz * 9.151) * 31415.927) - 0.5) * 2 * amp;
+}
 class Bake {
-  constructor() { this.p = []; this.n = []; this.c = []; }
-  add(geo, color, m, j = 0.07) {
+  constructor(jit = true) { this.p = []; this.n = []; this.c = []; this.jit = jit; }
+  add(geo, color, m, j = 0.07, keep = false) {
     const g = geo.index ? geo.toNonIndexed() : geo, p = g.attributes.position, col = new THREE.Color(color);
+    let amp = 0;
+    if (this.jit) { g.computeBoundingBox(); const sz = g.boundingBox.getSize(_e); amp = Math.min(0.02, Math.min(sz.x, sz.y, sz.z) * 0.12); }
     for (let i = 0; i < p.count; i += 3) {
       _a.fromBufferAttribute(p, i).applyMatrix4(m); _b.fromBufferAttribute(p, i + 1).applyMatrix4(m); _c.fromBufferAttribute(p, i + 2).applyMatrix4(m);
+      if (amp > 0.0005) { wobble(_a, amp); wobble(_b, amp); wobble(_c, amp); }
       _n.subVectors(_b, _a).cross(_e.subVectors(_c, _a)).normalize();
       const t = 1 + (Math.random() - 0.5) * j;
       for (const v of [_a, _b, _c]) { this.p.push(v.x, v.y, v.z); this.n.push(_n.x, _n.y, _n.z); this.c.push(col.r * t, col.g * t, col.b * t); }
     }
     if (g !== geo) g.dispose();
-    geo.dispose();
+    if (!keep) geo.dispose();
     return this;
   }
   box(color, w, h, d, x, y, z, rx = 0, ry = 0, rz = 0, parent, j) {
@@ -126,7 +165,7 @@ class Bake {
     g.setAttribute("position", new THREE.Float32BufferAttribute(this.p, 3));
     g.setAttribute("normal", new THREE.Float32BufferAttribute(this.n, 3));
     g.setAttribute("color", new THREE.Float32BufferAttribute(this.c, 3));
-    const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true }));
+    const m = new THREE.Mesh(g, FLAT);
     m.castShadow = cast; m.receiveShadow = recv; scene.add(m); return m;
   }
 }
@@ -141,224 +180,464 @@ function blob(r, detail = 0, wob = 0.18) {
   for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); const k = 1 + (vnoise(v.x * 3 / r + 2.3, (v.y + v.z * 0.7) * 3 / r + 7.1) - 0.5) * wob * 2; p.setXYZ(i, v.x * k, v.y * k, v.z * k); }
   return g;
 }
-
+// a matrix from three basis vectors and an origin (for roof planes)
+const basisM = (X, Y, Z, x, y, z) => new THREE.Matrix4().makeBasis(X, Y, Z).setPosition(x, y, z);
+// corrugated sheet in the local XY plane, ridges running along y, facing +z
+function corrugated(len, h, pitch, depth) {
+  const n = Math.max(2, Math.round(len / pitch) * 2), P = [];
+  for (let i = 0; i < n; i++) {
+    const xa = -len / 2 + i / n * len, xb = -len / 2 + (i + 1) / n * len, za = (i % 2) * depth, zb = ((i + 1) % 2) * depth;
+    P.push(xa, 0, za, xb, 0, zb, xb, h, zb, xa, 0, za, xb, h, zb, xa, h, za);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(P, 3)); return g;
+}
 // ===================================================================
-//  layout (metres). The run is a square: brick walls on the west and
-//  north sides; along the north wall the bricks stop, then a little
-//  storage shed, then the coop. East and south sides are chicken wire.
+//  layout (metres, -z is north). A square grass run: the long garage
+//  (brick below, corrugated sheet above) on the west, a concrete
+//  outbuilding with a big wooden door on the north, diamond wire mesh
+//  on the south and east. From the north-east corner a narrow tiled
+//  passage runs north along the outbuilding to the coop at its end.
 // ===================================================================
-const RUN = { x0: -3.5, x1: 3.55, z0: -3.5, z1: 3.55 };
-const SHED = { x0: 0.2, x1: 1.72, z0: -3.76, z1: -2.38, hF: 2.05, hB: 1.85 };
-const COOP = { x0: 1.77, x1: 3.47, z0: -3.6, z1: -2.5, floor: 0.5, hF: 1.36, hB: 1.2 };
-const RAMP = { x: 2.2, zTop: -2.5, zBot: -1.6, hTop: 0.5 };
-const TREE = { x: -0.75, z: 2.7 };
-const WATER = { x: -2.8, z: -2.75 };
-const LOG = { x: -2.9, z: 0.8 };
-const RECTS = [[SHED.x0, SHED.x1 + 0.03, -3.8, SHED.z1], [RAMP.x - 0.17, RAMP.x + 0.17, RAMP.zTop, RAMP.zBot], [LOG.x - 0.1, LOG.x + 0.1, LOG.z - 0.45, LOG.z + 0.45]];
-const RECTS_TALL = RECTS.concat([[COOP.x0, COOP.x1, COOP.z0, COOP.z1]]);   // the rooster is too tall to walk under the coop
-const CIRCLES = [[TREE.x, TREE.z, 0.11], [WATER.x, WATER.z, 0.21], [1.82, -3.55, 0.045], [3.42, -3.55, 0.045], [1.82, -2.55, 0.045], [3.42, -2.55, 0.045]];
-const PATCHES = [[TREE.x, 2.5, 1.05, 0.8], [2.25, -1.3, 0.95, 0.62], [-2.75, -2.6, 0.8, 1.0], [0.7, 0.3, 0.5, 0.42], [1.0, -1.95, 0.75, 0.42], [3.15, 1.0, 0.34, 1.7], [2.6, -2.95, 0.95, 0.6], [-3.1, 0.8, 0.45, 0.9]];
+const RUN = { x0: -3.5, x1: 3.5, z0: -3.5, z1: 3.5 };
+const FACE = -3.55;                                                     // garage wall (x) and concrete wall / passage front (z)
+const GAR = { x0: -9.4, x1: FACE, z0: -9.8, z1: 5.2, hB: 1.15, hE: 2.6, hR: 3.45 };
+const BLOCK = { x0: FACE, x1: 1.2, z0: -7.2, z1: FACE, h: 2.5 };
+const CONN = { x0: 1.2, x1: 2.45, z0: -7.2, z1: FACE, hHi: 2.15, hLo: 1.65 };
+const DOOR = { x0: 1.5, x1: 2.1, h: 1.25 };                             // the little fence door into the passage
+const COOP = { x0: 0.9, x1: 3.55, z0: -9.1, z1: -7.2, hF: 2.3, hB: 2.0 };
+const HOLE = { x0: 1.52, x1: 2.08, h: 0.55 };                           // pop hole from the passage into the coop
+const WIN = { x0: 2.6, x1: 3.4, y0: 0.36, y1: 1.05 };                   // coop window, nest boxes right behind it
+const NEST = { x0: 2.48, x1: 3.47, z0: -7.68, z1: -7.26, y: 0.3 };
+const NEST_Z = (NEST.z0 + NEST.z1) / 2, NEST_FRONT = -7.98;
+const NESTS = [2.645, 2.975, 3.305].map((x) => ({ x, busy: null, spots: [{ x: x - 0.06, z: -7.41, egg: null }, { x: x + 0.07, z: -7.52, egg: null }] }));
+const MIXER = { x: 0.25, z: -2.98 };
+const TREE = { x: -1.75, z: 2.55 };
+const WATER = { x: -2.95, z: -2.95 };
+const SHRUBS = [[-3.0, 0.45, 0.5], [2.95, 2.45, 0.48], [3.0, -1.45, 0.45]].map(([x, z, r]) => ({ x, z, r, users: 0 }));
+const HOLLOWS = [[-1.0, 1.5], [0.95, -1.45], [-2.3, -1.55], [1.35, 1.85]].map(([x, z]) => ({ x, z, r: 0.3, user: null }));
+const LEAF = { x0: 2.08, x1: 2.18, z0: -4.2, z1: FACE };                // the fence door leaf, swung open into the passage
+const POOL = { x: 6.4, z: -8.2, r: 1.45 };   // the round pool, on the island's north-east corner
+const RECTS = [[MIXER.x - 0.5, MIXER.x + 0.6, -3.6, MIXER.z + 0.5], [LEAF.x0, LEAF.x1, LEAF.z0, LEAF.z1]];
+const CIRCLES = [[TREE.x + 0.05, TREE.z + 0.03, 0.15], [WATER.x, WATER.z, 0.21], ...SHRUBS.map((s) => [s.x, s.z, 0.05])];
+// where a bird's centre may be: the run, or (only for a hen on her way to lay) the run plus door, passage, pop hole and coop
+const ZONE = {
+  run: [[RUN.x0, RUN.x1, RUN.z0, RUN.z1]],
+  all: [[RUN.x0, RUN.x1, RUN.z0, RUN.z1], [DOOR.x0, DOOR.x1, -4.0, -3.0], [CONN.x0, CONN.x1 - 0.03, CONN.z0, FACE - 0.05],
+    [HOLE.x0, HOLE.x1, -7.6, -6.85], [COOP.x0 + 0.06, COOP.x1 - 0.06, COOP.z0 + 0.06, NEST.z0 - 0.04], [COOP.x0 + 0.06, NEST.x0 - 0.03, COOP.z0 + 0.06, COOP.z1 - 0.06]],
+};
+const PATCHES = [[TREE.x, TREE.z, 0.75, 0.6], [1.8, -3.05, 0.6, 0.45], [WATER.x, WATER.z, 0.75, 0.65], [MIXER.x, -3.1, 0.85, 0.5], [-3.25, -0.9, 0.3, 1.0], ...HOLLOWS.map((h) => [h.x, h.z, 0.5, 0.45])];
 function dirt(x, z) {
   let m = 0; const nz = (vnoise(x * 2.2 + 3, z * 2.2 + 7) - 0.5) * 0.6;
   for (const [px, pz, rx, rz] of PATCHES) { const d = Math.hypot((x - px) / rx, (z - pz) / rz) + nz; m = Math.max(m, clamp((1 - d) / 0.3, 0, 1)); }
   return m;
 }
-function pushOut(o, r, tall) {
-  o.x = clamp(o.x, RUN.x0 + r, RUN.x1 - r); o.z = clamp(o.z, RUN.z0 + r, RUN.z1 - r);
-  for (const q of tall ? RECTS_TALL : RECTS) {
+// the dust-bath hollows: shallow dips with a little rim of kicked-out earth
+function groundY(x, z) {
+  let y = 0;
+  for (const h of HOLLOWS) {
+    const d = Math.hypot(x - h.x, z - h.z) / h.r;
+    if (d < 1) y -= 0.05 * (1 - d * d) ** 2; else if (d < 1.5) y += 0.012 * Math.sin((d - 1) / 0.5 * Math.PI);
+  }
+  return y;
+}
+function zoneClamp(o, m, rects) {
+  let bx = o.x, bz = o.z, bd = 1e9;
+  for (const q of rects) {
+    const x = clamp(o.x, q[0] + m, q[1] - m), z = clamp(o.z, q[2] + m, q[3] - m), d = (x - o.x) ** 2 + (z - o.z) ** 2;
+    if (d < bd) { bd = d; bx = x; bz = z; if (d === 0) break; }
+  }
+  o.x = bx; o.z = bz;
+}
+function pushOut(o, r, zone = "run") {
+  const Z = ZONE[zone], m = r + 0.03;
+  zoneClamp(o, m, Z);
+  for (const q of RECTS) {
     const cx = clamp(o.x, q[0], q[1]), cz = clamp(o.z, q[2], q[3]), dx = o.x - cx, dz = o.z - cz, d = Math.hypot(dx, dz);
     if (d >= r) continue;
     if (d < 1e-6) {
-      const e = [o.x - q[0], q[1] - o.x, o.z - q[2], q[3] - o.z], m = Math.min(...e);
-      if (m === e[0]) o.x = q[0] - r; else if (m === e[1]) o.x = q[1] + r; else if (m === e[2]) o.z = q[2] - r; else o.z = q[3] + r;
+      const e = [o.x - q[0], q[1] - o.x, o.z - q[2], q[3] - o.z], mn = Math.min(...e);
+      if (mn === e[0]) o.x = q[0] - r; else if (mn === e[1]) o.x = q[1] + r; else if (mn === e[2]) o.z = q[2] - r; else o.z = q[3] + r;
     } else { o.x = cx + dx / d * r; o.z = cz + dz / d * r; }
   }
   for (const [cx, cz, cr] of CIRCLES) {
-    const dx = o.x - cx, dz = o.z - cz, d = Math.hypot(dx, dz), m = cr + r;
-    if (d < m) { if (d < 1e-6) o.x += m; else { o.x = cx + dx / d * m; o.z = cz + dz / d * m; } }
+    const dx = o.x - cx, dz = o.z - cz, d = Math.hypot(dx, dz), mm = cr + r;
+    if (d < mm) { if (d < 1e-6) o.x += mm; else { o.x = cx + dx / d * mm; o.z = cz + dz / d * mm; } }
   }
-  o.x = clamp(o.x, RUN.x0 + r, RUN.x1 - r); o.z = clamp(o.z, RUN.z0 + r, RUN.z1 - r);
+  zoneClamp(o, m, Z);
   return o;
 }
-function isFree(x, z, r, tall) { const o = pushOut({ x, z }, r, tall); return Math.hypot(o.x - x, o.z - z) < 1e-4; }
+function isFree(x, z, r, zone = "run") { const o = pushOut({ x, z }, r, zone); return Math.hypot(o.x - x, o.z - z) < 1e-4; }
+function segFree(ax, az, bx, bz, r, zone = "run", skip0 = 0, skip1 = 0) {
+  const L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(L / 0.05));
+  for (let i = 0; i <= n; i++) {
+    const s = i / n * L; if (s < skip0 || s > L - skip1) continue;
+    if (!isFree(ax + (bx - ax) * i / n, az + (bz - az) * i / n, r, zone)) return false;
+  }
+  return true;
+}
+// a few way points around the obstacles in the run, so birds walk round the mixer, tree and waterer instead of into them
+const NAV_R = 0.13, navNodes = [];
+{
+  const c = [];
+  for (const q of RECTS) { const e = 0.27; c.push([q[0] - e, q[2] - e], [q[1] + e, q[2] - e], [q[0] - e, q[3] + e], [q[1] + e, q[3] + e]); }
+  for (const [x, z, r] of CIRCLES) if (r > 0.1) for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; c.push([x + Math.cos(a) * (r + 0.32), z + Math.sin(a) * (r + 0.32)]); }
+  for (const [x, z] of c) if (isFree(x, z, NAV_R + 0.02)) navNodes.push({ x, z, nb: [] });
+  for (let i = 0; i < navNodes.length; i++) for (let j = i + 1; j < navNodes.length; j++) {
+    const a = navNodes[i], b = navNodes[j];
+    if (segFree(a.x, a.z, b.x, b.z, NAV_R)) { const d = Math.hypot(a.x - b.x, a.z - b.z); a.nb.push([j, d]); b.nb.push([i, d]); }
+  }
+}
+function route(ax, az, bx, bz) {
+  if (segFree(ax, az, bx, bz, NAV_R, "run", 0.12)) return [{ x: bx, z: bz }];
+  const N = navNodes.length, dist = new Array(N).fill(1e9), prev = new Array(N).fill(-1), done = new Array(N).fill(false);
+  for (let i = 0; i < N; i++) { const n = navNodes[i]; if (segFree(ax, az, n.x, n.z, NAV_R, "run", 0.12)) dist[i] = Math.hypot(n.x - ax, n.z - az); }
+  let best = -1, bestD = 1e9;
+  for (let it = 0; it < N; it++) {
+    let u = -1, ud = 1e9; for (let i = 0; i < N; i++) if (!done[i] && dist[i] < ud) { ud = dist[i]; u = i; }
+    if (u < 0) break; done[u] = true;
+    const n = navNodes[u], tot = ud + Math.hypot(bx - n.x, bz - n.z);
+    if (tot < bestD && segFree(n.x, n.z, bx, bz, NAV_R)) { bestD = tot; best = u; }
+    for (const [v, w] of n.nb) if (ud + w < dist[v]) { dist[v] = ud + w; prev[v] = u; }
+  }
+  if (best < 0) return [{ x: bx, z: bz }];
+  const path = [{ x: bx, z: bz }]; for (let u = best; u >= 0; u = prev[u]) path.unshift({ x: navNodes[u].x, z: navNodes[u].z });
+  return path;
+}
 
 // ===================================================================
-//  ground: faceted grass mosaic, dirt patches where the hens scratch
+//  ground: faceted grass mosaic, dirt where the hens scratch, dust-bath hollows
 // ===================================================================
 const COL = {
-  grass: [0x8fbf5c, 0x86b754, 0x9cc866, 0x7fb04f], grassOut: [0x93c25e, 0x88b956, 0xa0ca69, 0x84b452],
-  dirt: [0xb78f66, 0xab845d, 0xc29b70], brick: [0xc9826a, 0xbf7760, 0xd08c70, 0xb86f5a], coping: 0xdcd1bc,
-  shed: 0x9a6a48, shedDark: 0x7e5538, coop: 0xe2b880, coopTrim: 0xa8744c, coopRoof: 0xc4685a, shedRoof: 0x5d6672,
-  post: 0x9c7552, bark: 0x8a6448, leaf: [0x7fb04e, 0x70a447, 0x8fc05a, 0x86b952],
+  grass: 0xa4cd66, grassLip: 0x9cc563, grassDark: 0x8db458, dirt: [0xd8bd90, 0xd1b487, 0xdcc398], dust: [0xe3cca2, 0xdcc398],
+  soil: 0xb88559, soilDark: 0x96694a, soilDeep: 0x7f5a41, stone: 0xa49d92, stoneDark: 0x8e887f,
+  brick: [0xc98a70, 0xc07f66, 0xd09478], metal: 0xc3c9c8, metalRoof: 0xb0b8ba,
+  concrete: 0xd3ccbf, concreteDark: 0xc0b8aa, door: [0x9a7152, 0x936b4d, 0xa27958, 0x8d6649], plank: [0xc09262, 0xb6895b, 0xc89c6c],
+  coop: [0xcfa574, 0xc69b6a, 0xd5ad7e], coopTrim: 0xa07a55, tile: [0xcc7a58, 0xc2704f, 0xd48663, 0xbd6c4f],
+  post: 0x7a9a7c, bark: 0x9b7656, leaf: [0x9ccb66, 0x91c25e, 0xa6d170, 0x8bbb59], shrub: [0x84b45b, 0x8dbc62, 0x7aa954, 0x95c268],
+  orange: 0xec8a52, orangeDark: 0xd97a45,
 };
+// soft grass colour: one fresh yellow-green with only a gentle drift in lightness
+function grassCol(c, x, z, k = 1) { c.set(COL.grass); c.offsetHSL(0, 0, ((fbm(x * 0.22 + 4, z * 0.22) - 0.5) * 0.045 + (hash2(x * 7.1, z * 5.3) - 0.5) * 0.018) * k); return c; }
 const runGround = (() => {
-  const S = 7.3, N = 40, g = new THREE.PlaneGeometry(S, S, N, N).rotateX(-Math.PI / 2).toNonIndexed(), p = g.attributes.position;
+  const S = 9, N = 48, g0 = new THREE.PlaneGeometry(S, S, N, N).rotateX(-Math.PI / 2), p0 = g0.attributes.position;   // the island top has a hole for this
+  for (let i = 0; i < p0.count; i++) {
+    let x = p0.getX(i), z = p0.getZ(i);
+    if (Math.abs(x) < 4.49 && Math.abs(z) < 4.49) { x += (hash2(x * 3.7, z * 1.3) - 0.5) * 0.07; z += (hash2(z * 2.9, x * 4.1) - 0.5) * 0.07; }
+    p0.setXYZ(i, x, groundY(x, z), z);
+  }
+  const g = g0.toNonIndexed(), p = g.attributes.position; g0.dispose();
   const col = new Float32Array(p.count * 3), c = new THREE.Color();
   for (let i = 0; i < p.count; i += 3) {
-    const cx = (p.getX(i) + p.getX(i + 1) + p.getX(i + 2)) / 3, cz = (p.getZ(i) + p.getZ(i + 1) + p.getZ(i + 2)) / 3, d = dirt(cx, cz), n = fbm(cx * 0.9 + 4, cz * 0.9);
-    if (d > 0.5 + (hash2(cx * 9, cz * 7) - 0.5) * 0.5) c.set(COL.dirt[Math.floor(hash2(cx * 3, cz * 5) * 3)]);
-    else { c.set(COL.grass[Math.floor(hash2(cx * 5, cz * 3) * 4)]); c.offsetHSL(0, 0, (n - 0.5) * 0.08 - d * 0.04); }
-    const t = 1 + (Math.random() - 0.5) * 0.06;
-    for (let k = 0; k < 3; k++) col.set([c.r * t, c.g * t, c.b * t], (i + k) * 3);
+    const cx = (p.getX(i) + p.getX(i + 1) + p.getX(i + 2)) / 3, cz = (p.getZ(i) + p.getZ(i + 1) + p.getZ(i + 2)) / 3;
+    const inRun = Math.abs(cx) < 3.56 && Math.abs(cz) < 3.56, d = inRun ? dirt(cx, cz) : 0;
+    const hol = inRun && HOLLOWS.some((h) => Math.hypot(cx - h.x, cz - h.z) < h.r * 1.12);
+    if (hol) c.set(COL.dust[Math.floor(hash2(cx * 3, cz * 5) * 2)]);
+    else if (d > 0.5 + (hash2(cx * 9, cz * 7) - 0.5) * 0.4) c.set(COL.dirt[Math.floor(hash2(cx * 3, cz * 5) * 3)]);
+    else { grassCol(c, cx, cz); c.offsetHSL(0, -d * 0.05, -d * 0.02); }
+    for (let k = 0; k < 3; k++) col.set([c.r, c.g, c.b], (i + k) * 3);
   }
   g.setAttribute("color", new THREE.BufferAttribute(col, 3)); g.computeVertexNormals();
-  const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true }));
-  m.position.set(0.025, 0, 0.025); m.receiveShadow = true; scene.add(m); return m;
-})();
-// the rest of the garden, gently rolling further out
-function gardenH(x, z) {
-  const d = Math.max(Math.abs(x) - 4.5, Math.abs(z) - 4.5, 0), house = z < -8 ? 0 : 1;
-  return (fbm(x * 0.12 + 3, z * 0.12 + 8) - 0.45) * 1.1 * clamp(d / 6, 0, 1) * house;
-}
-const lawn = (() => {
-  const S = 90, N = 60, g = new THREE.PlaneGeometry(S, S, N, N).rotateX(-Math.PI / 2), p = g.attributes.position;
-  for (let i = 0; i < p.count; i++) p.setY(i, gardenH(p.getX(i), p.getZ(i)) - 0.01);
-  const ng = g.toNonIndexed(), q = ng.attributes.position, col = new Float32Array(q.count * 3), c = new THREE.Color();
-  for (let i = 0; i < q.count; i += 3) {
-    const cx = (q.getX(i) + q.getX(i + 1) + q.getX(i + 2)) / 3, cz = (q.getZ(i) + q.getZ(i + 1) + q.getZ(i + 2)) / 3;
-    c.set(COL.grassOut[Math.floor(hash2(cx * 5, cz * 3) * 4)]); c.offsetHSL(0, 0, (fbm(cx * 0.2, cz * 0.2) - 0.5) * 0.08);
-    const t = 1 + (Math.random() - 0.5) * 0.05;
-    for (let k = 0; k < 3; k++) col.set([c.r * t, c.g * t, c.b * t], (i + k) * 3);
-  }
-  ng.setAttribute("color", new THREE.BufferAttribute(col, 3)); ng.computeVertexNormals();
-  const m = new THREE.Mesh(ng, new THREE.MeshLambertMaterial({ vertexColors: true })); m.receiveShadow = true; scene.add(m); return m;
+  const m = new THREE.Mesh(g, FLAT);
+  m.receiveShadow = true; scene.add(m); return m;
 })();
 
 // ===================================================================
-//  walls, sheds, coop, fences, tree, props
+//  the island: one chunky plot of land floating in the sky, its earth
+//  sides showing the layers: grass lip, warm topsoil, darker soil, stone
+// ===================================================================
+const ISLE = { cx: -1, cz: -2.3, a: 10.4, b: 9.8, n: 5 };
+const isleR = (() => {   // distance from the run's centre to the island edge, by direction
+  const N = 360, R = new Float32Array(N + 1);
+  for (let i = 0; i <= N; i++) {
+    const phi = i / N * Math.PI * 2, dx = Math.cos(phi), dz = Math.sin(phi);
+    let lo = 0, hi = 30;
+    for (let k = 0; k < 32; k++) { const t = (lo + hi) / 2, f = Math.abs((dx * t - ISLE.cx) / ISLE.a) ** ISLE.n + Math.abs((dz * t - ISLE.cz) / ISLE.b) ** ISLE.n; if (f < 1) lo = t; else hi = t; }
+    R[i] = lo * (1 + (vnoise(dx * 2.2 + 5, dz * 2.2 + 9) - 0.5) * 0.06);
+  }
+  return (phi) => { const u = ((phi / (Math.PI * 2)) % 1 + 1) % 1 * N, i = Math.floor(u), f = u - i; return R[i] * (1 - f) + R[i + 1] * f; };
+})();
+const onIsland = (x, z, m = 0) => Math.hypot(x, z) < isleR(Math.atan2(z, x)) - m;
+const island = (() => {
+  const P = [], C = [], c = new THREE.Color();
+  const tri = (a, b, d, col, up) => {   // one triangle, wound to face 'up' (+y) or outward from the centre
+    _a.set(...a); _b.set(...b); _c.set(...d); _n.subVectors(_b, _a).cross(_e.subVectors(_c, _a));
+    const out = up ? _n.y : _n.x * (_a.x + _b.x + _c.x) + _n.z * (_a.z + _b.z + _c.z);
+    if (out < 0) { const t = _b.clone(); _b.copy(_c); _c.copy(t); }
+    for (const v of [_a, _b, _c]) P.push(v.x, v.y, v.z);
+    for (let k = 0; k < 3; k++) C.push(col.r, col.g, col.b);
+  };
+  const phis = []; for (let i = 0; i < 76; i++) phis.push(i / 76 * Math.PI * 2);
+  for (const q of [1, 3, 5, 7]) phis.push(q * Math.PI / 4);   // the hole's corners, so the top meets the run's square exactly
+  phis.sort((a, b) => a - b);
+  // top: rings from the square hole out to the edge
+  const K = 9, rings = [];
+  for (let j = 0; j <= K; j++) rings.push(phis.map((phi) => {
+    const dx = Math.cos(phi), dz = Math.sin(phi), r = lerp(4.5 / Math.max(Math.abs(dx), Math.abs(dz)), isleR(phi), j / K);
+    let x = dx * r, z = dz * r;
+    if (j > 0 && j < K) { x += (hash2(j * 3.1, phi * 7.7) - 0.5) * 0.32; z += (hash2(phi * 5.3, j * 1.7) - 0.5) * 0.32; }
+    return [x, 0, z];
+  }));
+  const L = phis.length;
+  for (let j = 0; j < K; j++) for (let i = 0; i < L; i++) {
+    const a = rings[j][i], b = rings[j][(i + 1) % L], e = rings[j + 1][(i + 1) % L], d = rings[j + 1][i];
+    const mx = (a[0] + e[0]) / 2, mz = (a[2] + e[2]) / 2;
+    tri(a, b, e, grassCol(c, mx, mz), true); tri(a, e, d, grassCol(c, mx + 0.3, mz - 0.2), true);
+  }
+  // sides: layered bands, each ring a little further in and jittered so the edge looks dug, not cut
+  const BANDS = [[0, 0, null], [-0.16, 0.07, COL.grassLip], [-0.24, -0.02, COL.grassDark], [-0.95, -0.1, COL.soil], [-1.08, -0.08, COL.soilDark], [-1.85, -0.28, COL.soilDark],
+    [-2.0, -0.26, COL.soilDeep], [-2.75, -0.55, COL.stone], [-3.15, -1.1, COL.stoneDark]];
+  const edge = rings[K], side = BANDS.map(([y, off], k) => edge.map(([x, , z], i) => {
+    const r = Math.hypot(x, z), jr = k ? (hash2(i * 1.7, k * 3.3) - 0.5) * 0.12 : 0, jy = k > 0 && k < BANDS.length - 1 ? (hash2(k * 2.3, i * 0.9) - 0.5) * 0.07 : 0;
+    const f = (r + off + jr) / r; return [x * f, y + jy, z * f];
+  }));
+  for (let k = 0; k < BANDS.length - 1; k++) {
+    const base = new THREE.Color(BANDS[k + 1][2]);
+    for (let i = 0; i < L; i++) {
+      const a = side[k][i], b = side[k][(i + 1) % L], e = side[k + 1][(i + 1) % L], d = side[k + 1][i];
+      c.copy(base).offsetHSL(0, 0, (hash2(i * 1.3, k * 7.1) - 0.5) * 0.035);
+      tri(a, b, e, c, false); tri(a, e, d, c, false);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(P, 3)); g.setAttribute("color", new THREE.Float32BufferAttribute(C, 3)); g.computeVertexNormals();
+  const m = new THREE.Mesh(g, FLAT); m.receiveShadow = true; scene.add(m);
+  // underside
+  const bot = side[BANDS.length - 1], sh = new THREE.Shape(bot.map(([x, , z]) => new THREE.Vector2(x, z)));
+  const bg = new THREE.ShapeGeometry(sh).rotateX(Math.PI / 2).translate(0, BANDS[BANDS.length - 1][0], 0);
+  scene.add(new THREE.Mesh(bg, new THREE.MeshPhongMaterial({ color: COL.stoneDark, flatShading: true })));
+  return m;
+})();
+
+// ===================================================================
+//  garage, concrete outbuilding, passage, coop, fences, mixer, tree, shrubs
 // ===================================================================
 const structures = new THREE.Group(); scene.add(structures);
 const W = new Bake();   // everything that casts shadows near the run
 
-// brick walls (flat colour with a few proud bricks for texture) and a stone coping
-function brickWall(x0, z0, x1, z1, h) {
-  const len = Math.hypot(x1 - x0, z1 - z0), ang = Math.atan2(-(z1 - z0), x1 - x0), cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
-  const P = mat4(cx, 0, cz, 0, ang, 0);
-  W.box(COL.brick[0], len, h, 0.24, 0, h / 2, 0, 0, 0, 0, P, 0.04);
-  W.box(COL.coping, len + 0.04, 0.07, 0.32, 0, h + 0.035, 0, 0, 0, 0, P, 0.05);
-  W.box(0xb9b09e, len + 0.02, 0.12, 0.27, 0, 0.06, 0, 0, 0, 0, P, 0.05);   // plinth
-  const courses = Math.floor((h - 0.15) / 0.075);
-  for (let i = 0; i < len * 9; i++) {
-    const row = Math.floor(Math.random() * courses), y = 0.16 + row * 0.075, x = (Math.floor(Math.random() * (len / 0.225)) + (row % 2) * 0.5) * 0.225 - len / 2 + 0.11;
-    if (x > len / 2 - 0.12 || x < -len / 2 + 0.12) continue;
-    for (const side of [-1, 1]) if (Math.random() < 0.6) W.box(pick(COL.brick), 0.21, 0.062, 0.02, x, y, side * 0.125, 0, 0, 0, P, 0.08);
-  }
-}
-brickWall(-3.62, -3.74, -3.62, 3.62, 1.6);          // west
-brickWall(-3.74, -3.62, SHED.x0 + 0.02, -3.62, 1.6); // north, up to the shed
-
-// storage shed: vertical boards, pent roof, ledged door, small window
+// the long garage: brick base with proud bricks, corrugated sheet above, corrugated gable roof
 {
-  const S = SHED, w = S.x1 - S.x0, d = S.z1 - S.z0, cx = (S.x0 + S.x1) / 2, cz = (S.z0 + S.z1) / 2;
-  W.add(slopedBox(w - 0.04, d - 0.04, S.hF - 0.02, S.hB - 0.02), COL.shed, mat4(cx, 0, cz));
-  const bw = 0.135;
-  for (let x = S.x0 + bw / 2; x < S.x1; x += bw) W.box(COL.shed, bw - 0.008, S.hF, 0.03, x, S.hF / 2, S.z1 - 0.01, 0, 0, 0, null, 0.12);
-  for (const sx of [S.x0 + 0.01, S.x1 - 0.01]) for (let z = S.z0 + bw / 2; z < S.z1; z += bw) {
-    const h = S.hB + (z - S.z0) / d * (S.hF - S.hB);
-    W.box(COL.shed, 0.03, h, bw - 0.008, sx, h / 2, z, 0, 0, 0, null, 0.12);
+  const G = GAR, w = G.x1 - G.x0, d = G.z1 - G.z0, cx = (G.x0 + G.x1) / 2, cz = (G.z0 + G.z1) / 2;
+  W.box(COL.brick[0], w, G.hB, d, cx, G.hB / 2, cz, 0, 0, 0, null, 0.03);
+  W.box(0xaeb5b6, w - 0.06, G.hE - G.hB, d - 0.06, cx, (G.hE + G.hB) / 2, cz, 0, 0, 0, null, 0.02);
+  W.box(0xb6bcbc, w + 0.06, 0.04, d + 0.06, cx, G.hB + 0.01, cz, 0, 0, 0, null, 0.02);   // flashing between brick and sheet
+  const faces = [[mat4(G.x1, 0, cz, 0, Math.PI / 2, 0), d], [mat4(cx, 0, G.z1, 0, 0, 0), w]];
+  for (const [P, len] of faces) {
+    for (let i = 0; i < len * 1.6; i++) {   // a few bold bricks standing proud suggest the rest
+      const row = Math.floor(Math.random() * 7), y = 0.1 + row * 0.15, x = (Math.floor(Math.random() * (len / 0.36)) + (row % 2) * 0.5) * 0.36 - len / 2 + 0.18;
+      if (x > len / 2 - 0.2 || x < -len / 2 + 0.2 || y > G.hB - 0.1) continue;
+      W.box(pick(COL.brick), 0.33, 0.12, 0.03, x, y, 0.012, 0, 0, 0, P, 0.05);
+    }
+    W.add(corrugated(len - 0.04, G.hE - G.hB - 0.02, 0.38, 0.05), COL.metal, P.clone().multiply(mat4(0, G.hB + 0.02, -0.05)), 0.03);
   }
-  // roof
-  const slope = Math.atan2(S.hF - S.hB, d);
-  W.box(COL.shedRoof, w + 0.26, 0.06, d / Math.cos(slope) + 0.3, cx, (S.hF + S.hB) / 2 + 0.05, cz + 0.03, -slope, 0, 0, null, 0.05);
-  W.box(COL.shedDark, w + 0.26, 0.1, 0.03, cx, S.hF + 0.02, S.z1 + 0.18, 0, 0, 0);   // fascia
-  // door
-  const dx = cx + 0.05, dz = S.z1 + 0.025;
-  for (let i = 0; i < 5; i++) W.box(COL.shedDark, 0.142, 1.72, 0.03, dx - 0.284 + i * 0.142, 0.9, dz, 0, 0, 0, null, 0.1);
-  W.box(0x8b6040, 0.68, 0.1, 0.03, dx, 0.32, dz + 0.025); W.box(0x8b6040, 0.68, 0.1, 0.03, dx, 1.5, dz + 0.025);
-  W.box(0x8b6040, 0.1, 1.2, 0.03, dx, 0.91, dz + 0.025, 0, 0, 0.5);
-  W.box(0x3b3b3e, 0.03, 0.12, 0.03, dx + 0.25, 1.0, dz + 0.05);
-  for (const y of [0.32, 1.5]) W.box(0x3b3b3e, 0.32, 0.03, 0.012, dx - 0.2, y, dz + 0.045);
-  // window on the west side
-  W.box(0xf1ead8, 0.04, 0.5, 0.62, S.x0 - 0.02, 1.35, cz + 0.1);
-  W.box(0x58738c, 0.045, 0.4, 0.52, S.x0 - 0.025, 1.35, cz + 0.1, 0, 0, 0, null, 0.02);
-  W.box(0xf1ead8, 0.05, 0.4, 0.035, S.x0 - 0.026, 1.35, cz + 0.1); W.box(0xf1ead8, 0.05, 0.035, 0.52, S.x0 - 0.026, 1.35, cz + 0.1);
+  // gable ends
+  const tri = new THREE.Shape(); tri.moveTo(-w / 2, 0); tri.lineTo(w / 2, 0); tri.lineTo(0, G.hR - G.hE); tri.closePath();
+  for (const z of [G.z1 - 0.05, G.z0]) W.add(new THREE.ExtrudeGeometry(tri, { depth: 0.05, bevelEnabled: false }), COL.metal, mat4(cx, G.hE, z), 0.03);
+  // roof planes
+  const s = Math.atan2(G.hR - G.hE, w / 2), Ls = (w / 2) / Math.cos(s) + 0.25, cs = Math.cos(s), sn = Math.sin(s);
+  const planes = [basisM(new THREE.Vector3(0, 0, -1), new THREE.Vector3(-cs, sn, 0), new THREE.Vector3(sn, cs, 0), G.x1 + 0.25 * cs, G.hE - 0.25 * sn + 0.02, cz),
+    basisM(new THREE.Vector3(0, 0, 1), new THREE.Vector3(cs, sn, 0), new THREE.Vector3(-sn, cs, 0), G.x0 - 0.25 * cs, G.hE - 0.25 * sn + 0.02, cz)];
+  for (const P of planes) {
+    W.add(corrugated(d + 0.4, Ls, 0.55, 0.07), COL.metalRoof, P, 0.03);
+    W.add(new THREE.BoxGeometry(d + 0.4, Ls, 0.02), 0x9ca3a4, P.clone().multiply(mat4(0, Ls / 2, -0.012)), 0.02);
+  }
+  W.box(0xa0a7a8, 0.34, 0.06, d + 0.42, cx, G.hR + 0.04, cz, 0, 0, 0, null, 0.02);   // ridge cap
+  // the small window into the garage, near the corner, its sash tilted open
+  const wz = -2.8, wy = 1.92, wx = G.x1 + 0.005;
+  W.box(0x4c4f52, 0.02, 0.44, 0.56, wx, wy, wz, 0, 0, 0, null, 0.02);
+  W.box(0xe8e2d4, 0.05, 0.05, 0.66, wx + 0.01, wy + 0.245, wz); W.box(0xe8e2d4, 0.06, 0.05, 0.7, wx + 0.02, wy - 0.245, wz);
+  W.box(0xe8e2d4, 0.05, 0.54, 0.05, wx + 0.01, wy, wz - 0.305); W.box(0xe8e2d4, 0.05, 0.54, 0.05, wx + 0.01, wy, wz + 0.305);
+  const sash = mat4(wx + 0.03, wy - 0.22, wz, 0, 0, -0.32);
+  W.box(0xe8e2d4, 0.035, 0.42, 0.5, 0, 0.21, 0, 0, 0, 0, sash);
+  W.box(0xa9c6d6, 0.04, 0.34, 0.42, 0.003, 0.21, 0, 0, 0, 0, sash, 0.02);
 }
 
-// the coop: raised on legs, pent roof, pop-hole with sliding door, ramp, nest box with the lid propped open
-const NEST = { x0: 2.86, x1: 3.4, z0: -2.5, z1: -2.18, y0: 0.6, straw: 0.66 };
+// the concrete outbuilding with its big wooden door
 {
-  const C = COOP, w = C.x1 - C.x0, d = C.z1 - C.z0, cx = (C.x0 + C.x1) / 2, cz = (C.z0 + C.z1) / 2;
-  for (const [x, z] of [[C.x0 + 0.05, C.z0 + 0.05], [C.x1 - 0.05, C.z0 + 0.05], [C.x0 + 0.05, C.z1 - 0.05], [C.x1 - 0.05, C.z1 - 0.05]]) W.box(COL.coopTrim, 0.07, C.floor + 0.05, 0.07, x, (C.floor + 0.05) / 2, z);
-  W.add(slopedBox(w, d, C.hF - C.floor, C.hB - C.floor), COL.coop, mat4(cx, C.floor, cz));
-  W.box(COL.coopTrim, w + 0.04, 0.06, d + 0.04, cx, C.floor + 0.02, cz);   // floor frame
-  // horizontal shiplap on the front and the open east side
-  const bh = 0.107;
-  for (let y = C.floor + 0.06 + bh / 2; y < C.hF - 0.02; y += bh) W.box(pick([0xdcb179, 0xe6be88, 0xd9ad74]), w - 0.04, bh - 0.012, 0.025, cx, y, C.z1 + 0.012, 0, 0, 0, null, 0.04);
-  for (let y = C.floor + 0.06 + bh / 2; y < C.hB - 0.02; y += bh) W.box(pick([0xdcb179, 0xe6be88, 0xd9ad74]), 0.025, bh - 0.012, d - 0.04, C.x1 + 0.012, y, cz, 0, 0, 0, null, 0.04);
-  for (const [x, z] of [[C.x0, C.z1], [C.x1, C.z1], [C.x1, C.z0]]) W.box(COL.coopTrim, 0.06, (C.hF - C.floor), 0.06, x, (C.hF + C.floor) / 2, z);
-  const slope = Math.atan2(C.hF - C.hB, d);
-  W.box(COL.coopRoof, w + 0.24, 0.05, d / Math.cos(slope) + 0.28, cx, (C.hF + C.hB) / 2 + 0.04, cz + 0.04, -slope, 0, 0, null, 0.05);
-  // pop-hole + sliding door
-  W.box(0x2e241c, 0.27, 0.33, 0.02, RAMP.x, C.floor + 0.18, C.z1 + 0.03, 0, 0, 0, null, 0.02);
-  W.box(0xb98a5a, 0.32, 0.3, 0.02, RAMP.x, C.floor + 0.52, C.z1 + 0.04);
-  for (const s of [-1, 1]) W.box(COL.coopTrim, 0.03, 0.72, 0.03, RAMP.x + s * 0.18, C.floor + 0.36, C.z1 + 0.04);
-  // vent window with mesh
-  W.box(0x3a3028, 0.34, 0.18, 0.02, 2.585, C.floor + 0.66, C.z1 + 0.03, 0, 0, 0, null, 0.02);
-  W.box(COL.coopTrim, 0.42, 0.035, 0.035, 2.585, C.floor + 0.77, C.z1 + 0.04); W.box(COL.coopTrim, 0.42, 0.035, 0.035, 2.585, C.floor + 0.55, C.z1 + 0.04);
-  // ramp with slats
-  const rl = Math.hypot(RAMP.zBot - RAMP.zTop, RAMP.hTop), ra = Math.atan2(RAMP.hTop, RAMP.zBot - RAMP.zTop);
-  const RP = mat4(RAMP.x, RAMP.hTop / 2, (RAMP.zTop + RAMP.zBot) / 2, ra, 0, 0);
-  W.box(0xc49766, 0.3, 0.025, rl, 0, 0, 0, 0, 0, 0, RP);
-  for (let i = 0; i < 7; i++) W.box(COL.coopTrim, 0.3, 0.018, 0.022, 0, 0.02, -rl / 2 + 0.08 + i * (rl - 0.12) / 6, 0, 0, 0, RP);
-  // nest box: hollow box, straw, lid propped open
-  const N = NEST, nw = N.x1 - N.x0, nd = N.z1 - N.z0, ncx = (N.x0 + N.x1) / 2, ncz = (N.z0 + N.z1) / 2;
-  W.box(COL.coopTrim, nw, 0.03, nd, ncx, N.y0, ncz);
-  W.box(0xd9ad74, nw, 0.1, 0.025, ncx, N.y0 + 0.05, N.z1);          // low front lip
-  for (const s of [N.x0, N.x1]) W.add(slopedBox(0.025, nd, 0.18, 0.3), 0xd9ad74, mat4(s, N.y0, ncz));
-  W.box(0xead27e, nw - 0.04, 0.05, nd - 0.04, ncx, N.straw - 0.025, ncz, 0, 0, 0, null, 0.15);
-  for (let i = 0; i < 14; i++) W.box(pick([0xf0dc8a, 0xe2c46a, 0xf4e49c]), rand(0.06, 0.12), 0.008, 0.012, rand(N.x0 + 0.05, N.x1 - 0.05), N.straw + 0.003, rand(N.z0 + 0.04, N.z1 - 0.03), 0, rand(0, 3), 0, null, 0.05);
-  W.box(COL.coopRoof, nw + 0.06, 0.03, nd + 0.06, 0, 0.015, nd / 2 + 0.03, 0, 0, 0, mat4(ncx, N.y0 + 0.31, N.z0, -0.95, 0, 0));
-  W.box(0x8b6040, 0.02, 0.34, 0.02, N.x1 - 0.03, N.y0 + 0.27, N.z1 - 0.06, -0.2, 0, 0);   // prop stick
+  const B = BLOCK, w = B.x1 - B.x0, d = B.z1 - B.z0, cx = (B.x0 + B.x1) / 2, cz = (B.z0 + B.z1) / 2;
+  W.box(COL.concrete, w, B.h, d, cx, B.h / 2, cz, 0, 0, 0, null, 0.025);
+  W.box(COL.concreteDark, w + 0.14, 0.1, d + 0.14, cx, B.h + 0.05, cz, 0, 0, 0, null, 0.03);
+  for (const y of [0.62, 1.25, 1.88]) { W.box(COL.concreteDark, w - 0.02, 0.016, 0.01, cx, y, B.z1 + 0.004, 0, 0, 0, null, 0.02); W.box(COL.concreteDark, 0.01, 0.016, d, B.x1 + 0.004, y, cz, 0, 0, 0, null, 0.02); }
+  for (let i = 0; i < 26; i++) W.box(pick([0xb3afa6, 0xc6c2b9, 0xaeaaa0]), rand(0.08, 0.3), rand(0.05, 0.16), 0.006, rand(B.x0 + 0.3, B.x1 - 0.3), rand(0.1, B.h - 0.2), B.z1 + 0.003, 0, 0, 0, null, 0.02);
+  // two-leaf ledged door
+  const dcx = -1.5, dw = 2.0, dh = 2.05, dz = B.z1 + 0.02;
+  W.box(0x6f5643, dw + 0.12, dh + 0.06, 0.03, dcx, (dh + 0.06) / 2, B.z1 + 0.005, 0, 0, 0, null, 0.02);
+  const nb = 14, bw = dw / nb;
+  for (let i = 0; i < nb; i++) W.box(pick(COL.door), bw - 0.012, dh - 0.03, 0.035, dcx - dw / 2 + (i + 0.5) * bw, dh / 2 + 0.01, dz, 0, 0, 0, null, 0.06);
+  for (const s of [-1, 1]) {
+    const lx = dcx + s * dw / 4;
+    for (const y of [0.32, 1.72]) W.box(0x86644a, dw / 2 - 0.12, 0.13, 0.03, lx, y, dz + 0.03, 0, 0, 0, null, 0.05);
+    W.box(0x86644a, 0.12, 1.55, 0.03, lx, 1.02, dz + 0.03, 0, 0, s * 0.62, null, 0.05);
+    for (const y of [0.32, 1.72]) W.box(0x4f4c4a, 0.5, 0.045, 0.012, dcx + s * (dw / 2 - 0.25), y, dz + 0.05, 0, 0, 0, null, 0.02);
+  }
+  W.box(0x4f4c4a, 0.03, 0.18, 0.03, dcx - 0.06, 1.05, dz + 0.05); W.box(0x4f4c4a, 0.22, 0.035, 0.02, dcx, 1.15, dz + 0.05);
 }
 
-// waterer, log
+// the passage: plank-and-mesh east wall, little fence door at the front, mono-pitch roof of red beaver-tail tiles
+const MESHB = new Bake(false);   // every mesh panel, merged into one translucent mesh at the end
+function wirePanel(x0, z0, x1, z1, y0, h) {
+  const len = Math.hypot(x1 - x0, z1 - z0);
+  MESHB.add(new THREE.PlaneGeometry(len, h), 0xffffff, mat4((x0 + x1) / 2, y0 + h / 2, (z0 + z1) / 2, 0, Math.atan2(-(z1 - z0), x1 - x0), 0), 0);
+}
+const CONN_Y = (x) => CONN.hHi - (x - CONN.x0) * (CONN.hHi - CONN.hLo) / (CONN.x1 - CONN.x0);
+{
+  const C = CONN, L = C.z1 - C.z0, czc = (C.z0 + C.z1) / 2, wood = COL.coopTrim;
+  W.box(0xc4ab82, C.x1 - C.x0, 0.02, L, (C.x0 + C.x1) / 2, 0, czc, 0, 0, 0, null, 0.1);   // trodden earth floor
+  for (let i = 0; i < 40; i++) W.box(pick([0xe2c46a, 0xd6b45c, 0xead27e]), rand(0.06, 0.14), 0.006, 0.012, rand(C.x0 + 0.1, C.x1 - 0.1), 0.012, rand(C.z0 + 0.1, C.z1 - 0.1), 0, rand(0, 3), 0, null, 0.05);
+  // east wall: posts, wall plate, planks below, mesh above
+  for (const z of [C.z1 - 0.035, -4.77, -5.98, C.z0 + 0.04]) W.box(wood, 0.07, C.hLo, 0.07, C.x1, C.hLo / 2, z, 0, 0, 0, null, 0.08);
+  W.box(wood, 0.08, 0.08, L, C.x1, C.hLo - 0.04, czc);
+  for (let k = 0; k < 3; k++) W.box(pick(COL.plank), 0.025, 0.19, L, C.x1 + 0.045, 0.1 + k * 0.2, czc, 0, 0, 0, null, 0.06);
+  W.box(wood, 0.05, 0.05, L, C.x1 + 0.03, 0.63, czc);
+  wirePanel(C.x1 + 0.04, C.z1, C.x1 + 0.04, C.z0, 0.64, C.hLo - 0.72);
+  // front: posts by the wall and either side of the door, planks + mesh panels, a boarded gable above the header
+  const fz = C.z1 + 0.0;
+  for (const x of [C.x0 + 0.035, DOOR.x0 - 0.035, DOOR.x1 + 0.035]) W.box(wood, 0.07, CONN_Y(x), 0.07, x, CONN_Y(x) / 2, fz, 0, 0, 0, null, 0.08);
+  for (const [a, b] of [[C.x0 + 0.07, DOOR.x0 - 0.07], [DOOR.x1 + 0.07, C.x1 - 0.035]]) {
+    for (let k = 0; k < 3; k++) W.box(pick(COL.plank), b - a, 0.19, 0.025, (a + b) / 2, 0.1 + k * 0.2, fz + 0.04, 0, 0, 0, null, 0.06);
+    wirePanel(a, fz + 0.035, b, fz + 0.035, 0.62, DOOR.h - 0.62);
+  }
+  W.box(wood, C.x1 - C.x0, 0.07, 0.07, (C.x0 + C.x1) / 2, DOOR.h + 0.035, fz);
+  for (let x = C.x0 + 0.06; x < C.x1; x += 0.125) {
+    const top = CONN_Y(x + 0.06) + 0.04, h = top - (DOOR.h + 0.07);
+    if (h > 0.02) W.box(pick(COL.plank), 0.115, h, 0.025, x + 0.0625, DOOR.h + 0.07 + h / 2, fz + 0.03, 0, 0, 0, null, 0.06);
+  }
+  // the little fence door, standing open against the inside
+  {
+    const lx = (LEAF.x0 + LEAF.x1) / 2, z0 = FACE - 0.04, z1 = LEAF.z0 + 0.04, zc = (z0 + z1) / 2, lz = z0 - z1;
+    for (const z of [z0, z1]) W.box(0xa27a56, 0.04, 1.16, 0.045, lx, 0.62, z, 0, 0, 0, null, 0.06);
+    for (const y of [0.06, 1.18, 0.62]) W.box(0xa27a56, 0.04, 0.045, lz, lx, y, zc, 0, 0, 0, null, 0.06);
+    W.box(0xa27a56, 0.035, 1.25, 0.04, lx, 0.62, zc, Math.atan2(lz - 0.06, 1.1), 0, 0);
+    wirePanel(lx + 0.012, z0, lx + 0.012, z1, 0.05, 1.12);
+    for (const y of [0.2, 1.05]) W.box(0x4f4c4a, 0.05, 0.03, 0.1, DOOR.x1 + 0.01, y, FACE - 0.04);
+  }
+  // roof: boarding, then rows of beaver-tail tiles, staggered, each lower end resting on the row below
+  const s = Math.atan2(C.hHi - C.hLo, C.x1 - C.x0), cs = Math.cos(s), sn = Math.sin(s);
+  const xe = C.x1 + 0.25, ye = CONN_Y(xe) + 0.09, Lr = L + 0.27, zc = C.z0 + Lr / 2, Ls = (xe - C.x0) / cs;
+  const RB = basisM(new THREE.Vector3(0, 0, -1), new THREE.Vector3(-cs, sn, 0), new THREE.Vector3(sn, cs, 0), xe, ye, zc);
+  W.add(new THREE.BoxGeometry(Lr, Ls, 0.03), 0x8a6850, RB.clone().multiply(mat4(0, Ls / 2, -0.015)), 0.03);
+  W.add(new THREE.BoxGeometry(0.03, Ls, 0.13), 0x8a6850, RB.clone().multiply(mat4(-Lr / 2, Ls / 2, -0.04)), 0.03);   // barge board over the door
+  W.add(new THREE.BoxGeometry(Lr, 0.12, 0.03), 0x8a6850, RB.clone().multiply(mat4(0, 0.02, -0.06, -Math.PI / 2 + s, 0, 0)), 0.03);   // fascia
+  const tw = 0.2, tl = 0.34, tile = new THREE.Shape();
+  tile.moveTo(-tw / 2, tl); tile.lineTo(-tw / 2, tw / 2); tile.absarc(0, tw / 2, tw / 2, Math.PI, Math.PI * 2, false); tile.lineTo(tw / 2, tl); tile.closePath();
+  const tg = new THREE.ExtrudeGeometry(tile, { depth: 0.022, bevelEnabled: false, curveSegments: 3 });
+  const rows = Math.ceil(Ls / 0.155);
+  for (let j = 0; j < rows; j++) {
+    const u = j * 0.155 - 0.03, off = (j % 2) * tw / 2;
+    for (let x = -Lr / 2 + tw / 2 - off; x < Lr / 2; x += tw) {
+      if (x < -Lr / 2 + tw * 0.3) continue;
+      W.add(tg, pick(COL.tile), RB.clone().multiply(mat4(Math.min(x, Lr / 2 - tw / 2), u, 0.026, -0.075, 0, 0)), 0.06, true);
+    }
+  }
+  tg.dispose();
+  W.box(0xa3a7a8, 0.1, 0.03, Lr, C.x0 + 0.05, CONN_Y(C.x0) + 0.14, zc, 0, 0, -s);   // flashing against the wall
+}
+
+// the coop: a boarded box at the end of the passage, pop hole on the passage side, window with the nest boxes behind it
+{
+  const C = COOP, w = C.x1 - C.x0, d = C.z1 - C.z0, cx = (C.x0 + C.x1) / 2, cz = (C.z0 + C.z1) / 2, t = 0.06, wc = COL.coop[0];
+  const hAt = (z) => C.hB + (z - C.z0) / d * (C.hF - C.hB);
+  W.box(0xdcc48e, w, 0.02, d, cx, 0, cz, 0, 0, 0, null, 0.08);   // straw-covered floor
+  for (let i = 0; i < 50; i++) W.box(pick([0xe2c46a, 0xd6b45c, 0xead27e]), rand(0.06, 0.14), 0.006, 0.012, rand(C.x0 + 0.1, C.x1 - 0.1), 0.012, rand(C.z0 + 0.1, C.z1 - 0.1), 0, rand(0, 3), 0, null, 0.05);
+  W.box(wc, w, C.hB, t, cx, C.hB / 2, C.z0 + t / 2, 0, 0, 0, null, 0.03);
+  for (const x of [C.x0 + t / 2, C.x1 - t / 2]) W.add(slopedBox(t, d, C.hF, C.hB), wc, mat4(x, 0, cz), 0.03);
+  const zs = C.z1 - t / 2, seg = (x0, x1, y0, y1) => W.box(wc, x1 - x0, y1 - y0, t, (x0 + x1) / 2, (y0 + y1) / 2, zs, 0, 0, 0, null, 0.03);
+  seg(C.x0, HOLE.x0, 0, C.hF); seg(HOLE.x0, HOLE.x1, HOLE.h, C.hF); seg(HOLE.x1, WIN.x0, 0, C.hF); seg(WIN.x0, WIN.x1, 0, WIN.y0); seg(WIN.x0, WIN.x1, WIN.y1, C.hF); seg(WIN.x1, C.x1, 0, C.hF);
+  // vertical cladding on the faces you can see: the south face east of the passage, the east face
+  const bw = 0.11;
+  for (let x = CONN.x1 + 0.06; x < C.x1 - 0.02; x += bw) {
+    const xc = x + bw / 2, inWin = xc > WIN.x0 - 0.02 && xc < WIN.x1 + 0.02;
+    if (inWin) { W.box(pick(COL.coop), bw - 0.008, WIN.y0, 0.02, xc, WIN.y0 / 2, C.z1 + 0.01, 0, 0, 0, null, 0.05); W.box(pick(COL.coop), bw - 0.008, C.hF - WIN.y1, 0.02, xc, (C.hF + WIN.y1) / 2, C.z1 + 0.01, 0, 0, 0, null, 0.05); }
+    else W.box(pick(COL.coop), bw - 0.008, C.hF, 0.02, xc, C.hF / 2, C.z1 + 0.01, 0, 0, 0, null, 0.05);
+  }
+  for (let z = C.z0 + 0.01; z < C.z1 - 0.02; z += bw) { const h = hAt(z + bw / 2); W.box(pick(COL.coop), 0.02, h, bw - 0.008, C.x1 + 0.01, h / 2, z + bw / 2, 0, 0, 0, null, 0.05); }
+  for (const [x, z] of [[C.x1, C.z1], [C.x1, C.z0], [C.x0, C.z0]]) W.box(COL.coopTrim, 0.07, hAt(z), 0.07, x, hAt(z) / 2, z);
+  // a people door on the east side
+  for (let i = 0; i < 6; i++) W.box(pick([0x8f6644, 0x86603f]), 0.03, 1.62, 0.128, C.x1 + 0.03, 0.82, -8.82 + i * 0.13, 0, 0, 0, null, 0.06);
+  for (const y of [0.3, 1.35]) W.box(0x4f4c4a, 0.015, 0.04, 0.38, C.x1 + 0.05, y, -8.62);
+  W.box(0x4f4c4a, 0.03, 0.15, 0.03, C.x1 + 0.06, 0.92, -8.07);
+  // window: frame, mullion, sill, glass
+  const fz = C.z1 + 0.025, wcx = (WIN.x0 + WIN.x1) / 2, wcy = (WIN.y0 + WIN.y1) / 2;
+  W.box(0xece4d2, WIN.x1 - WIN.x0 + 0.12, 0.06, 0.05, wcx, WIN.y1 + 0.03, fz); W.box(0xe2d9c4, WIN.x1 - WIN.x0 + 0.18, 0.05, 0.1, wcx, WIN.y0 - 0.025, fz + 0.02);
+  for (const x of [WIN.x0 - 0.03, WIN.x1 + 0.03]) W.box(0xece4d2, 0.06, WIN.y1 - WIN.y0, 0.05, x, wcy, fz);
+  W.box(0xece4d2, 0.035, WIN.y1 - WIN.y0, 0.035, wcx, wcy, fz);
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(WIN.x1 - WIN.x0, WIN.y1 - WIN.y0), new THREE.MeshPhongMaterial({ color: 0xd8eaf2, transparent: true, opacity: 0.14, shininess: 90, specular: 0x666666, depthWrite: false }));
+  glass.position.set(wcx, wcy, C.z1 + 0.012); glass.renderOrder = 3; scene.add(glass);
+  // roof: tar-felt pent roof with battens
+  const sl = Math.atan2(C.hF - C.hB, d);
+  W.box(0x7a736b, w + 0.26, 0.05, d / Math.cos(sl) + 0.26, cx, (C.hF + C.hB) / 2 + 0.03, cz + 0.02, -sl, 0, 0, null, 0.04);
+  for (let i = 0; i < 6; i++) W.box(0x6c665f, 0.04, 0.03, d / Math.cos(sl) + 0.26, C.x0 - 0.08 + (i + 0.5) * (w + 0.16) / 6, (C.hF + C.hB) / 2 + 0.07, cz + 0.02, -sl, 0, 0);
+  W.box(COL.coopTrim, w + 0.26, 0.1, 0.03, cx, C.hF - 0.01, C.z1 + 0.15);
+  // nest boxes along the inside of the window wall: three bays, straw, a low lip on the coop side
+  const N = NEST, nw = N.x1 - N.x0, nd = N.z1 - N.z0, ncx = (N.x0 + N.x1) / 2;
+  W.box(COL.coopTrim, nw, 0.04, nd, ncx, N.y - 0.06, NEST_Z);
+  W.box(pick(COL.coop), nw, N.y - 0.06, 0.025, ncx, (N.y - 0.06) / 2, N.z0 + 0.012, 0, 0, 0, null, 0.05);
+  W.box(pick(COL.coop), nw, 0.13, 0.025, ncx, N.y + 0.04, N.z0 + 0.012, 0, 0, 0, null, 0.05);
+  for (const x of [2.81, 3.14]) W.box(COL.coopTrim, 0.025, 0.12, nd, x, N.y + 0.04, NEST_Z);
+  W.box(COL.coopTrim, 0.025, 0.4, nd, N.x0, N.y + 0.14, NEST_Z);
+  W.box(0xead27e, nw - 0.03, 0.04, nd - 0.03, ncx, N.y - 0.02, NEST_Z, 0, 0, 0, null, 0.15);
+  for (let i = 0; i < 26; i++) W.box(pick([0xf0dc8a, 0xe2c46a, 0xf4e49c]), rand(0.06, 0.12), 0.008, 0.012, rand(N.x0 + 0.05, N.x1 - 0.05), N.y + 0.003, rand(N.z0 + 0.04, N.z1 - 0.03), 0, rand(0, 3), 0, null, 0.05);
+  // roosting perch
+  for (const x of [1.05, 2.25]) W.box(COL.coopTrim, 0.05, 0.78, 0.05, x, 0.39, -8.75);
+  W.box(0xa27a56, 1.3, 0.05, 0.05, 1.65, 0.78, -8.75);
+}
+const coopLight = new THREE.PointLight(0xffe2b0, 0.55, 3.4, 1.6); coopLight.position.set(2.5, 1.5, -8.0); scene.add(coopLight);
+
+// diamond-mesh fences on round posts with ball tops
+function post(x, z, H) { W.add(new THREE.CylinderGeometry(0.022, 0.024, H, 6), COL.post, mat4(x, H / 2, z), 0.05); W.add(new THREE.IcosahedronGeometry(0.042, 0), COL.post, mat4(x, H + 0.03, z), 0.05); }
+function fence(x0, z0, x1, z1, H = 1.45) {
+  const len = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.round(len / 3.5)), ang = Math.atan2(-(z1 - z0), x1 - x0);
+  for (let i = 0; i <= n; i++) post(lerp(x0, x1, i / n), lerp(z0, z1, i / n), H);
+  for (const y of [H - 0.03, 0.03]) W.box(0xd2d8d6, len, 0.008, 0.008, (x0 + x1) / 2, y, (z0 + z1) / 2, 0, ang, 0, null, 0.02);
+  wirePanel(x0, z0, x1, z1, 0.01, H - 0.04);
+}
+fence(-3.5, 3.55, 3.55, 3.55);      // south
+fence(3.55, 3.55, 3.55, -3.55);     // east
+fence(3.55, -3.55, 2.52, -3.55);    // the short bit to the passage
+
+// the orange concrete mixer: tilting drum on a little two-wheeled frame, hand wheel on the side
+{
+  const M = mat4(MIXER.x, 0, MIXER.z, 0, Math.PI / 2, 0), add = (geo, c, m, j = 0.05) => W.add(geo, c, M.clone().multiply(m), j), O = COL.orange, OD = COL.orangeDark;
+  for (const s of [-1, 1]) {
+    add(new THREE.CylinderGeometry(0.22, 0.22, 0.08, 12), 0x4a4949, mat4(s * 0.36, 0.22, 0.35, 0, 0, Math.PI / 2));
+    add(new THREE.CylinderGeometry(0.1, 0.1, 0.09, 8), 0xb9bcbf, mat4(s * 0.36, 0.22, 0.35, 0, 0, Math.PI / 2));
+    add(new THREE.BoxGeometry(0.06, 0.06, 0.92), OD, mat4(s * 0.26, 0.4, -0.06, -0.18, 0, 0));
+    add(new THREE.BoxGeometry(0.06, 0.52, 0.06), OD, mat4(s * 0.27, 0.24, -0.46, 0, 0, s * 0.08));
+  }
+  add(new THREE.CylinderGeometry(0.025, 0.025, 0.8, 6), 0x5b5c5e, mat4(0, 0.22, 0.35, 0, 0, Math.PI / 2));
+  add(new THREE.BoxGeometry(0.6, 0.05, 0.05), OD, mat4(0, 0.45, -0.44));
+  add(new THREE.BoxGeometry(0.12, 0.5, 0.12), OD, mat4(0, 0.66, 0.02));
+  add(new THREE.BoxGeometry(0.28, 0.22, 0.26), O, mat4(0, 0.6, -0.33));
+  add(new THREE.BoxGeometry(0.2, 0.012, 0.18), 0x5b5c5e, mat4(0, 0.715, -0.33));
+  const prof = [[0.001, -0.36], [0.16, -0.35], [0.27, -0.29], [0.33, -0.17], [0.34, -0.02], [0.31, 0.12], [0.24, 0.27], [0.18, 0.37], [0.19, 0.42], [0.16, 0.43], [0.13, 0.38], [0.001, 0.34]];
+  const drum = mat4(0, 0.98, 0.04, 0.55, 0, 0);
+  add(new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y)), 12), O, drum, 0.08);
+  add(new THREE.CylinderGeometry(0.125, 0.125, 0.005, 10), 0x3d3a36, drum.clone().multiply(mat4(0, 0.36, 0)));
+  for (const y of [-0.12, 0.08]) add(new THREE.TorusGeometry(0.335, 0.014, 4, 16), OD, drum.clone().multiply(mat4(0, y, 0, Math.PI / 2, 0, 0)));
+  add(new THREE.CylinderGeometry(0.02, 0.02, 0.44, 6), 0x5b5c5e, mat4(-0.22, 0.98, 0.04, 0, 0, Math.PI / 2));
+  add(new THREE.TorusGeometry(0.17, 0.016, 4, 16), 0x5b5c5e, mat4(-0.44, 0.98, 0.04, 0, Math.PI / 2, 0));
+  for (let k = 0; k < 3; k++) add(new THREE.BoxGeometry(0.015, 0.33, 0.015), 0x5b5c5e, mat4(-0.44, 0.98, 0.04, k * Math.PI / 3, 0, 0));
+  add(new THREE.CylinderGeometry(0.014, 0.014, 0.08, 6), OD, mat4(-0.48, 1.15, 0.04, 0, 0, Math.PI / 2));
+}
+
+// waterer
 {
   W.add(new THREE.CylinderGeometry(0.2, 0.21, 0.045, 10), 0xb5c0c6, mat4(WATER.x, 0.022, WATER.z), 0.05);
   W.add(new THREE.CylinderGeometry(0.17, 0.17, 0.01, 10), 0x8ec6dc, mat4(WATER.x, 0.042, WATER.z), 0.02);
   W.add(new THREE.CylinderGeometry(0.13, 0.13, 0.3, 8), 0xc4ced3, mat4(WATER.x, 0.2, WATER.z), 0.06);
   W.add(new THREE.SphereGeometry(0.13, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), 0xc4ced3, mat4(WATER.x, 0.35, WATER.z), 0.06);
   W.add(new THREE.TorusGeometry(0.06, 0.008, 4, 8, Math.PI), 0x9aa4aa, mat4(WATER.x, 0.47, WATER.z), 0.04);
-  W.add(new THREE.CylinderGeometry(0.09, 0.1, 0.9, 7), COL.bark, mat4(LOG.x, 0.09, LOG.z, Math.PI / 2, 0.1, 0), 0.1);
-  W.add(new THREE.CylinderGeometry(0.075, 0.075, 0.005, 7), 0xdcbb8a, mat4(LOG.x - 0.045, 0.09, LOG.z + 0.45, Math.PI / 2, 0.1, 0));
-  W.add(new THREE.CylinderGeometry(0.075, 0.075, 0.005, 7), 0xdcbb8a, mat4(LOG.x + 0.045, 0.09, LOG.z - 0.45, Math.PI / 2, 0.1, 0));
 }
 
-// chicken-wire fences: wooden posts, top rail, gravel board, galvanised mesh
-const wireTex = (() => {
-  const c = document.createElement("canvas"); c.width = c.height = 128; const g = c.getContext("2d");
-  const cols = 4, w = 128 / cols, r = w / Math.sqrt(3), sy = 128 / (6 * r);
-  g.scale(1, sy); g.strokeStyle = "rgba(226,230,232,1)"; g.lineWidth = 2.4;
-  for (let row = -1; row <= 5; row++) for (let col = -1; col <= cols; col++) {
-    const cx = col * w + (row % 2 ? w / 2 : 0), cy = row * 1.5 * r;
-    g.beginPath(); for (let k = 0; k <= 6; k++) { const a = Math.PI / 6 + k * Math.PI / 3; g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); } g.stroke();
+// shrubs the hens like to hide under: a few stems, a low leafy dome
+for (const S of SHRUBS) {
+  for (let k = 0; k < 4; k++) { const a = k / 4 * 6.28 + 0.4; W.add(new THREE.CylinderGeometry(0.012, 0.02, 0.4, 5), COL.bark, mat4(S.x + Math.cos(a) * 0.05, 0.18, S.z + Math.sin(a) * 0.05, Math.sin(a) * 0.3, 0, -Math.cos(a) * 0.3), 0.1); }
+  for (let k = 0; k < 7; k++) {
+    const a = rand(0, 6.28), d = k ? rand(0.12, S.r * 0.62) : 0, r = k ? rand(0.22, 0.3) : 0.32;
+    W.add(blob(r * 1.05, 0, 0.18), pick(COL.shrub), mat4(S.x + Math.cos(a) * d, (k ? rand(0.42, 0.58) : 0.66), S.z + Math.sin(a) * d, rand(0, 3), rand(0, 3), 0, 1, 0.78, 1), 0.1);
   }
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); return t;
-})();
-function wirePanel(x0, z0, x1, z1, y0, h) {
-  const len = Math.hypot(x1 - x0, z1 - z0), t = wireTex.clone(); t.needsUpdate = true; t.repeat.set(len / 0.2, h / 0.2);
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(len, h), new THREE.MeshLambertMaterial({ map: t, transparent: true, side: THREE.DoubleSide, depthWrite: false, opacity: 0.9 }));
-  m.position.set((x0 + x1) / 2, y0 + h / 2, (z0 + z1) / 2); m.rotation.y = Math.atan2(-(z1 - z0), x1 - x0); m.renderOrder = 2; scene.add(m); return m;
-}
-function fence(x0, z0, x1, z1, H = 1.5) {
-  const len = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(len / 1.75), ang = Math.atan2(-(z1 - z0), x1 - x0);
-  for (let i = 0; i <= n; i++) { const t = i / n; W.box(COL.post, 0.075, H + 0.08, 0.075, lerp(x0, x1, t), (H + 0.08) / 2, lerp(z0, z1, t), 0, ang, 0, null, 0.1); }
-  const P = mat4((x0 + x1) / 2, 0, (z0 + z1) / 2, 0, ang, 0);
-  W.box(0x8f6a49, len, 0.045, 0.05, 0, H, 0, 0, 0, 0, P);
-  W.box(0x8f6a49, len, 0.16, 0.025, 0, 0.08, 0.04, 0, 0, 0, P, 0.05);
-  wirePanel(x0, z0, x1, z1, 0.14, H - 0.16);
-}
-fence(3.58, COOP.z0 - 0.02, 3.58, 3.58);   // east
-fence(-3.5, 3.58, 3.58, 3.58);              // south
-// a little gate in the south fence
-{
-  const gx0 = 1.55, gx1 = 2.45, z = 3.62, gc = 0xa27a56;
-  W.box(gc, gx1 - gx0, 0.07, 0.035, (gx0 + gx1) / 2, 1.3, z); W.box(gc, gx1 - gx0, 0.07, 0.035, (gx0 + gx1) / 2, 0.28, z);
-  W.box(gc, 0.07, 1.12, 0.035, gx0 + 0.04, 0.79, z); W.box(gc, 0.07, 1.12, 0.035, gx1 - 0.04, 0.79, z);
-  W.box(gc, 0.06, 1.3, 0.03, (gx0 + gx1) / 2, 0.79, z + 0.005, 0, 0, Math.atan2(gx1 - gx0 - 0.1, 1.0) - Math.PI / 2);
-  W.box(0x3b3b3e, 0.1, 0.03, 0.03, gx1 - 0.08, 0.95, z + 0.03);
 }
 
-// little apple tree near the south fence
+// the little tree: a slim young trunk tied to its stake, a small round crown
 const treeTop = (() => {
   const T = TREE, B = new Bake();
   const branch = (a, b, r0, r1) => {
@@ -366,55 +645,58 @@ const treeTop = (() => {
     const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
     W.add(g, COL.bark, new THREE.Matrix4().compose(a, q, new THREE.Vector3(1, 1, 1)), 0.1);
   };
-  const base = new THREE.Vector3(T.x, 0, T.z), fork = new THREE.Vector3(T.x + 0.06, 0.95, T.z - 0.03);
-  branch(base, fork, 0.1, 0.07);
-  const ends = [[-0.5, 1.5, 0.15], [0.5, 1.55, -0.15], [0.05, 1.7, 0.4], [0.12, 1.65, -0.45], [-0.15, 1.85, -0.05]];
-  for (const [x, y, z] of ends) branch(fork, new THREE.Vector3(T.x + x, y, T.z + z), 0.055, 0.03);
-  // canopy is its own mesh so it can sway a touch
-  const blobs = [[0, 1.9, 0, 0.62], [-0.55, 1.6, 0.15, 0.48], [0.55, 1.65, -0.15, 0.5], [0.1, 1.75, 0.5, 0.46], [0.1, 1.7, -0.55, 0.47], [-0.3, 2.15, -0.25, 0.42], [0.35, 2.15, 0.2, 0.4], [-0.35, 1.95, 0.45, 0.38]];
-  for (const [x, y, z, r] of blobs) B.add(blob(r, 1, 0.12), pick(COL.leaf), mat4(x, y, z, rand(0, 3), rand(0, 3), 0, 1, 0.85, 1), 0.1);
-  for (let i = 0; i < 14; i++) {
-    const [x, y, z, r] = pick(blobs), a = rand(0, Math.PI * 2), e = rand(-0.9, 0.2);
-    B.add(new THREE.IcosahedronGeometry(0.04, 0), pick([0xd9503c, 0xe0643f, 0xc94a3a]), mat4(x + Math.cos(a) * Math.cos(e) * r * 0.98, y + Math.sin(e) * r * 0.85, z + Math.sin(a) * Math.cos(e) * r * 0.98), 0.05);
+  const base = new THREE.Vector3(T.x, 0, T.z), fork = new THREE.Vector3(T.x + 0.03, 1.0, T.z - 0.02);
+  branch(base, fork, 0.055, 0.042);
+  for (const [x, y, z] of [[-0.32, 1.32, 0.1], [0.3, 1.36, -0.1], [0.04, 1.5, 0.28], [0.08, 1.45, -0.3], [-0.06, 1.62, -0.02]]) branch(fork, new THREE.Vector3(T.x + x, y, T.z + z), 0.03, 0.017);
+  W.box(0xc8a47a, 0.035, 1.2, 0.035, T.x + 0.13, 0.6, T.z + 0.05, 0, 0, 0.03, null, 0.06);
+  W.box(0x6f8a5a, 0.15, 0.03, 0.05, T.x + 0.07, 0.82, T.z + 0.03, 0, -0.35, 0);
+  const blobs = [[0, 1.56, 0, 0.42], [-0.33, 1.4, 0.1, 0.32], [0.33, 1.43, -0.1, 0.33], [0.06, 1.5, 0.32, 0.3], [0.06, 1.47, -0.34, 0.31], [-0.15, 1.8, -0.12, 0.3], [0.2, 1.78, 0.12, 0.28]];
+  for (const [x, y, z, r] of blobs) B.add(blob(r * 1.05, 0, 0.16), pick(COL.leaf), mat4(x, y, z, rand(0, 3), rand(0, 3), 0, 1, 0.88, 1), 0.06);
+  for (let i = 0; i < 9; i++) {
+    const [x, y, z, r] = pick(blobs), a = rand(0, Math.PI * 2), e = rand(-0.8, 0.2);
+    B.add(new THREE.IcosahedronGeometry(0.032, 0), pick([0xd9503c, 0xe0643f, 0xc94a3a]), mat4(x + Math.cos(a) * Math.cos(e) * r * 0.98, y + Math.sin(e) * r * 0.85, z + Math.sin(a) * Math.cos(e) * r * 0.98), 0.05);
   }
   const m = B.build(true, true); scene.remove(m);
   const g = new THREE.Group(); g.position.set(T.x, 0, T.z); g.add(m); scene.add(g); return g;
 })();
 
-// the house behind the north wall, hedges and trees further out (no shadows needed there)
+// round the edges of the island: the pool with its paving, a hedge or two, two trees
+const OUT_RECTS = [[-3.62, 3.62, -3.62, 3.62], [GAR.x0 - 0.3, GAR.x1 + 0.05, GAR.z0 - 0.3, GAR.z1 + 0.3], [BLOCK.x0, BLOCK.x1, BLOCK.z0, BLOCK.z1 + 0.05], [CONN.x0, CONN.x1 + 0.1, CONN.z0, CONN.z1 + 0.05],
+  [COOP.x0 - 0.05, COOP.x1 + 0.08, COOP.z0 - 0.05, COOP.z1 + 0.05], [POOL.x - 2.2, POOL.x + 2.2, POOL.z - 1.9, POOL.z + 1.9]];
+const outsideFree = (x, z) => onIsland(x, z, 0.35) && !OUT_RECTS.some((q) => x > q[0] && x < q[1] && z > q[2] && z < q[3]);
+const ISLE_TREES = [[-6.2, -11.0, 1.05], [5.5, -10.5, 1.2]];
 {
-  const F = new Bake();
-  const hx = -1.5, hz = -14, hw = 13, hd = 7.5, hh = 5.6;
-  F.box(0xefe2c8, hw, hh, hd, hx, hh / 2 - 0.2, hz, 0, 0, 0, null, 0.03);
-  const roof = new THREE.Shape(); roof.moveTo(-hd / 2 - 0.35, 0); roof.lineTo(hd / 2 + 0.35, 0); roof.lineTo(0, 2.7); roof.closePath();
-  const rg = new THREE.ExtrudeGeometry(roof, { depth: hw + 0.5, bevelEnabled: false }).rotateY(Math.PI / 2).translate(-(hw + 0.5) / 2, 0, 0);
-  F.add(rg, 0xc26a52, mat4(hx, hh - 0.25, hz), 0.06);
-  F.box(0xe6d6b8, 0.7, 1.4, 0.7, hx + 3.2, hh + 1.4, hz - 0.5, 0, 0, 0, null, 0.03);   // chimney
-  const front = hz + hd / 2;
-  const win = (x, y, w, h) => { F.box(0xfbf7ee, w + 0.14, h + 0.14, 0.08, x, y, front + 0.03, 0, 0, 0, null, 0.02); F.box(0x5d7890, w, h, 0.1, x, y, front + 0.04, 0, 0, 0, null, 0.02); F.box(0xfbf7ee, 0.05, h, 0.12, x, y, front + 0.05, 0, 0, 0, null, 0); F.box(0xfbf7ee, w + 0.2, 0.08, 0.2, x, y - h / 2 - 0.08, front + 0.08, 0, 0, 0, null, 0); };
-  for (const x of [-5.5, -2.8, 2.2, 4.4]) win(hx + x, 3.9, 1.0, 1.15);
-  for (const x of [-5.5, -2.8, 4.4]) win(hx + x, 1.5, 1.0, 1.25);
-  F.box(0x5f8a76, 0.95, 2.05, 0.1, hx + 1.0, 1.0, front + 0.04, 0, 0, 0, null, 0.02);
-  F.box(0xfbf7ee, 1.15, 0.12, 0.14, hx + 1.0, 2.1, front + 0.05);
-  F.box(0xcfc5b2, 3.2, 0.12, 1.8, hx + 1.0, 0.04, front + 0.9, 0, 0, 0, null, 0.05);   // patio step
-  // hedges
+  W.box(0xe8dfcf, 4.2, 0.06, 3.6, POOL.x, 0.02, POOL.z, 0, 0, 0, null, 0.04);   // paving
+  W.add(new THREE.CylinderGeometry(POOL.r + 0.2, POOL.r + 0.22, 0.16, 14), 0xf4f0e8, mat4(POOL.x, 0.08, POOL.z), 0.02);
+  W.add(new THREE.CylinderGeometry(POOL.r, POOL.r, 0.02, 14), 0x8fd0e0, mat4(POOL.x, 0.18, POOL.z), 0.03);
   const hedge = (x0, z0, x1, z1) => {
-    const len = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(len / 0.95);
-    for (let i = 0; i <= n; i++) { const t = i / n, x = lerp(x0, x1, t), z = lerp(z0, z1, t), r = rand(0.75, 1.05); F.add(blob(r, 0, 0.2), pick([0x5f9440, 0x6a9f48, 0x578a3c]), mat4(x, gardenH(x, z) + r * 0.85, z, rand(0, 3), rand(0, 3), 0, 1, rand(1.1, 1.45), 1), 0.1); }
+    const len = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(len / 0.55);
+    for (let i = 0; i <= n; i++) { const t = i / n, x = lerp(x0, x1, t), z = lerp(z0, z1, t), r = rand(0.36, 0.45); W.add(blob(r, 0, 0.2), pick([0x7fae58, 0x86b45e, 0x79a753]), mat4(x, r * 0.85, z, rand(0, 3), rand(0, 3), 0, 1, rand(1.15, 1.35), 1), 0.06); }
   };
-  hedge(10, -9, 10, 11); hedge(-11, 11, 10, 11); hedge(-11, -9, -11, 11);
-  const tree = (x, z, s) => {
-    const y = gardenH(x, z);
-    F.add(new THREE.CylinderGeometry(0.12 * s, 0.18 * s, 2.2 * s, 6).translate(0, 1.1 * s, 0), COL.bark, mat4(x, y, z));
-    for (let i = 0; i < 5; i++) F.add(blob(rand(0.7, 1.0) * s, 1, 0.15), pick(COL.leaf), mat4(x + rand(-0.6, 0.6) * s, y + (2.4 + rand(0, 1)) * s, z + rand(-0.6, 0.6) * s), 0.08);
-  };
-  tree(-8, 4, 1.6); tree(7.5, -6.5, 1.8); tree(6, 13.5, 2); tree(-7.5, -7.5, 1.3); tree(-13, 2, 2.2); tree(13.5, 4, 1.9);
-  F.build(false, true);
+  hedge(7.3, -3.2, 7.3, 3.6); hedge(4.6, 5.3, 6.6, 5.3);
+  for (const [x, z, s] of ISLE_TREES) {
+    W.add(new THREE.CylinderGeometry(0.1 * s, 0.16 * s, 1.9 * s, 6).translate(0, 0.95 * s, 0), COL.bark, mat4(x, 0, z), 0.08);
+    for (let i = 0; i < 5; i++) W.add(blob(rand(0.6, 0.8) * s, 0, 0.16), pick(COL.leaf), mat4(x + rand(-0.5, 0.5) * s, (2.1 + rand(0, 0.8)) * s, z + rand(-0.5, 0.5) * s, rand(0, 3), rand(0, 3)), 0.06);
+  }
 }
 const builtStatic = W.build(true, true);
 structures.add(builtStatic);
+const meshPanels = MESHB.build(false, false);
+meshPanels.material = new THREE.MeshPhongMaterial({ color: 0xe9efe9, transparent: true, opacity: 0.17, side: THREE.DoubleSide, depthWrite: false, flatShading: true, shininess: 30, specular: 0x222222 });
+meshPanels.renderOrder = 2;
 
-// grass tufts and a scattering of daisies
+// grass tufts and tiny flowers, swaying a little in the breeze (a few lines added to the vertex shader)
+const SWAY = { value: 0 };
+function swaying(mat, amp) {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = SWAY; sh.uniforms.uAmp = { value: amp };
+    sh.vertexShader = "uniform float uTime;\nuniform float uAmp;\n" + sh.vertexShader.replace("#include <begin_vertex>", `#include <begin_vertex>
+      float swp = instanceMatrix[3].x * 0.9 + instanceMatrix[3].z * 0.7;
+      transformed.x += sin(uTime * 1.7 + swp) * uAmp * position.y;
+      transformed.z += cos(uTime * 1.3 + swp * 1.4) * uAmp * 0.6 * position.y;`);
+  };
+  return mat;
+}
 {
   const g = new THREE.BufferGeometry(), P = [], N = [];
   for (let k = 0; k < 4; k++) {
@@ -426,32 +708,69 @@ structures.add(builtStatic);
   }
   g.setAttribute("position", new THREE.Float32BufferAttribute(P, 3)); g.setAttribute("normal", new THREE.Float32BufferAttribute(N, 3));
   const spots = [];
-  for (let i = 0; i < 1700; i++) {
-    const x = rand(RUN.x0 + 0.1, RUN.x1 - 0.1), z = rand(RUN.z0 + 0.1, RUN.z1 - 0.1);
-    if (dirt(x, z) > 0.25 || !isFree(x, z, 0.05, true)) continue;
-    spots.push([x, 0, z, rand(0.035, 0.075)]);
+  for (let i = 0; i < 700; i++) {
+    const x = rand(RUN.x0 + 0.05, RUN.x1 - 0.05), z = rand(RUN.z0 + 0.05, RUN.z1 - 0.05);
+    if (dirt(x, z) > 0.25 || !isFree(x, z, 0.02)) continue;
+    spots.push([x, groundY(x, z), z, rand(0.05, 0.09)]);
   }
-  for (let i = 0; i < 3200; i++) {
-    const x = rand(-10, 10), z = rand(-9.5, 11);
-    if (x > -3.9 && x < 3.75 && z > -3.9 && z < 3.75) continue;
-    spots.push([x, gardenH(x, z), z, rand(0.06, 0.13)]);
+  for (let i = 0; i < 1500; i++) {
+    const x = rand(-12, 10), z = rand(-13, 8);
+    if (!outsideFree(x, z)) continue;
+    spots.push([x, 0, z, rand(0.07, 0.13)]);
   }
-  const im = new THREE.InstancedMesh(g, new THREE.MeshLambertMaterial(), spots.length), c = new THREE.Color();
+  const im = new THREE.InstancedMesh(g, swaying(new THREE.MeshLambertMaterial(), 0.28), spots.length), c = new THREE.Color();
   spots.forEach(([x, y, z, s], i) => {
     _o.position.set(x, y, z); _o.rotation.set(0, rand(0, 6.3), 0); _o.scale.set(s, s * rand(0.8, 1.3), s); _o.updateMatrix(); im.setMatrixAt(i, _o.matrix);
-    c.set(pick([0x7cae4a, 0x8cbc55, 0x6fa243, 0x98c45e])); im.setColorAt(i, c);
+    c.set(pick([0x9cc764, 0xa3cc6b, 0x95c15e])); im.setColorAt(i, c);
   });
   im.receiveShadow = true; scene.add(im);
+  // flowers: a thin stem and a little faceted head
   const fl = [];
-  for (let i = 0; i < 260; i++) {
-    const x = rand(-9.5, 9.5), z = rand(-9, 10.5);
-    if (x > -3.95 && x < 3.8 && z > -3.95 && z < 3.8) continue;
-    if (z < -7 && x > -8.5 && x < 5.5) continue;
-    fl.push([x, gardenH(x, z) + 0.035, z]);
+  for (let i = 0; i < 600 && fl.length < 170; i++) {
+    const x = rand(-12, 10), z = rand(-13, 8);
+    if (outsideFree(x, z)) fl.push([x, z]);
   }
-  const fm = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.03, 0), new THREE.MeshLambertMaterial(), fl.length);
-  fl.forEach(([x, y, z], i) => { _o.position.set(x, y, z); _o.rotation.set(0, 0, 0); _o.scale.set(1, 0.45, 1); _o.updateMatrix(); fm.setMatrixAt(i, _o.matrix); c.set(pick([0xfbf8f0, 0xfbf8f0, 0xfbf8f0, 0xf4d55a, 0xf0b8c8])); fm.setColorAt(i, c); });
-  scene.add(fm);
+  for (let i = 0; i < 60 && fl.length < 195; i++) { const x = rand(-3.3, 3.3), z = rand(-3.3, 3.3); if (dirt(x, z) < 0.1 && isFree(x, z, 0.05)) fl.push([x, z]); }
+  const stems = new THREE.InstancedMesh(new THREE.BoxGeometry(0.007, 0.1, 0.007).translate(0, 0.05, 0), swaying(new THREE.MeshLambertMaterial({ color: 0x8dbb5c }), 0.22), fl.length);
+  const heads = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.022, 0).scale(1, 0.6, 1).translate(0, 0.1, 0), swaying(new THREE.MeshPhongMaterial({ flatShading: true, shininess: 5 }), 0.22), fl.length);
+  fl.forEach(([x, z], i) => {
+    const s = rand(0.8, 1.3); _o.position.set(x, groundY(x, z), z); _o.rotation.set(0, rand(0, 6.3), 0); _o.scale.set(1, s, 1); _o.updateMatrix();
+    stems.setMatrixAt(i, _o.matrix); heads.setMatrixAt(i, _o.matrix); c.set(pick([0xfdf9f0, 0xfdf9f0, 0xf6dc78, 0xf2c2d2, 0xd9c8f0])); heads.setColorAt(i, c);
+  });
+  scene.add(stems, heads);
+}
+
+// slow low-poly clouds drifting round the island, some of them below it
+const clouds = new THREE.Group(); scene.add(clouds);
+{
+  const B = new Bake(false);
+  for (let k = 0; k < 8; k++) {
+    const a = k / 8 * Math.PI * 2 + rand(-0.3, 0.3), R = rand(34, 50), y = k % 3 === 0 ? rand(-12, -6) : rand(-2, 10), x = Math.cos(a) * R, z = Math.sin(a) * R - 2, s = rand(1.6, 2.6), n = 3 + Math.floor(rand(0, 3));
+    for (let i = 0; i < n; i++) B.add(blob(rand(0.8, 1.25) * s, 0, 0.22), pick([0xffffff, 0xfdf9f1]), mat4(x + (i - (n - 1) / 2) * 1.15 * s + rand(-0.3, 0.3), y + rand(-0.15, 0.45) * s, z + rand(-0.4, 0.4) * s, rand(0, 3), rand(0, 3), 0, 1, 0.6, 1), 0.03);
+  }
+  const m = B.build(false, false); scene.remove(m);
+  m.material = new THREE.MeshPhongMaterial({ vertexColors: true, flatShading: true, fog: false, emissive: 0x6d6a64, shininess: 0, specular: 0x000000 });
+  clouds.add(m);
+}
+
+// a couple of butterflies fluttering about the run
+const butterflies = [[0xfff1a8, 0.0], [0xfdfaf2, 2.1], [0xf6c9dc, 4.2]].map(([col, p]) => {
+  const g = new THREE.Group(), mat = new THREE.MeshLambertMaterial({ color: col, emissive: new THREE.Color(col).multiplyScalar(0.45), side: THREE.DoubleSide });
+  const wing = new THREE.Shape(); wing.moveTo(0, 0.004); wing.lineTo(0.05, 0.035); wing.lineTo(0.058, -0.008); wing.lineTo(0.032, -0.04); wing.lineTo(0, -0.012); wing.closePath();
+  const wg = new THREE.ShapeGeometry(wing).rotateX(-Math.PI / 2);
+  const L = new THREE.Mesh(wg, mat), R = new THREE.Mesh(wg, mat); R.scale.x = -1;
+  g.add(L, R, new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.008, 0.05), new THREE.MeshLambertMaterial({ color: 0x6a5846 })));
+  g.scale.setScalar(1.4); scene.add(g);
+  return { g, L, R, p };
+});
+function updateButterflies(t) {
+  for (const b of butterflies) {
+    const p = b.p, x = 0.2 + 2.5 * Math.sin(0.21 * t + p) + 0.5 * Math.sin(0.73 * t + p * 2), z = 0.5 + 2.1 * Math.sin(0.16 * t + p * 1.7) + 0.4 * Math.cos(0.61 * t + p);
+    const y = 0.8 + 0.3 * Math.sin(0.9 * t + p) + 0.1 * Math.sin(3.1 * t + p), g = b.g, dx = x - g.position.x, dz = z - g.position.z;
+    if (dx * dx + dz * dz > 1e-8) g.rotation.y = Math.atan2(dx, dz);
+    g.position.set(x, y, z);
+    const f = 0.2 + Math.sin(t * 23 + p * 5) * 0.95; b.L.rotation.z = f; b.R.rotation.z = -f;
+  }
 }
 
 // ===================================================================
@@ -472,7 +791,7 @@ const GEO = {
   beak: prep(new THREE.ConeGeometry(0.012, 0.032, 5).rotateX(Math.PI / 2), 0.05),
   toe: prep(new THREE.BoxGeometry(0.007, 0.006, 0.042).translate(0, 0.003, 0.019), 0.04),
 };
-const lam = (c) => new THREE.MeshLambertMaterial({ color: c, vertexColors: true });
+const lam = (c) => new THREE.MeshPhongMaterial({ color: c, vertexColors: true, flatShading: true, shininess: 8, specular: 0x111111 });
 const MAT = { comb: lam(0xd83a32), beak: lam(0xe8c070), leg: lam(0xe8b84a), iris: lam(0xd88a2a), pupil: lam(0x1a1412) };
 const TAIL_MAT = new THREE.MeshPhongMaterial({ color: 0x1d5a3c, vertexColors: true, flatShading: true, specular: 0x5ad6a0, shininess: 42 });
 const HEN_COLS = [0xa9643a, 0x9b5631, 0xb87444, 0x8f4f2c, 0xb06a3e, 0xa25d35];
@@ -481,7 +800,7 @@ const SHOULDER = new THREE.Vector3(0, 0.05, 0.085);
 const HIPL = [new THREE.Vector3(-0.045, -0.06, 0), new THREE.Vector3(0.045, -0.06, 0)];
 const birdRoot = new THREE.Group(); scene.add(birdRoot);
 
-function makeBird(i, rooster) {
+function makeBird(i, rooster, crooked = false) {
   const s = rooster ? 1.16 : rand(0.94, 1.04);
   const base = new THREE.Color(rooster ? 0x8e3c20 : HEN_COLS[i % HEN_COLS.length]);
   const mBody = lam(base), mWing = lam(base.clone().offsetHSL(0, 0, -0.05));
@@ -531,7 +850,9 @@ function makeBird(i, rooster) {
     for (let k = 0; k < 5; k++) add(GEO.head, MAT.comb, [0.008, 0.026 + Math.sin(k / 4 * Math.PI) * 0.01, 0.017], [0, 0.048 + Math.sin(k / 4 * Math.PI) * 0.012, 0.036 - k * 0.017], head);
     for (const k of [-1, 1]) add(GEO.head, MAT.comb, [0.008, 0.026, 0.017], [k * 0.008, -0.052, 0.036], head);
   } else {
-    for (let k = 0; k < 3; k++) add(GEO.head, MAT.comb, [0.006, 0.016, 0.013], [0, 0.045 + (k === 1 ? 0.004 : 0), 0.03 - k * 0.016], head);
+    const comb = new THREE.Group(); head.add(comb);
+    if (crooked) { comb.position.set(0.014, -0.006, 0.002); comb.rotation.set(0.12, 0.2, -0.68); }   // flopped over to one side
+    for (let k = 0; k < 3; k++) add(GEO.head, MAT.comb, [0.006, 0.016 + (crooked && k === 0 ? 0.003 : 0), 0.013], [0, 0.045 + (k === 1 ? 0.004 : 0), 0.03 - k * 0.016], comb);
     for (const k of [-1, 1]) add(GEO.head, MAT.comb, [0.006, 0.015, 0.011], [k * 0.007, -0.042, 0.034], head, false);
   }
   // legs and feet (root space)
@@ -553,10 +874,13 @@ function makeBird(i, rooster) {
   return b;
 }
 const birds = [makeBird(0, true)];
-for (let i = 0; i < 6; i++) birds.push(makeBird(i, false));
+for (let i = 0; i < 5; i++) birds.push(makeBird(i, false, i === 1));
+const NAMES = ["Heinrich", "Edna", "Ednis", "Chicken #1", "Chicken #2", "Chicken #3"];
+birds.forEach((b, k) => { b.name = NAMES[k]; b.chasedT = -1e9; b.hungryT = 0; });
+const HEINRICH = birds[0], EDNIS = birds[2];
 
 // ===================================================================
-//  feed and eggs
+//  feed, eggs, dust
 // ===================================================================
 const GMAX = 600, grains = [];
 const grainMesh = new THREE.InstancedMesh(prep(new THREE.IcosahedronGeometry(0.016, 0), 0.1), new THREE.MeshLambertMaterial({ vertexColors: true }), GMAX);
@@ -565,15 +889,17 @@ const GRAIN_COLS = [0xf0c040, 0xe8b030, 0xd9a858, 0xf2e0a0, 0xe08a30].map((c) =>
 for (let i = 0; i < GMAX; i++) grainMesh.setColorAt(i, GRAIN_COLS[0]);   // (creates the colour buffer at full size)
 grainMesh.count = 0;
 let landed = 0, airborne = 0;
-function throwFeed(x, z) {
-  const dx = camera.position.x - x, dz = camera.position.z - z, L = Math.hypot(dx, dz) || 1;
-  const fx = x + dx / L * 1.0, fz = z + dz / L * 1.0, fy = 1.15, n = 34;
+let lastFed = 0, lastAuto = -1e9;
+function throwFeed(x, z, n = 34, from = camera.position, auto = false) {
+  const dx = from.x - x, dz = from.z - z, L = Math.hypot(dx, dz) || 1;
+  const fx = x + dx / L * 1.0, fz = z + dz / L * 1.0, fy = 1.15;
+  if (!auto) lastFed = simT;
   for (let i = 0; i < n && grains.length < GMAX; i++) {
     const a = rand(0, Math.PI * 2), r = Math.sqrt(Math.random()) * 0.34;
     const o = pushOut({ x: x + Math.cos(a) * r * 1.2, z: z + Math.sin(a) * r }, 0.015);
-    const T = rand(0.42, 0.68);
-    grains.push({ x: fx + rand(-0.05, 0.05), y: fy + rand(-0.05, 0.05), z: fz + rand(-0.05, 0.05), vx: 0, vy: 0, vz: 0, tx: o.x, tz: o.z, T, age: 0, landed: false, life: rand(200, 260), col: pick(GRAIN_COLS), ry: rand(0, 6), claims: 0 });
-    const g = grains[grains.length - 1]; g.vx = (g.tx - g.x) / T; g.vz = (g.tz - g.z) / T; g.vy = (0.008 - g.y + 0.5 * 9.8 * T * T) / T;
+    const T = rand(0.42, 0.68), ty = groundY(o.x, o.z) + 0.008;
+    grains.push({ x: fx + rand(-0.05, 0.05), y: fy + rand(-0.05, 0.05), z: fz + rand(-0.05, 0.05), vx: 0, vy: 0, vz: 0, tx: o.x, tz: o.z, ty, T, age: 0, landed: false, life: rand(200, 260), col: pick(GRAIN_COLS), ry: rand(0, 6), claims: 0 });
+    const g = grains[grains.length - 1]; g.vx = (g.tx - g.x) / T; g.vz = (g.tz - g.z) / T; g.vy = (ty - g.y + 0.5 * 9.8 * T * T) / T;
   }
 }
 function updateGrains(dt) {
@@ -582,7 +908,7 @@ function updateGrains(dt) {
     const g = grains[i]; g.age += dt;
     if (!g.landed) {
       g.vy -= 9.8 * dt; g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt;
-      if (g.age >= g.T || g.y <= 0.008) { g.landed = true; g.x = g.tx; g.z = g.tz; g.y = 0.008; }
+      if (g.age >= g.T || g.y <= g.ty) { g.landed = true; g.x = g.tx; g.z = g.tz; g.y = g.ty; }
       airborne++;
     } else landed++;
     if (g.age > g.life) grains.splice(i, 1);
@@ -593,13 +919,11 @@ function updateGrains(dt) {
   }
   grainMesh.count = grains.length; grainMesh.instanceMatrix.needsUpdate = true; if (grainMesh.instanceColor) grainMesh.instanceColor.needsUpdate = true;
 }
-
 const eggGeo = (() => {
   const pts = []; for (let i = 0; i <= 10; i++) { const a = i / 10 * Math.PI; pts.push(new THREE.Vector2(Math.max(0.0005, Math.sin(a) * 0.021 * (1 + 0.12 * Math.cos(a))), -Math.cos(a) * 0.028)); }
   return prep(new THREE.LatheGeometry(pts, 9), 0.05);
 })();
 const eggMats = [0xd8a87c, 0xcf9c70, 0xe2b88e].map((c) => new THREE.MeshLambertMaterial({ color: c, vertexColors: true }));
-const NEST_SLOTS = [[2.98, -2.36], [3.14, -2.29], [3.28, -2.38], [3.05, -2.26]].map(([x, z]) => ({ x, z, egg: null }));
 const eggs = [];
 let eggCount = 0;
 function addEgg(x, y, z, slot) {
@@ -617,44 +941,100 @@ function updateEggs(dt) {
     if (e.age > e.life) removeEgg(e);
   }
 }
+// little puffs of dust from the dust baths
+const DMAX = 120, dust = [];
+const dustMesh = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.011, 0), new THREE.MeshLambertMaterial({ color: 0xcdb08a }), DMAX);
+dustMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); dustMesh.count = 0; scene.add(dustMesh);
+function puff(x, y, z, n, up = 1) { for (let i = 0; i < n && dust.length < DMAX; i++) dust.push({ x, y, z, vx: rand(-0.35, 0.35), vy: rand(0.35, 0.8) * up, vz: rand(-0.35, 0.35), age: 0, life: rand(0.6, 1.2), s: rand(0.7, 1.4) }); }
+function updateDust(dt) {
+  for (let i = dust.length - 1; i >= 0; i--) {
+    const p = dust[i]; p.age += dt; if (p.age > p.life) { dust.splice(i, 1); continue; }
+    p.vy -= 1.6 * dt; p.vx *= 1 - dt * 1.5; p.vz *= 1 - dt * 1.5; p.x += p.vx * dt; p.y = Math.max(groundY(p.x, p.z), p.y + p.vy * dt); p.z += p.vz * dt;
+  }
+  for (let i = 0; i < dust.length; i++) { const p = dust[i], s = p.s * (1 - p.age / p.life * 0.7); _o.position.set(p.x, p.y, p.z); _o.rotation.set(0, 0, 0); _o.scale.set(s, s, s); _o.updateMatrix(); dustMesh.setMatrixAt(i, _o.matrix); }
+  dustMesh.count = dust.length; dustMesh.instanceMatrix.needsUpdate = true;
+}
 
 // ===================================================================
 //  behaviour
 // ===================================================================
-let simT = 0, coopUser = null;
+let simT = 0;
+const D0 = { x: 1.8, z: -3.05 };   // in front of the little fence door
+const IN_PATH = [[1.72, -3.95], [1.72, -6.95], [1.74, -7.6], [1.95, -8.05]];
+const OUT_PATH = [[2.0, -8.05], [1.86, -7.6], [1.86, -6.95], [1.88, -3.95], [1.85, -2.95]];
+const zoneOf = (b) => (b.state === "lay" ? "all" : "run");
+const crowded = (b, x, z, d) => birds.some((o) => o !== b && Math.hypot(o.x - x, o.z - z) < d);
+function release(b) {
+  if (b.hollow) { b.hollow.user = null; b.hollow = null; }
+  if (b.shrub) { b.shrub.users--; b.shrub = null; }
+  if (b.nest) { b.nest.busy = null; b.nest = null; }
+  b.noCollide = false; b.yLock = false; b.path = null; b.via = null;
+}
+function setGoal(b, x, z, spd = 0.3, keep = false) {
+  const p = route(b.x, b.z, x, z);
+  b.goal = { x: p[0].x, z: p[0].z, spd, keep }; b.path = p.slice(1).map((q) => ({ x: q.x, z: q.z, spd, keep })); b.walkT = 12;
+}
+function pickNest() {
+  if (NESTS.filter((n) => n.busy).length >= 2) return null;
+  const ok = NESTS.filter((n) => !n.busy && n.spots.some((s) => !s.egg));
+  return ok.length ? pick(ok) : null;
+}
 function setState(b, s, o = {}) {
+  release(b);
   b.state = s; b.sub = 0; b.st = 0; b.pk = -rand(0.05, 0.3); b.goal = null; b.walkT = 14; b.other = o.other || null; b.food = null; b.wait = 0; b.react = null;
   b.side = Math.random() < 0.5 ? -1 : 1;
   switch (s) {
     case "idle": b.t = rand(1.2, 3.5); break;
-    case "wander": b.goal = wanderSpot(b); b.goal.spd = rand(0.26, 0.38); break;
+    case "wander": { const w = wanderSpot(b); setGoal(b, w.x, w.z, rand(0.26, 0.38)); break; }
     case "forage": b.t = rand(4, 9); b.n = 2 + Math.floor(rand(0, 4)); b.px = rand(-0.03, 0.03); b.pz = rand(0.19, 0.25); break;
     case "scratch": b.t = rand(4.5, 8); break;
     case "preen": b.t = rand(3, 6); break;
-    case "sit": b.t = rand(15, 40); b.restCd = 50; if (Math.random() < 0.6) { b.goal = shadeSpot(b); b.goal.spd = 0.3; } break;
-    case "sunbathe": b.t = rand(20, 45); b.restCd = 60; b.goal = sunnySpot(b); b.goal.spd = 0.3; break;
-    case "drink": { const a = Math.atan2(b.x - WATER.x, b.z - WATER.z); b.goal = { x: WATER.x + Math.sin(a) * 0.38 * b.s, z: WATER.z + Math.cos(a) * 0.38 * b.s, spd: 0.34 }; break; }
+    case "sit": { b.t = rand(15, 40); b.restCd = 50; if (Math.random() < 0.6) { const p = shadeSpot(b); setGoal(b, p.x, p.z, 0.3); } break; }
+    case "sunbathe": { b.t = rand(20, 45); b.restCd = 60; const p = sunnySpot(b); setGoal(b, p.x, p.z, 0.3); break; }
+    case "dust": {
+      const free = HOLLOWS.filter((h) => !h.user); if (!free.length) return setState(b, "sunbathe");
+      const h = pick(free); h.user = b; b.hollow = h; b.t = rand(16, 32); b.restCd = 55; b.dustT = 0;
+      setGoal(b, h.x + rand(-0.04, 0.04), h.z + rand(-0.04, 0.04), 0.3); break;
+    }
+    case "hide": {
+      b.t = rand(14, 30); b.restCd = 40; const p = hideSpot(b);
+      if (!p) { b.t = 0.3; break; }
+      b.shrub = p.S; p.S.users++; setGoal(b, p.x, p.z, 0.34); break;
+    }
+    case "drink": { const a = Math.atan2(b.x - WATER.x, b.z - WATER.z); setGoal(b, WATER.x + Math.sin(a) * 0.38 * b.s, WATER.z + Math.cos(a) * 0.38 * b.s, 0.34); break; }
     case "crow": b.t = 3.2; break;
     case "chase": b.t = rand(1.8, 3.2); break;
-    case "flee": b.t = o.t || 2.5; break;
-    case "eat": break;
-    case "lay": b.goal = { x: RAMP.x, z: RAMP.zBot + 0.18, spd: 0.32 }; break;
-    case "layg": b.goal = nestGroundSpot(b); b.goal.spd = 0.3; b.t = rand(14, 24); break;
+    case "flee": b.t = o.t || 2.5; b.chasedT = simT; break;
+    case "eat": b.foodT = 0; break;
+    case "lay": {   // through the fence door, down the passage, into the coop and up into a nest box
+      const N = pickNest(); if (!N) return setState(b, "layg");
+      b.nest = N; N.busy = b;
+      setGoal(b, D0.x, D0.z, 0.32, true);
+      for (const [x, z] of IN_PATH) b.path.push({ x, z, spd: 0.3, keep: true });
+      b.path.push({ x: N.x, z: NEST_FRONT, spd: 0.2, keep: true });
+      break;
+    }
+    case "layg": { const p = nestGroundSpot(b); setGoal(b, p.x, p.z, 0.3); b.t = rand(14, 24); break; }
   }
 }
 function think(b) {
   if (!b.full && landed > 0) return setState(b, "eat");
   const r = b.rooster, rest = b.restCd <= 0;
-  const opts = [["wander", 26], ["forage", 26], ["scratch", 15], ["idle", 9], ["preen", 6], ["sit", rest ? 5 : 0], ["sunbathe", rest ? 4.5 : 0], ["drink", 4],
-    ["chase", r ? 4 : 1.2], ["crow", r ? 2.5 : 0], ["lay", !r && b.layCd < 0 ? 60 : 0]];
+  // the hens pick on Ednis now and then: more likely to start a chase when she is close by and has had a rest from it
+  const ednisNear = !r && b !== EDNIS && simT - EDNIS.chasedT > 45 && EDNIS.state !== "lay" && Math.hypot(EDNIS.x - b.x, EDNIS.z - b.z) < 2.6;
+  const opts = [["wander", 26], ["forage", 26], ["scratch", 15], ["idle", 9], ["preen", 6], ["sit", rest ? 4 : 0], ["sunbathe", rest ? 4 : 0], ["dust", rest ? 5 : 0], ["hide", rest ? (r ? 1.2 : 3.5) : 0], ["drink", 4],
+    ["chase", r ? 4 : ednisNear ? 3 : 0.7], ["crow", r ? 2.5 : 0], ["lay", !r && b.layCd < 0 ? 60 : 0]];
   let tot = 0; for (const o of opts) tot += o[1];
   let x = Math.random() * tot, s = "wander"; for (const o of opts) { x -= o[1]; if (x <= 0) { s = o[0]; break; } }
   if (s === "chase") {
-    const cands = birds.filter((o) => o !== b && o.root.visible && ["idle", "wander", "forage", "scratch", "preen"].includes(o.state) && Math.hypot(o.x - b.x, o.z - b.z) < 2.6);
+    const cands = birds.filter((o) => o !== b && ["idle", "wander", "forage", "scratch", "preen"].includes(o.state) && Math.hypot(o.x - b.x, o.z - b.z) < 2.6);
     if (!cands.length) return setState(b, "forage");
-    const o = pick(cands); setState(b, "chase", { other: o }); setState(o, "flee", { other: b, t: b.t + 0.4 }); return;
+    const w = cands.map((o) => (o === EDNIS && simT - o.chasedT > 45 ? (r ? 2 : 9) : 1));
+    let x = Math.random() * w.reduce((a, q) => a + q, 0), o = cands[0];
+    for (let k = 0; k < cands.length; k++) { x -= w[k]; if (x <= 0) { o = cands[k]; break; } }
+    setState(b, "chase", { other: o }); setState(o, "flee", { other: b, t: b.t + 0.4 }); return;
   }
-  if (s === "lay") { if (coopUser || Math.random() < 0.3) return setState(b, "layg"); }
+  if (s === "lay" && (Math.random() < 0.15 || !pickNest())) return setState(b, "layg");
   setState(b, s);
 }
 function spotNear(x, z, r, tries, test) {
@@ -663,41 +1043,59 @@ function spotNear(x, z, r, tries, test) {
 }
 function wanderSpot(b) {
   let cx = b.x, cz = b.z, r = 2.2;
-  if (Math.random() < 0.45) { cx = 0; cz = 0; let n = 0; for (const o of birds) if (o !== b && o.root.visible) { cx += o.x; cz += o.z; n++; } if (n) { cx /= n; cz /= n; r = 1.3; } }
-  return spotNear(cx, cz, r, 20, (x, z) => isFree(x, z, 0.16, b.rooster)) || { x: rand(-2.5, 2.5), z: rand(-1.5, 2.5) };
+  if (Math.random() < 0.45) { cx = 0; cz = 0; let n = 0; for (const o of birds) if (o !== b && o.state !== "lay") { cx += o.x; cz += o.z; n++; } if (n) { cx /= n; cz /= n; r = 1.3; } }
+  return spotNear(cx, cz, r, 20, (x, z) => isFree(x, z, 0.16)) || spotNear(0, 0, 3, 40, (x, z) => isFree(x, z, 0.16)) || { x: 0.5, z: 0.5 };
 }
 function shadeSpot(b) {
-  if (!b.rooster && Math.random() < 0.5) { const s = { x: rand(1.98, 3.25), z: rand(-3.35, -2.75) }; if (isFree(s.x, s.z, 0.14)) return s; }
-  return spotNear(TREE.x, TREE.z, 0.9, 20, (x, z) => isFree(x, z, 0.16, b.rooster)) || wanderSpot(b);
+  if (Math.random() < 0.55) { const s = spotNear(TREE.x, TREE.z, 0.65, 20, (x, z) => isFree(x, z, 0.16) && !crowded(b, x, z, 0.4)); if (s) return s; }
+  const S = pick(SHRUBS);
+  return spotNear(S.x, S.z, S.r + 0.3, 20, (x, z) => Math.hypot(x - S.x, z - S.z) > S.r - 0.05 && isFree(x, z, 0.16) && !crowded(b, x, z, 0.4)) || wanderSpot(b);
 }
 function sunnySpot(b) {
   for (let i = 0; i < 40; i++) {
-    const x = rand(-2.8, 3.2), z = rand(-1.4, 2.3);
-    if (Math.hypot(x - TREE.x, z - TREE.z) < 1.6 || !isFree(x, z, 0.3, b.rooster)) continue;
-    if (birds.some((o) => o !== b && Math.hypot(o.x - x, o.z - z) < 0.6)) continue;
+    const x = rand(-3, 3.1), z = rand(-2.4, 3.1);
+    if (Math.hypot(x - TREE.x, z - TREE.z) < 1.4 || SHRUBS.some((S) => Math.hypot(x - S.x, z - S.z) < 0.9) || !isFree(x, z, 0.3)) continue;
+    if (crowded(b, x, z, 0.6)) continue;
     return { x, z };
   }
   return wanderSpot(b);
 }
+function hideSpot(b) {
+  for (const S of [...SHRUBS].sort(() => Math.random() - 0.5)) {
+    if (S.users >= 2) continue;
+    for (let i = 0; i < 16; i++) {
+      const a = rand(0, 6.28), d = rand(0.16, S.r * 0.6), x = S.x + Math.cos(a) * d, z = S.z + Math.sin(a) * d;
+      if (isFree(x, z, 0.13) && !crowded(b, x, z, 0.26)) return { x, z, S };
+    }
+  }
+  return null;
+}
 function nestGroundSpot(b) {
-  const opts = [() => ({ x: rand(1.98, 3.25), z: rand(-3.35, -2.75) }), () => ({ x: rand(-3.3, -2.9), z: rand(-1.6, -0.4) }), () => spotNear(TREE.x, TREE.z, 0.7, 10, (x, z) => isFree(x, z, 0.16))];
-  for (let i = 0; i < 10; i++) { const s = pick(opts)(); if (s && isFree(s.x, s.z, 0.15)) return s; }
+  for (let i = 0; i < 14; i++) {
+    let s;
+    if (Math.random() < 0.7) { const S = pick(SHRUBS), a = rand(0, 6.28), d = rand(0.16, 0.3); s = { x: S.x + Math.cos(a) * d, z: S.z + Math.sin(a) * d }; }
+    else s = { x: TREE.x + rand(-0.6, 0.6), z: TREE.z + rand(-0.6, 0.6) };
+    if (isFree(s.x, s.z, 0.15) && !crowded(b, s.x, s.z, 0.3)) return s;
+  }
   return wanderSpot(b);
 }
 // steer toward a point; returns true when there
-function walkTo(b, tx, tz, spd, dt, near = 0.07) {
+function walkTo(b, tx, tz, spd, dt, near = 0.07, through = false) {
   const dx = tx - b.x, dz = tz - b.z, d = Math.hypot(dx, dz);
-  if (d < near) { b.speed = damp(b.speed, 0, 12, dt); return true; }
+  if (d < near) { if (!through) b.speed = damp(b.speed, 0, 12, dt); return true; }
   const da = angDiff(b.yaw, Math.atan2(dx, dz));
   b.yaw += clamp(da, -dt * 5.5, dt * 5.5);
-  b.speed = damp(b.speed, spd * clamp(Math.cos(da), 0, 1) * Math.min(1, d / 0.2 + 0.35), 8, dt);
+  b.speed = damp(b.speed, spd * clamp(Math.cos(da), 0, 1) * (through ? 1 : Math.min(1, d / 0.2 + 0.35)), 8, dt);
   return false;
 }
 function face(b, tx, tz, dt) { b.yaw += clamp(angDiff(b.yaw, Math.atan2(tx - b.x, tz - b.z)), -dt * 5, dt * 5); }
-function walking(b, dt) {   // walk to b.goal if there is one; true while still walking
+function walking(b, dt) {   // follow b.goal, then the rest of b.path; true while still walking
   if (!b.goal) return false;
   b.walkT -= dt;
-  if (walkTo(b, b.goal.x, b.goal.z, b.goal.spd || 0.3, dt) || b.walkT < 0) { b.goal = null; return false; }
+  const more = !!(b.path && b.path.length);
+  const there = walkTo(b, b.goal.x, b.goal.z, b.goal.spd || 0.3, dt, more ? 0.14 : 0.07, more);
+  if (there && more) { b.goal = b.path.shift(); b.walkT = 12; return true; }
+  if (there || (b.walkT < 0 && !b.goal.keep)) { b.goal = null; b.path = null; return false; }
   return true;
 }
 function toLocal(b, x, z) {
@@ -720,15 +1118,15 @@ function lookAround(b, T, dt, calm = 1) {
   if (b.lookT < 0) { b.lookT = rand(0.4, 1.8) * calm; b.lookYaw = Math.random() < 0.35 ? 0 : rand(-0.8, 0.8); b.lookTilt = Math.random() < 0.3 ? rand(-0.6, 0.6) : 0; }
   T.hyaw = b.lookYaw; T.hroll = b.lookTilt;
 }
-const FEEDABLE = { idle: 1, wander: 1, forage: 1, scratch: 1, preen: 1, sit: 1, sunbathe: 1, drink: 1, chase: 1, flee: 1 };
+const FEEDABLE = { idle: 1, wander: 1, forage: 1, scratch: 1, preen: 1, sit: 1, sunbathe: 1, dust: 1, hide: 1, drink: 1, chase: 1, flee: 1 };
+const SLOW_REACT = { sit: 1, sunbathe: 1, dust: 1, hide: 1 };
 function nearestGrain(b) {
-  let best = null, bd = 1e9;
-  for (const g of grains) {
-    if (!g.landed) continue;
-    if (b.rooster && g.x > COOP.x0 - 0.15 && g.x < COOP.x1 + 0.15 && g.z < COOP.z1 + 0.15) continue;
-    const d = Math.hypot(g.x - b.x, g.z - b.z) + g.claims * 0.25; if (d < bd) { bd = d; best = g; }
-  }
-  return best;
+  const c = [];
+  for (const g of grains) if (g.landed && g !== b.ban) c.push([Math.hypot(g.x - b.x, g.z - b.z) + g.claims * 0.25, g]);
+  if (!c.length) return null;
+  c.sort((p, q) => p[0] - q[0]);
+  for (let i = 0; i < Math.min(4, c.length); i++) { const g = c[i][1], d = Math.hypot(g.x - b.x, g.z - b.z); if (d < 0.35 || segFree(b.x, b.z, g.x, g.z, 0.1, "run", 0.12, 0.25)) return g; }
+  return c[0][1];
 }
 
 function updateBird(b, dt) {
@@ -737,9 +1135,9 @@ function updateBird(b, dt) {
   if (b.full) { b.crop -= dt / b.digest; if (b.crop <= 0) { b.crop = 0; b.full = false; } }
   else b.crop = Math.max(0, b.crop - dt / 160);
   b.layCd -= dt; b.restCd -= dt;
-  // feed thrown: hungry birds come running (sitting ones take a moment)
+  // feed thrown: hungry birds come running (resting ones take a moment)
   if (!b.full && landed + airborne > 0 && FEEDABLE[b.state]) {
-    if (b.react === null) b.react = b.state === "sit" || b.state === "sunbathe" ? rand(1.5, 3.5) : rand(0.2, 1.1);
+    if (b.react === null) b.react = SLOW_REACT[b.state] ? rand(1.5, 3.5) : rand(0.2, 1.1);
     b.react -= dt;
     if (b.react <= 0 && landed > 0) { if (b.other && b.other.other === b) setState(b.other, "idle"); setState(b, "eat"); }
   }
@@ -758,7 +1156,7 @@ function updateBird(b, dt) {
     case "forage":
       if (b.sub === 0) {
         b.speed = damp(b.speed, 0, 10, dt);
-        if (peck(b, T, b.px, b.pz, dt)) { if (--b.n <= 0) { b.sub = 1; const a = b.yaw + rand(-0.8, 0.8), d = rand(0.1, 0.25); b.goal = { x: b.x + Math.sin(a) * d, z: b.z + Math.cos(a) * d, spd: 0.22 }; b.walkT = 2; } else { b.px = rand(-0.035, 0.035); b.pz = rand(0.18, 0.25); } }
+        if (peck(b, T, b.px, b.pz, dt)) { if (--b.n <= 0) { b.sub = 1; const a = b.yaw + rand(-0.8, 0.8), d = rand(0.1, 0.25); b.goal = { x: b.x + Math.sin(a) * d, z: b.z + Math.cos(a) * d, spd: 0.22 }; b.path = null; b.walkT = 2; } else { b.px = rand(-0.035, 0.035); b.pz = rand(0.18, 0.25); } }
       } else if (!walking(b, dt)) { b.sub = 0; b.n = 2 + Math.floor(rand(0, 4)); }
       if ((b.t -= dt) < 0 && b.pk < 0) think(b);
       break;
@@ -796,6 +1194,30 @@ function updateBird(b, dt) {
       else { T.head.set(0, 0.22, 0.15); T.headK = 4; lookAround(b, T, dt); }
       if ((b.t -= dt) < 0) setState(b, "idle");
       break;
+    case "dust": {   // settle into a hollow, wriggle, flick dust into the feathers, roll over, rest
+      if (walking(b, dt)) break;
+      b.speed = damp(b.speed, 0, 8, dt); b.st += dt;
+      const c = b.st % 4.2;
+      T.hip = 0.06; T.pitch = 0.04; T.fluff = 1.16;
+      if (c < 1.6) {
+        T.roll = Math.sin(b.st * 7) * 0.2; T.wingL = T.wingR = 0.45; T.flap = Math.abs(Math.sin(b.st * 13)) * 0.45;
+        T.head.set(0, 0.2, 0.17); T.hp = 0.3;
+        if ((b.dustT -= dt) < 0) { b.dustT = 0.12; puff(b.x + rand(-0.12, 0.12), b.y + 0.04, b.z + rand(-0.12, 0.12), 2); }
+      } else if (c < 2.7) {
+        T.roll = b.side * 0.42; T.wingL = b.side < 0 ? 0.8 : 0.1; T.wingR = b.side > 0 ? 0.8 : 0.1;
+        T.head.set(b.side * 0.07, 0.09, 0.2); T.hroll = b.side * 1.0; T.hp = 0.25; T.headK = 5;
+      } else { T.head.set(0, 0.24, 0.14); T.headK = 5; lookAround(b, T, dt, 2); }
+      if ((b.t -= dt) < 0) { puff(b.x, b.y + 0.15, b.z, 10, 0.7); setState(b, "preen"); }
+      break;
+    }
+    case "hide":
+      if (walking(b, dt)) break;
+      b.speed = damp(b.speed, 0, 8, dt);
+      if (b.side > 0) { T.hip = 0.085; T.pitch = 0.02; T.head.set(0, 0.26, 0.1); T.fluff = 1.06; }
+      else { T.pitch = st.pitch + 0.08; T.head.set(0, st.hy - 0.07, st.hz - 0.01); }
+      lookAround(b, T, dt, 3);
+      if ((b.t -= dt) < 0) setState(b, "idle");
+      break;
     case "drink":
       if (walking(b, dt)) break;
       b.speed = damp(b.speed, 0, 10, dt); face(b, WATER.x, WATER.z, dt); b.st += dt;
@@ -817,18 +1239,25 @@ function updateBird(b, dt) {
     }
     case "flee": {
       const o = b.other;
-      if (!o || (b.t -= dt) < 0) { setState(b, Math.random() < 0.5 ? "preen" : "idle"); break; }
+      if (!o || (b.t -= dt) < 0) { setState(b, Math.random() < 0.35 ? "hide" : Math.random() < 0.5 ? "preen" : "idle"); break; }
       let ax = b.x - o.x, az = b.z - o.z; const L = Math.hypot(ax, az) || 1; ax /= L; az /= L;
       let tx = b.x + ax, tz = b.z + az;
-      if (!isFree(tx, tz, 0.2, b.rooster)) { const s = b.side; tx = b.x + (ax * 0.3 - az * s), tz = b.z + (az * 0.3 + ax * s); }
+      if (!isFree(tx, tz, 0.2)) { const s = b.side; tx = b.x + (ax * 0.3 - az * s), tz = b.z + (az * 0.3 + ax * s); }
       walkTo(b, tx, tz, 1.05, dt, 0.01);
       T.pitch = st.pitch + 0.15; T.wingL = T.wingR = 0.3; T.flap = Math.sin(simT * 26) * 0.3;
       break;
     }
     case "eat": {
       if (b.full || landed === 0) { if (landed === 0 && airborne > 0 && !b.full) { b.speed = damp(b.speed, 0, 8, dt); lookAround(b, T, dt); break; } think(b); break; }
-      if (!b.food || !grains.includes(b.food)) { if (b.food) b.food.claims--; b.food = nearestGrain(b); if (!b.food) { think(b); break; } b.food.claims++; }
+      if (!b.food || !grains.includes(b.food)) {
+        if (b.food) b.food.claims--; b.food = nearestGrain(b); b.foodT = 0; b.via = null;
+        if (!b.food) { think(b); break; }
+        b.food.claims++;
+        if (!segFree(b.x, b.z, b.food.x, b.food.z, 0.1, "run", 0.12, 0.25)) { const p = route(b.x, b.z, b.food.x, b.food.z); if (p.length > 1) b.via = p[0]; }
+      }
       const g = b.food, loc = toLocal(b, g.x, g.z), d = Math.hypot(g.x - b.x, g.z - b.z);
+      if ((b.foodT += dt) > 8) { g.claims--; b.ban = g; b.food = null; break; }   // can't get at that one: try another
+      if (b.via) { if (walkTo(b, b.via.x, b.via.z, 0.8, dt, 0.15, true)) b.via = null; T.pitch = st.pitch + 0.15; break; }
       if (loc.z < 0.12 || loc.z > 0.3 || Math.abs(loc.x) > 0.07) {
         const a = Math.atan2(g.x - b.x, g.z - b.z);
         walkTo(b, g.x - Math.sin(a) * 0.21 * b.s, g.z - Math.cos(a) * 0.21 * b.s, d > 1 ? 0.85 : 0.35, dt, 0.03);
@@ -845,48 +1274,60 @@ function updateBird(b, dt) {
       }
       break;
     }
-    case "lay":
-      if (b.sub === 0) {
+    case "lay": {
+      const N = b.nest;
+      if (b.sub === 0) {   // walking in: run, fence door, passage, pop hole, to the front of the nest box
         if (walking(b, dt)) break;
-        b.speed = damp(b.speed, 0, 10, dt); face(b, RAMP.x, RAMP.zTop, dt); lookAround(b, T, dt);
-        if (coopUser && coopUser !== b) { if ((b.wait += dt) > 20) setState(b, "layg"); break; }
-        if (Math.abs(angDiff(b.yaw, Math.PI)) < 0.3 && Math.hypot(b.x - RAMP.x, b.z - (RAMP.zBot + 0.18)) < 0.25) { coopUser = b; b.sub = 1; b.noCollide = true; }
-        else if (Math.hypot(b.x - RAMP.x, b.z - (RAMP.zBot + 0.18)) >= 0.25) b.goal = { x: RAMP.x, z: RAMP.zBot + 0.18, spd: 0.25 };
-      } else if (b.sub === 1) {   // up the ramp
-        b.x = damp(b.x, RAMP.x, 6, dt); b.yaw = damp(b.yaw, b.yaw + angDiff(b.yaw, Math.PI), 8, dt); b.speed = 0.22;
-        T.pitch = st.pitch - 0.28; T.head.set(0, st.hy, st.hz + 0.03);
-        if (b.z < RAMP.zTop - 0.06) { b.sub = 2; b.t = rand(14, 26); b.root.visible = false; b.speed = 0; }
-      } else if (b.sub === 2) {   // inside the coop
-        b.speed = 0; move = false;
+        b.speed = damp(b.speed, 0, 10, dt); lookAround(b, T, dt);
+        if (Math.hypot(b.x - N.x, b.z - NEST_FRONT) > 0.12) { b.goal = { x: N.x, z: NEST_FRONT, spd: 0.2, keep: true }; break; }
+        b.yaw += clamp(angDiff(b.yaw, 0), -dt * 4, dt * 4);
+        if (Math.abs(angDiff(b.yaw, 0)) < 0.12) { b.sub = 1; b.st = 0; b.noCollide = true; b.yLock = true; b.hx = b.x; b.hz = b.z; }
+      } else if (b.sub === 1) {   // hop up into the nest
+        move = false; b.speed = 0; b.st += dt / 0.5; const e = Math.min(1, b.st);
+        b.x = lerp(b.hx, N.x, e); b.z = lerp(b.hz, NEST_Z, e); b.y = NEST.y * e + Math.sin(Math.PI * e) * 0.14;
+        T.wingL = T.wingR = 0.5; T.flap = Math.sin(b.st * 30) * 0.4; T.pitch = st.pitch - 0.2;
+        if (e >= 1) { b.sub = 2; b.t = rand(14, 24); }
+      } else if (b.sub === 2) {   // settled in the straw
+        move = false; b.speed = 0; b.y = NEST.y;
+        T.hip = 0.085; T.pitch = 0.03; T.head.set(0, 0.29, 0.1); T.fluff = 1.09; lookAround(b, T, dt, 3);
         if ((b.t -= dt) < 0) {
-          const free = NEST_SLOTS.filter((s) => !s.egg);
-          if (free.length) { const s = pick(free); addEgg(s.x, NEST.straw, s.z, s); }
-          b.sub = 3; b.root.visible = true; b.yaw = 0; b.z = RAMP.zTop - 0.06; b.x = RAMP.x;
+          const free = N.spots.filter((s) => !s.egg);
+          if (free.length) { const s = pick(free); addEgg(s.x, NEST.y, s.z, s); }
+          b.sub = 3; b.st = 0;
         }
-      } else {   // back down
-        b.speed = 0.25; T.pitch = st.pitch + 0.25; T.head.set(0, st.hy - 0.03, st.hz + 0.04);
-        if (b.z > RAMP.zBot + 0.15) { b.noCollide = false; coopUser = null; b.layCd = rand(300, 600); setState(b, "wander"); }
-      }
+      } else if (b.sub === 3) {   // stand up and turn round
+        move = false; b.speed = 0; b.y = NEST.y; b.st += dt;
+        b.yaw += clamp(angDiff(b.yaw, Math.PI), -dt * 3, dt * 3);
+        if (b.st > 1.2 && Math.abs(angDiff(b.yaw, Math.PI)) < 0.1) { b.sub = 4; b.st = 0; b.hx = b.x; b.hz = b.z; }
+      } else if (b.sub === 4) {   // hop down
+        move = false; b.speed = 0; b.st += dt / 0.45; const e = Math.min(1, b.st);
+        b.x = lerp(b.hx, N.x, e); b.z = lerp(b.hz, NEST_FRONT, e); b.y = NEST.y * (1 - e) + Math.sin(Math.PI * e) * 0.1;
+        T.wingL = T.wingR = 0.5; T.flap = Math.sin(b.st * 30) * 0.4;
+        if (e >= 1) {
+          b.sub = 5; b.noCollide = false; b.yLock = false;
+          b.path = OUT_PATH.map(([x, z]) => ({ x, z, spd: 0.32, keep: true })); b.goal = b.path.shift(); b.walkT = 30;
+        }
+      } else if (!walking(b, dt)) { b.layCd = rand(300, 600); setState(b, "wander"); }   // back out into the run
       break;
+    }
     case "layg":
       if (walking(b, dt)) break;
       b.speed = damp(b.speed, 0, 8, dt);
       T.hip = 0.085; T.pitch = 0.03; T.head.set(0, 0.29, 0.1); T.fluff = 1.09; lookAround(b, T, dt, 3);
       if ((b.t -= dt) < 0) {
         const o = pushOut({ x: b.x - Math.sin(b.yaw) * 0.1 * b.s, z: b.z - Math.cos(b.yaw) * 0.1 * b.s }, 0.03);
-        addEgg(o.x, 0, o.z, null); b.layCd = rand(300, 600);
-        setState(b, "wander"); b.goal = spotNear(b.x, b.z, 1.6, 20, (x, z) => isFree(x, z, 0.16) && Math.hypot(x - o.x, z - o.z) > 0.6) || wanderSpot(b); b.goal.spd = 0.32;
+        addEgg(o.x, groundY(o.x, o.z), o.z, null); b.layCd = rand(300, 600);
+        setState(b, "wander"); const w = spotNear(b.x, b.z, 1.6, 20, (x, z) => isFree(x, z, 0.16) && Math.hypot(x - o.x, z - o.z) > 0.6) || wanderSpot(b); setGoal(b, w.x, w.z, 0.32);
       }
       break;
   }
-  if (b.state !== "lay" && b.noCollide) { b.noCollide = false; b.root.visible = true; if (coopUser === b) coopUser = null; }
 
   // move
   if (move) {
     b.x += Math.sin(b.yaw) * b.speed * dt; b.z += Math.cos(b.yaw) * b.speed * dt;
-    if (!b.noCollide) pushOut(b, 0.11 * b.s, b.rooster);
+    if (!b.noCollide) pushOut(b, 0.11 * b.s, zoneOf(b));
   }
-  b.y = b.noCollide ? clamp((RAMP.zBot - b.z) / (RAMP.zBot - RAMP.zTop), 0, 1) * RAMP.hTop + 0.012 : 0;
+  if (!b.yLock) b.y = groundY(b.x, b.z);
 
   // legs: stepping cycle driven by speed
   const sp = Math.abs(b.speed), k = clamp(sp / 0.22, 0, 1);
@@ -898,7 +1339,7 @@ function updateBird(b, dt) {
     b.fp[i].set(i ? 0.042 : -0.042, fy, fz);
   }
   // head bob: hold still, then thrust forward with every step
-  if (sp > 0.03 && !["sit", "sunbathe", "layg"].includes(b.state)) {
+  if (sp > 0.03 && !["sit", "sunbathe", "layg", "dust", "hide"].includes(b.state)) {
     const kb = clamp(sp / 0.2, 0, 1) * (sp > 0.6 ? 0.4 : 1), fr = ((b.phase / Math.PI) % 1 + 1) % 1;
     const off = fr < 0.72 ? lerp(0.024, -0.02, fr / 0.72) : lerp(-0.02, 0.024, (fr - 0.72) / 0.28);
     T.head.z += off * kb; T.head.y -= Math.abs(off) * 0.25 * kb; T.headK = Math.max(T.headK, 32);
@@ -943,44 +1384,56 @@ function applyPose(b, dt) {
 }
 function separate() {
   for (let i = 0; i < birds.length; i++) for (let j = i + 1; j < birds.length; j++) {
-    const a = birds[i], c = birds[j]; if (a.noCollide || c.noCollide) continue;
+    const a = birds[i], c = birds[j]; if (a.noCollide || c.noCollide || (a.state === "lay" && c.state === "lay")) continue;
     const dx = c.x - a.x, dz = c.z - a.z, d = Math.hypot(dx, dz), m = 0.13 * (a.s + c.s);
-    if (d < m && d > 1e-5) { const p = (m - d) / 2 / d; a.x -= dx * p; a.z -= dz * p; c.x += dx * p; c.z += dz * p; pushOut(a, 0.11 * a.s, a.rooster); pushOut(c, 0.11 * c.s, c.rooster); }
+    if (d < m && d > 1e-5) { const p = (m - d) / 2 / d; a.x -= dx * p; a.z -= dz * p; c.x += dx * p; c.z += dz * p; pushOut(a, 0.11 * a.s, zoneOf(a)); pushOut(c, 0.11 * c.s, zoneOf(c)); }
   }
 }
 
 // starting positions: a mix of activities so there is something to see straight away
 birds.forEach((b, i) => {
-  for (let k = 0; k < 50; k++) { b.x = rand(-2.8, 3); b.z = rand(-1.8, 2.8); if (isFree(b.x, b.z, 0.2, b.rooster) && !birds.some((o) => o !== b && o.i !== undefined && Math.hypot(o.x - b.x, o.z - b.z) < 0.5 && o !== b)) break; }
+  for (let k = 0; k < 60; k++) { b.x = rand(-3, 3); b.z = rand(-2.6, 3); if (isFree(b.x, b.z, 0.2) && !birds.some((o) => o !== b && Math.hypot(o.x - b.x, o.z - b.z) < 0.5)) break; }
+  b.y = groundY(b.x, b.z);
   if (i === 2) { b.full = true; b.crop = 0.8; b.digest = 70; }
   if (i === 3) { b.full = true; b.crop = 0.6; b.digest = 50; }
-  setState(b, ["wander", "forage", "sunbathe", "sit", "scratch", "forage", "idle"][i]);
-  if (i === 2 || i === 3) { const s = i === 2 ? sunnySpot(b) : shadeSpot(b); b.x = s.x; b.z = s.z; b.goal = null; b.restCd = 60; }
-  const C = b.cur, st = b.stance;
-  if (i === 2) { C.hip = 0.065; C.wingL = C.wingR = 1; C.fluff = 1.12; }
-  if (i === 3) { C.hip = 0.085; C.fluff = 1.07; }
+  if (i === 5) b.layCd = 25;
+  setState(b, ["wander", "forage", "sunbathe", "dust", "lay", "hide"][i]);
+  const C = b.cur;
+  if (i === 2) { const s = sunnySpot(b); b.x = s.x; b.z = s.z; b.goal = null; b.path = null; b.restCd = 60; C.hip = 0.065; C.wingL = C.wingR = 1; C.fluff = 1.12; }
+  if (i === 3 && b.hollow) { b.x = b.hollow.x; b.z = b.hollow.z; b.goal = null; b.path = null; C.hip = 0.06; C.fluff = 1.16; }
+  if (i === 5 && b.goal) { b.x = b.goal.x; b.z = b.goal.z; b.goal = null; b.path = null; }
+  if (i === 4 && b.nest) {   // already sitting in a nest box
+    const N = b.nest; b.sub = 2; b.t = 9; b.x = N.x; b.z = NEST_Z; b.yaw = 0; b.noCollide = b.yLock = true; b.goal = null; b.path = null;
+    C.hip = 0.085; C.fluff = 1.09;
+  }
+  b.y = b.yLock ? NEST.y : groundY(b.x, b.z);
   applyPose(b, 0.016);
 });
+addEgg(NESTS[2].spots[0].x, NEST.y, NESTS[2].spots[0].z, NESTS[2].spots[0]);
 
 // ===================================================================
 //  camera: drag to orbit, wheel / pinch to zoom, slow drift when idle
 // ===================================================================
-const cam = { th: 0.5, ph: 1.0, r: 10.5, target: new THREE.Vector3(0.1, 0.4, -0.15), idle: 0 };
+const CAM_TARGET = new THREE.Vector3(0.7, 0.45, -3.0);
+const cam = { th: 0.78, ph: 0.98, r: 17, target: CAM_TARGET.clone(), idle: 0, follow: null, followT: 0 };
 let drag = null, pinch = null;
 const pointers = new Map(), gl = renderer.domElement;
 gl.addEventListener("pointerdown", (e) => {
+  if (cinema) { showCinemaExit(3); return; }
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); gl.setPointerCapture(e.pointerId); gl.classList.add("grabbing");
   if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t: performance.now() };
   else if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), r: cam.r }; drag = null; }
 });
 gl.addEventListener("pointermove", (e) => {
-  if (!pointers.has(e.pointerId)) return; pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (pinch && pointers.size === 2) { const [a, b] = [...pointers.values()]; cam.r = clamp(pinch.r * pinch.d / Math.max(20, Math.hypot(a.x - b.x, a.y - b.y)), 2.5, 22); cam.idle = 0; return; }
+  if (!pointers.has(e.pointerId)) { if (e.pointerType === "mouse" && !cinema) hover(e); return; }
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && pointers.size === 2) { const [a, b] = [...pointers.values()]; cam.r = clamp(pinch.r * pinch.d / Math.max(20, Math.hypot(a.x - b.x, a.y - b.y)), 3, 24); cam.idle = 0; return; }
   if (!drag) return;
   cam.th -= (e.clientX - drag.x) * 0.006; cam.ph = clamp(cam.ph - (e.clientY - drag.y) * 0.004, 0.22, 1.45);
   drag.x = e.clientX; drag.y = e.clientY; cam.idle = 0;
 });
 const endPointer = (e) => {
+  if (!pointers.has(e.pointerId)) return;
   pointers.delete(e.pointerId);
   if (drag && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 7 && performance.now() - drag.t < 450) click(e);
   if (pointers.size < 2) pinch = null;
@@ -988,9 +1441,28 @@ const endPointer = (e) => {
   drag = null;
 };
 gl.addEventListener("pointerup", endPointer); gl.addEventListener("pointercancel", endPointer);
-gl.addEventListener("wheel", (e) => { e.preventDefault(); cam.r = clamp(cam.r * Math.exp(e.deltaY * 0.001), 2.5, 22); cam.idle = 0; }, { passive: false });
+gl.addEventListener("wheel", (e) => { e.preventDefault(); if (cinema) return; cam.r = clamp(cam.r * Math.exp(e.deltaY * 0.001), 3, 24); cam.idle = 0; }, { passive: false });
 const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
+// which bird is under the pointer (by screen distance to its head, so small birds far away are still easy to hit)
+const _w = new THREE.Vector3();
+function birdAt(e) {
+  let best = null, bd = 26;
+  for (const b of birds) {
+    _w.set(b.x, b.y + 0.3 * b.s, b.z).project(camera); if (_w.z > 1) continue;
+    const d = Math.hypot((_w.x * 0.5 + 0.5) * innerWidth - e.clientX, (-_w.y * 0.5 + 0.5) * innerHeight - e.clientY);
+    if (d < bd) { bd = d; best = b; }
+  }
+  return best;
+}
+let hoverBird = null, lastHover = 0;
+function hover(e) {
+  const now = performance.now(); if (now - lastHover < 60) return; lastHover = now;
+  hoverBird = birdAt(e); gl.classList.toggle("onbird", !!hoverBird);
+}
+gl.addEventListener("pointerleave", () => { hoverBird = null; gl.classList.remove("onbird"); });
+const showLabel = (b, secs) => { b.labelT = Math.max(b.labelT || 0, secs); };
 function click(e) {
+  const b = birdAt(e); if (b) { showLabel(b, 3.5); return; }
   ndc.set(e.clientX / innerWidth * 2 - 1, -e.clientY / innerHeight * 2 + 1); raycaster.setFromCamera(ndc, camera);
   const hit = raycaster.intersectObjects([runGround, builtStatic, treeTop], true)[0];
   if (hit && hit.object === runGround) { throwFeed(hit.point.x, hit.point.z); hintbar.style.opacity = 0; }
@@ -1004,11 +1476,259 @@ const panel = $("panel"), openBtn = $("openPanel"), hintbar = $("hintbar");
 function setPanel(open) { panel.classList.toggle("hidden", !open); openBtn.hidden = open; }
 $("closePanel").onclick = () => setPanel(false);
 openBtn.onclick = () => setPanel(true);
-addEventListener("keydown", (e) => { if ((e.key === "h" || e.key === "H") && !e.ctrlKey && !e.metaKey && !e.altKey) setPanel(panel.classList.contains("hidden")); });
+addEventListener("keydown", (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k === "v") { setCinema(!cinema); return; }
+  if (k === "escape" && cinema) { setCinema(false); return; }
+  if (cinema) { showCinemaExit(2.5); return; }
+  if (k === "h") setPanel(panel.classList.contains("hidden"));
+});
 document.querySelectorAll(".panel button, .fab").forEach((b) => b.addEventListener("click", () => b.blur()));
 if (isTouch) hintbar.textContent = "Drag to look around · tap the grass to throw feed";
+
+// names: a little label over a bird on hover or click, and the flock in the panel with what each is up to
+function activity(b) {
+  const o = b.other && b.other.name;
+  let t = { idle: "looking about", wander: "wandering", forage: "pecking about", scratch: "scratching", preen: "preening", sit: "resting in the shade",
+    sunbathe: "sunbathing", dust: "dust-bathing", hide: "hiding in a shrub", drink: "having a drink", crow: "crowing", eat: "eating",
+    chase: o ? "chasing " + o : "chasing", flee: o ? "running from " + o : "running", layg: "laying an egg in the grass" }[b.state] || "";
+  if (b.state === "lay") t = b.sub === 0 ? (b.z < -3.6 ? "going to the coop" : "off to lay an egg") : b.sub < 4 ? "laying an egg" : "coming back from the coop";
+  if ((b.state === "sit" || b.state === "dust" || b.state === "hide" || b.state === "sunbathe" || b.state === "drink") && b.goal) t = "heading off";
+  if (b.hungryT > 90 && b.state !== "eat") t = "hungry, " + t;
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+const listEl = $("birdList");
+for (const b of birds) {
+  b.label = document.createElement("div"); b.label.className = "birdlabel"; b.label.textContent = b.name; document.body.appendChild(b.label); b.labelT = 0;
+  const li = document.createElement("li"), sw = "#" + b.torso.children[0].material.color.getHexString();
+  li.innerHTML = `<span class="sw" style="background:${sw}"></span><span class="nm"></span><span class="st"></span>`;
+  li.querySelector(".nm").textContent = b.name;
+  li.onclick = () => { showLabel(b, 5); cam.follow = b; cam.followT = 7; cam.idle = 0; if (innerWidth < 760) setPanel(false); };
+  listEl.appendChild(li); b.li = li.querySelector(".st");
+}
+let listT = 0;
+function updateLabels(dt) {
+  for (const b of birds) {
+    b.labelT = Math.max(0, b.labelT - dt);
+    const on = !cinema && (b.labelT > 0 || hoverBird === b);
+    b.label.classList.toggle("on", on);
+    if (!on) continue;
+    _w.set(b.x, b.y + 0.5 * b.s, b.z).project(camera);
+    if (_w.z > 1) { b.label.classList.remove("on"); continue; }
+    b.label.style.transform = `translate(${((_w.x * 0.5 + 0.5) * innerWidth).toFixed(1)}px, ${((-_w.y * 0.5 + 0.5) * innerHeight).toFixed(1)}px) translate(-50%, -100%)`;
+  }
+  if ((listT -= dt) < 0 && !panel.classList.contains("hidden")) { listT = 0.4; for (const b of birds) { const t = activity(b); if (b.li.textContent !== t) b.li.textContent = t; } }
+}
 setPanel(!smallScreen);
 setTimeout(() => (hintbar.style.opacity = 0), 10000);
+
+// ===================================================================
+//  cinema mode: no UI, the camera takes slow, gentle shots of the birds,
+//  with soft cuts between them (or a slow glide when the way is clear)
+// ===================================================================
+let cinema = false, cinemaExitT = 0;
+const cinemaExitBtn = $("cinemaExit"), dipEl = $("dip");
+const CIN = { shot: null, t: 0, last: "", cut: -1, pos: new THREE.Vector3(), look: new THREE.Vector3(), fov: 40, blockT: 0, glide: 0, panelWas: true, bird: null };
+const easeIO = (t) => t * t * (3 - 2 * t);
+function showCinemaExit(sec) { if (!cinema) return; cinemaExitBtn.hidden = false; cinemaExitBtn.classList.add("show"); cinemaExitT = sec; }
+// boxes the camera must stay out of [x0, x1, y0, y1, z0, z1], and the ones that block a view
+const SOLIDS = [
+  [GAR.x0 - 0.3, GAR.x1, 0, GAR.hR + 0.15, GAR.z0 - 0.3, GAR.z1 + 0.3], [BLOCK.x0, BLOCK.x1, 0, BLOCK.h + 0.12, BLOCK.z0, BLOCK.z1],
+  [CONN.x0, CONN.x1 + 0.28, 0, CONN.hHi + 0.2, CONN.z0, CONN.z1 + 0.28], [COOP.x0 - 0.13, COOP.x1 + 0.13, 0, COOP.hF + 0.12, COOP.z0 - 0.13, COOP.z1 + 0.15],
+  [MIXER.x - 0.55, MIXER.x + 0.65, 0, 1.5, -3.6, MIXER.z + 0.55], [WATER.x - 0.25, WATER.x + 0.25, 0, 0.55, WATER.z - 0.25, WATER.z + 0.25],
+  [TREE.x - 0.12, TREE.x + 0.2, 0, 1.05, TREE.z - 0.12, TREE.z + 0.15], [TREE.x - 0.65, TREE.x + 0.65, 1.0, 2.15, TREE.z - 0.65, TREE.z + 0.65],
+  ...SHRUBS.map((s) => [s.x - s.r, s.x + s.r, 0, 0.95, s.z - s.r, s.z + s.r]),
+  ...ISLE_TREES.map(([x, z, s]) => [x - 1.0 * s, x + 1.0 * s, 0, 3.4 * s, z - 1.0 * s, z + 1.0 * s]), [POOL.x - 1.8, POOL.x + 1.8, 0, 0.3, POOL.z - 1.8, POOL.z + 1.8],
+];
+const OCCL = [SOLIDS[0], SOLIDS[1], SOLIDS[3], SOLIDS[4], [CONN.x0, CONN.x1, CONN.hLo, CONN.hHi + 0.15, CONN.z0, CONN.z1], SOLIDS[7],
+  ...SHRUBS.map((s) => [s.x - s.r * 0.75, s.x + s.r * 0.75, 0.2, 0.85, s.z - s.r * 0.75, s.z + s.r * 0.75])];
+const IN = 3.3;   // shots taken inside the run keep the camera this far in from the fence and walls
+const inside = (p) => Math.abs(p.x) < IN && Math.abs(p.z) < IN;
+function camSafe(p, m = 0.12) {
+  for (let it = 0; it < 3; it++) {
+    let moved = false;
+    for (const q of SOLIDS) {
+      if (p.x < q[0] - m || p.x > q[1] + m || p.y > q[3] + m || p.z < q[4] - m || p.z > q[5] + m || p.y < q[2] - m) continue;
+      const e = [p.x - (q[0] - m), q[1] + m - p.x, p.z - (q[4] - m), q[5] + m - p.z, q[3] + m - p.y], mn = Math.min(...e);
+      if (mn === e[0]) p.x = q[0] - m; else if (mn === e[1]) p.x = q[1] + m; else if (mn === e[2]) p.z = q[4] - m; else if (mn === e[3]) p.z = q[5] + m; else p.y = q[3] + m;
+      moved = true;
+    }
+    if (!moved) break;
+  }
+  p.y = Math.max(p.y, groundY(p.x, p.z) + 0.12);   // never below the island's top (and its sides are all below that)
+  return p;
+}
+function segHits(a, b, boxes) {   // does the segment a-b pass through any of the boxes? (slab test)
+  const d = [b.x - a.x, b.y - a.y, b.z - a.z], o = [a.x, a.y, a.z];
+  for (const q of boxes) {
+    let t0 = 0, t1 = 1, ok = true;
+    for (let k = 0; k < 3 && ok; k++) {
+      const lo = q[k * 2], hi = q[k * 2 + 1], oo = o[k], dd = d[k];
+      if (Math.abs(dd) < 1e-9) { if (oo < lo || oo > hi) ok = false; continue; }
+      let ta = (lo - oo) / dd, tb = (hi - oo) / dd; if (ta > tb) [ta, tb] = [tb, ta];
+      t0 = Math.max(t0, ta); t1 = Math.min(t1, tb); if (t0 > t1) ok = false;
+    }
+    if (ok) return true;
+  }
+  return false;
+}
+const free = (p) => { const c = camSafe(p.clone()); return c.distanceTo(p) < 1e-3; };
+// clear view, ignoring the last bit next to the subject (a hen tucked into a shrub is still worth a look)
+const sees = (p, look) => { const d = p.distanceTo(look); return d < 0.4 || !segHits(p, look.clone().lerp(p, 0.3 / d), OCCL); };
+const birdPos = (b, y = 0.25) => new THREE.Vector3(b.x, b.y + y, b.z);
+// pick a viewing direction round a subject that is free and has a clear view, preferring 'pref'
+function pickAz(center, dist, h, pref, spread = Math.PI) {
+  for (let i = 0; i < 18; i++) {
+    const a = pref + (i ? (i % 2 ? 1 : -1) * Math.ceil(i / 2) / 9 * spread : 0);
+    const p = new THREE.Vector3(center.x + Math.sin(a) * dist, h, center.z + Math.cos(a) * dist);
+    if (inside(p) && free(p) && sees(p, center) && !birds.some((o) => Math.hypot(o.x - p.x, o.z - p.z) < 0.45)) return a;
+  }
+  return null;
+}
+const inRun = (b) => b.root.visible && Math.abs(b.x) < 3.4 && Math.abs(b.z) < 3.4 && b.state !== "lay";
+const towardViewer = 0.78;   // the default view direction, used as a preference so shots read the same way round
+const SHOTS = {
+  follow(who) {   // eye-level, trailing a hen as she pecks about
+    const c = birds.filter((b) => !b.rooster && inRun(b) && ["forage", "scratch", "wander", "eat", "idle", "drink", "flee"].includes(b.state) && (!who || b === who));
+    if (!c.length) return null;
+    const b = pick(c), side = Math.random() < 0.5 ? -1 : 1;
+    let az = pickAz(birdPos(b), 1.3, 0.3, b.yaw + Math.PI + side * 1.0, 1.6); if (az === null) return null;
+    return { len: rand(10, 14), bird: b, inside: true, eval(t, dt) {
+      az += clamp(angDiff(az, b.yaw + Math.PI + side * 1.0), -1, 1) * dt * 0.25;
+      const c = birdPos(b, 0.2); return { pos: new THREE.Vector3(b.x + Math.sin(az) * 1.3, 0.3 + b.y, b.z + Math.cos(az) * 1.3), look: c, fov: 38 };
+    }, done: () => !inRun(b) };
+  },
+  ednis() { return SHOTS.follow(EDNIS); },   // Ednis and her crooked comb, often with someone after her
+  rooster() {   // a slow orbit round Heinrich
+    const b = HEINRICH; if (!inRun(b)) return null;
+    const dir = Math.random() < 0.5 ? -1 : 1, R = 1.7, len = rand(11, 15), sweep = 0.09 * len;
+    let a0 = null;
+    for (let i = 0; i < 16 && a0 === null; i++) {
+      const a = towardViewer + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.4 - dir * sweep / 2; let ok = true;
+      for (let k = 0; k <= 6 && ok; k++) { const aa = a + dir * sweep * k / 6, p = new THREE.Vector3(b.x + Math.sin(aa) * R, 0.55, b.z + Math.cos(aa) * R); ok = inside(p) && free(p) && sees(p, birdPos(b)); }
+      if (ok) a0 = a;
+    }
+    if (a0 === null) return null;
+    return { len, bird: b, inside: true, eval(t) { const a = a0 + dir * 0.09 * t; return { pos: new THREE.Vector3(b.x + Math.sin(a) * R, 0.55, b.z + Math.cos(a) * R), look: birdPos(b, 0.3), fov: 36 }; }, done: () => !inRun(b) };
+  },
+  close() {   // a hen dust-bathing, sunbathing or hiding, close and low, pushing in slowly
+    const c = birds.filter((b) => inRun(b) && ["dust", "sunbathe", "hide"].includes(b.state) && !b.goal);
+    if (!c.length) return null;
+    const b = pick(c), stt = b.state, az = pickAz(birdPos(b, 0.12), 1.0, 0.32, b.yaw + rand(-0.8, 0.8), 2.2); if (az === null) return null;
+    return { len: rand(10, 14), bird: b, inside: true, eval(t) { const d = lerp(1.05, 0.78, easeIO(Math.min(1, t / 12))); return { pos: new THREE.Vector3(b.x + Math.sin(az) * d, 0.3 + b.y, b.z + Math.cos(az) * d), look: birdPos(b, 0.12), fov: 34 }; }, done: () => b.state !== stt };
+  },
+  mesh() {   // from outside the fence, looking in through the wire, a slow sideways drift
+    const south = Math.random() < 0.5, c = birds.filter((b) => inRun(b) && (south ? b.z > 0.8 : b.x > 0.8));
+    const b = c.length ? pick(c) : null, dir = Math.random() < 0.5 ? -1 : 1;
+    const base = south ? new THREE.Vector3(clamp(b ? b.x : 0.5, -2.8, 3.0), 0.5, 4.15) : new THREE.Vector3(4.15, 0.5, clamp(b ? b.z : 0, -2.8, 3.0));
+    const look0 = b ? birdPos(b, 0.2) : new THREE.Vector3(0.3, 0.3, 0.3), look = look0.clone();
+    if (!free(base) || !sees(base, look0)) return null;
+    return { len: rand(10, 13), bird: b, eval(t, dt) {
+      const p = base.clone(); if (south) p.x = clamp(p.x + dir * 0.06 * t, -3.0, 3.3); else p.z = clamp(p.z + dir * 0.06 * t, -3.0, 3.3);
+      if (b && inRun(b)) look.lerp(birdPos(b, 0.2), 1 - Math.exp(-dt * 1.5));
+      return { pos: p, look, fov: 40 };
+    } };
+  },
+  tree() {   // low under the little tree, looking up into it, drifting round a touch
+    const a0 = Math.atan2(0.4 - TREE.x, 0.3 - TREE.z) + rand(-0.3, 0.3), dir = Math.random() < 0.5 ? -1 : 1;
+    return { len: rand(9, 12), noOcc: true, eval(t) { const a = a0 + dir * 0.025 * t; const d = lerp(3.4, 3.0, easeIO(Math.min(1, t / 11))); return { pos: new THREE.Vector3(TREE.x + Math.sin(a) * d, 0.32, TREE.z + Math.cos(a) * d), look: new THREE.Vector3(TREE.x, 1.0, TREE.z), fov: 40 }; } };
+  },
+  coop() {   // a hen on her way down the passage (seen from outside, through the mesh), or sitting in the nest box (through the window)
+    const nest = birds.find((b) => b.state === "lay" && b.sub >= 1 && b.sub <= 4);
+    if (nest) {
+      const N = nest.nest, p0 = new THREE.Vector3(N.x + 0.25, 0.98, -6.3), p1 = new THREE.Vector3(N.x + 0.1, 0.86, -6.62);
+      return { len: rand(10, 14), bird: nest, noOcc: true, eval(t) { return { pos: p0.clone().lerp(p1, easeIO(Math.min(1, t / 12))), look: new THREE.Vector3(N.x, NEST.y + 0.12, NEST_Z), fov: 34 }; }, done: (t) => t > 4 && nest.state !== "lay" };
+    }
+    const walkers = birds.filter((b) => b.state === "lay" && (b.sub === 0 || b.sub === 5) && b.z < -2.4);
+    const walk = walkers.find((b) => b.z > -7.1) || walkers[0];
+    if (!walk) return null;
+    let z = clamp(walk.z + 1.1, -5.9, -2.4);
+    return { len: 15, bird: walk, noOcc: true, eval(t, dt) {
+      z = damp(z, clamp(walk.z + 1.1, -5.9, -2.4), 1.2, dt);
+      return { pos: new THREE.Vector3(3.75, 1.7, z), look: new THREE.Vector3(walk.x, 0.3, walk.z), fov: 38 };
+    }, done: (t) => walk.state !== "lay" || (walk.sub >= 1 && walk.sub <= 4) || (walk.sub === 5 && walk.z > -3.2 && t > 3) };
+  },
+  wide() {   // the whole run with the passage and coop, a slow crane round
+    const th0 = rand(0.35, 1.1), dir = Math.random() < 0.5 ? -1 : 1, tg = new THREE.Vector3(0.4, 0.4, -2.7);
+    return { len: rand(12, 15), noOcc: true, eval(t) { const th = th0 + dir * 0.022 * t, ph = 0.98 - 0.006 * t, r = 12.8 - 0.06 * t;
+      return { pos: new THREE.Vector3(tg.x + r * Math.sin(ph) * Math.sin(th), tg.y + r * Math.cos(ph), tg.z + r * Math.sin(ph) * Math.cos(th)), look: tg, fov: 40 }; } };
+  },
+};
+const SHOT_W = { follow: 2.5, ednis: 1.5, rooster: 2, close: 3, mesh: 2, tree: 1.2, coop: 4, wide: 1.5 };
+function nextShot(first) {
+  let s = null, kind = "wide";
+  if (!first) {
+    const kinds = Object.keys(SHOT_W).filter((k) => k !== CIN.last);
+    for (let tries = 0; tries < 8 && !s; tries++) {
+      let tot = 0; for (const k of kinds) tot += SHOT_W[k];
+      let x = Math.random() * tot; kind = kinds[kinds.length - 1]; for (const k of kinds) { x -= SHOT_W[k]; if (x <= 0) { kind = k; break; } }
+      s = SHOTS[kind]();
+    }
+  }
+  if (!s) { kind = "wide"; s = SHOTS.wide(); }
+  s.kind = kind; CIN.last = kind;
+  return s;
+}
+// leave the current shot: glide there if the way is short and clear, otherwise dip softly to the next one
+function changeShot() {
+  if (CIN.cut >= 0) return;
+  const s = nextShot(false), o = s.eval(0, 0), p = camSafe(o.pos.clone());
+  if (p.distanceTo(CIN.pos) < 5 && !segHits(CIN.pos, p, SOLIDS) && Math.random() < 0.5) { CIN.shot = s; CIN.t = 0; CIN.blockT = 0; CIN.glide = 1; return; }
+  CIN.pending = s; CIN.cut = 0.55; dipEl.style.opacity = 1;
+}
+function cinemaCamera(dt) {
+  if (CIN.cut >= 0) {   // mid-dip: keep the old shot going, swap once the screen is soft
+    CIN.cut -= dt;
+    if (CIN.cut < 0) { CIN.shot = CIN.pending; CIN.t = 0; CIN.blockT = 0; CIN.glide = 0; CIN.snap = true; dipEl.style.opacity = 0; }
+  }
+  const s = CIN.shot; CIN.t += dt;
+  const o = s.eval(CIN.t, dt);
+  if (s.inside) {
+    for (const b of birds) {   // never put the lens inside a bird that wanders past
+      if (b === s.bird || o.pos.y > b.y + 0.7) continue;
+      const dx = o.pos.x - b.x, dz = o.pos.z - b.z, d = Math.hypot(dx, dz);
+      if (d < 0.45) { const k = 0.45 / Math.max(d, 1e-3); o.pos.x = b.x + dx * k; o.pos.z = b.z + dz * k; }
+    }
+    o.pos.x = clamp(o.pos.x, -IN, IN); o.pos.z = clamp(o.pos.z, -IN, IN);
+  }
+  const p = camSafe(o.pos.clone());
+  if (CIN.snap) { CIN.pos.copy(p); CIN.look.copy(o.look); CIN.fov = o.fov; CIN.snap = false; }
+  else {
+    const k = CIN.glide > 0 ? 0.9 : 3;
+    CIN.pos.lerp(p, 1 - Math.exp(-dt * k)); CIN.look.lerp(o.look, 1 - Math.exp(-dt * (CIN.glide > 0 ? 1.2 : 4))); CIN.fov = damp(CIN.fov, o.fov, 1.5, dt);
+    if (CIN.glide > 0) { CIN.glide -= dt / 3.5; }
+  }
+  for (const b of birds) {   // a bird strolling right under a low camera: nudge the camera aside
+    const dx = CIN.pos.x - b.x, dz = CIN.pos.z - b.z, d = Math.hypot(dx, dz);
+    if (CIN.pos.y < b.y + 0.6 && d < 0.3) { const k = 0.3 / Math.max(d, 1e-3); CIN.pos.x = b.x + dx * k; CIN.pos.z = b.z + dz * k; }
+  }
+  camSafe(CIN.pos);
+  camera.position.copy(CIN.pos); camera.lookAt(CIN.look);
+  if (Math.abs(camera.fov - CIN.fov) > 0.01) { camera.fov = CIN.fov; camera.updateProjectionMatrix(); }
+  CIN.blockT = !s.noOcc && !sees(CIN.pos, CIN.look) ? CIN.blockT + dt : 0;
+  if (CIN.cut < 0 && (CIN.t > s.len || CIN.blockT > 1 || (s.done && CIN.t > 6 && s.done(CIN.t)))) changeShot();
+}
+function setCinema(on) {
+  if (on === cinema) return;
+  cinema = on;
+  document.body.classList.toggle("cinema", on);
+  if (on) {
+    CIN.panelWas = !panel.classList.contains("hidden");
+    drag = pinch = null; pointers.clear(); gl.classList.remove("grabbing");
+    CIN.cut = -1; CIN.glide = 0; CIN.last = ""; CIN.shot = nextShot(true); CIN.t = 0; CIN.blockT = 0; CIN.snap = true;
+    dipEl.style.transition = "none"; dipEl.style.opacity = 1; void dipEl.offsetWidth; dipEl.style.transition = ""; dipEl.style.opacity = 0;
+    showCinemaExit(3.5);
+  } else {
+    cinemaExitBtn.hidden = true; cinemaExitBtn.classList.remove("show"); dipEl.style.opacity = 0; CIN.cut = -1;
+    camera.fov = portrait ? 52 : 40; camera.updateProjectionMatrix(); cam.idle = 0;
+    setPanel(CIN.panelWas && !smallScreen);
+  }
+  viewOff = -1;
+}
+$("cinemaBtn").onclick = () => setCinema(true);
+cinemaExitBtn.onclick = () => setCinema(false);
+document.addEventListener("mousemove", () => { if (cinema) showCinemaExit(2); });
 
 // ===================================================================
 //  loop
@@ -1016,8 +1736,8 @@ setTimeout(() => (hintbar.style.opacity = 0), 10000);
 let viewOff = -1, portrait = false;
 function resize() {
   renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight;
-  portrait = innerWidth < innerHeight; camera.fov = portrait ? 52 : 40; camera.updateProjectionMatrix(); viewOff = -1;
-  if (portrait) cam.r = Math.max(cam.r, clamp(11 / (innerWidth / innerHeight) * 0.56, 10.5, 16));
+  portrait = innerWidth < innerHeight; if (!cinema) camera.fov = portrait ? 52 : 40; camera.updateProjectionMatrix(); viewOff = -1;
+  if (portrait) cam.r = Math.max(cam.r, clamp(13 / (innerWidth / innerHeight) * 0.72, 17, 23));
 }
 addEventListener("resize", resize);
 
@@ -1027,17 +1747,35 @@ function step(dt) {
   for (const b of birds) updateBird(b, dt);
   separate();
   updateEggs(dt);
+  updateDust(dt);
+  // nobody has fed them for ages and they're properly hungry: a modest handful turns up, as if someone threw it over the fence
+  let hunger = 0; for (const b of birds) { hunger += b.full ? 0 : 1 - b.crop; b.hungryT = !b.full && b.crop < 0.02 ? b.hungryT + dt : 0; }
+  if ((hunger / birds.length > 0.9 || birds.some((b) => b.hungryT > 120)) && simT - lastFed > 180 && simT - lastAuto > 150) {
+    const p = spotNear(0.4, 0.6, 2.4, 40, (x, z) => isFree(x, z, 0.45)) || { x: 0.5, z: 0.8 };
+    throwFeed(p.x, p.z, 22, { x: p.x + 1.5, z: p.z + 2 }, true); lastAuto = simT;
+  }
+  SWAY.value = simT; clouds.rotation.y = simT * 0.006; updateButterflies(simT);
   treeTop.rotation.z = Math.sin(simT * 0.6) * 0.008; treeTop.rotation.x = Math.sin(simT * 0.47 + 1) * 0.006;
 }
 function render(dt) {
-  cam.idle += dt;
-  if (cam.idle > 6 && !drag && !pinch) { cam.th += dt * 0.025; cam.ph = damp(cam.ph, 0.98 + Math.sin(simT * 0.05) * 0.08, 0.3, dt); }
-  const r = cam.r;
-  camera.position.set(cam.target.x + r * Math.sin(cam.ph) * Math.sin(cam.th), cam.target.y + r * Math.cos(cam.ph), cam.target.z + r * Math.sin(cam.ph) * Math.cos(cam.th));
-  camera.lookAt(cam.target);
-  const off = !panel.classList.contains("hidden") && innerWidth > 760 ? (panel.offsetWidth + 16) / 2 : 0;
+  if (cinema) cinemaCamera(dt);
+  else {
+    cam.idle += dt;
+    if (cam.idle > 6 && !drag && !pinch) { cam.th += dt * 0.025; cam.ph = damp(cam.ph, 0.98 + Math.sin(simT * 0.05) * 0.08, 0.3, dt); }
+    // picked from the list: glide over to that bird for a few seconds, then drift back
+    cam.followT -= dt;
+    if (cam.follow && cam.followT > 0) cam.target.lerp(_w.set(clamp(cam.follow.x, -4, 4), 0.35, clamp(cam.follow.z, -8.5, 4)), 1 - Math.exp(-dt * 2));
+    else cam.target.lerp(CAM_TARGET, 1 - Math.exp(-dt * 0.8));
+    const r = cam.r;
+    camera.position.set(cam.target.x + r * Math.sin(cam.ph) * Math.sin(cam.th), cam.target.y + r * Math.cos(cam.ph), cam.target.z + r * Math.sin(cam.ph) * Math.cos(cam.th));
+    camera.lookAt(cam.target);
+    camera.updateMatrixWorld();
+  }
+  const off = !cinema && !panel.classList.contains("hidden") && innerWidth > 760 ? (panel.offsetWidth + 16) / 2 : 0;
   if (off !== viewOff) { viewOff = off; if (off) camera.setViewOffset(innerWidth, innerHeight, -off, 0, innerWidth, innerHeight); else camera.clearViewOffset(); }
+  if (cinemaExitT > 0) { cinemaExitT -= dt; if (cinemaExitT <= 0) cinemaExitBtn.classList.remove("show"); }
   renderer.render(scene, camera);
+  updateLabels(dt);
 }
 let last = performance.now();
 function frame(now) {

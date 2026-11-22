@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Hector the worm</title>
-<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>/* same light/dark choice as the rest of the site */ try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/toy.css?v=20261122k">
 <!--
   Connectome data: assets/worm/connectome.json, converted from
@@ -17,16 +18,74 @@
   https://journals.plos.org/ploscompbiol/article/file?type=supplementary&id=10.1371/journal.pcbi.1007974.s003 (CC BY 4.0).
 -->
 <style>
+  /* flat palette: paper by day, slate by night; the canvas reads these too */
+  :root {
+    --bg: #f3efe6;
+    --panel: rgba(255, 253, 248, .97);
+    --ink: #262521;
+    --soft: #6b6860;
+    --rule: rgba(60, 50, 30, .13);
+    --accent: #2f5d9a;
+    --accent-ink: #ffffff;
+    --btn: rgba(60, 50, 30, .045);
+    --btn-hover: rgba(60, 50, 30, .09);
+    --shadow: 0 4px 16px rgba(60, 45, 20, .08);
+    --agar: #f7e8c4;
+    --rim: #fcf9f2;
+    --rim-line: #d8cbae;
+    --trail: rgba(176, 136, 66, .32);
+    --worm: #a8dc8f;
+    --worm-line: #3f7d36;
+    --worm-dark: #6fae5f;
+    --eye: #1f3a1b;
+    --food: #ecd7a4;
+    --food-dot: #b88a4c;
+    --hot-rgb: 228, 112, 74;
+    --cold-rgb: 72, 138, 206;
+    --hot-1: #fbdcc4; --hot-2: #f7c3a2;
+    --cold-1: #dce9f5; --cold-2: #c1d8ef;
+    --touch: #3d3c37;
+    --sil: #ebe4d6;
+    --sil-line: #d3c7ad;
+    --c-s: #3a9a8d;
+    --c-i: #5579bd;
+    --c-m: #d9764f;
+  }
+  :root[data-theme="dark"] {
+    --bg: #17181b; --panel: rgba(30, 31, 35, .96); --ink: #ecebe6; --soft: #a2a4a9; --rule: rgba(255, 255, 255, .1);
+    --accent: #8fb4ec; --accent-ink: #0c1524; --btn: rgba(255, 255, 255, .06); --btn-hover: rgba(255, 255, 255, .11);
+    --shadow: 0 8px 24px rgba(0, 0, 0, .3);
+    --agar: #2d2b26; --rim: #222327; --rim-line: #3e4147; --trail: rgba(240, 222, 175, .17);
+    --worm: #9bd284; --worm-line: #3a7432; --worm-dark: #64a355; --eye: #1f3a1b;
+    --food: #4a402d; --food-dot: #c9a063; --hot-rgb: 240, 122, 88; --cold-rgb: 104, 162, 232;
+    --hot-1: #43312a; --hot-2: #58392d; --cold-1: #27323f; --cold-2: #2c4055; --touch: #efece4;
+    --sil: #292b30; --sil-line: #3b3e45; --c-s: #77cdc1; --c-i: #93b3ea; --c-m: #f0a37a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17181b; --panel: rgba(30, 31, 35, .96); --ink: #ecebe6; --soft: #a2a4a9; --rule: rgba(255, 255, 255, .1);
+      --accent: #8fb4ec; --accent-ink: #0c1524; --btn: rgba(255, 255, 255, .06); --btn-hover: rgba(255, 255, 255, .11);
+      --shadow: 0 8px 24px rgba(0, 0, 0, .3);
+      --agar: #2d2b26; --rim: #222327; --rim-line: #3e4147; --trail: rgba(240, 222, 175, .17);
+      --worm: #9bd284; --worm-line: #3a7432; --worm-dark: #64a355; --eye: #1f3a1b;
+      --food: #4a402d; --food-dot: #c9a063; --hot-rgb: 240, 122, 88; --cold-rgb: 104, 162, 232;
+      --hot-1: #43312a; --hot-2: #58392d; --cold-1: #27323f; --cold-2: #2c4055; --touch: #efece4;
+      --sil: #292b30; --sil-line: #3b3e45; --c-s: #77cdc1; --c-i: #93b3ea; --c-m: #f0a37a;
+    }
+  }
+  html, body { background: var(--bg); }
+  button { background: var(--btn); }
+  button:not(.on):hover { background: var(--btn-hover); }
   #dish { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
   .toggle-panel { display: none; }
-  .panel { padding-top: 14px; }
+  .panel { padding-top: 14px; box-shadow: var(--shadow); }
   .panel .close {
     position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; padding: 0;
     font-size: 14px; line-height: 1; border-radius: 50%;
   }
   .fab {
     position: fixed; top: max(12px, env(safe-area-inset-top)); left: 12px; z-index: 12;
-    background: var(--panel); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    background: var(--panel); box-shadow: var(--shadow);
     font-size: 12px; padding: 8px 12px; border-radius: 999px;
   }
   .fab[hidden] { display: none; }
@@ -34,20 +93,19 @@
   .tools button { padding: 7px 4px; }
   .credit { color: var(--soft); font-size: 11.5px; line-height: 1.45; margin: 12px 0 0; }
   #brain {
-    position: fixed; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); z-index: 9;
+    position: fixed; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); z-index: 9;
     background: var(--panel); border: 1px solid var(--rule); border-radius: 10px;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, .35); padding: 10px 10px 8px; width: 262px;
+    box-shadow: var(--shadow); padding: 10px 10px 8px; width: 324px;
   }
   #brain .head { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--soft); cursor: pointer; user-select: none; }
   #brain .head b { color: var(--ink); font-weight: 500; }
-  #brain canvas { display: block; width: 240px; margin-top: 6px; }
-  #brain .legend { display: flex; gap: 10px; font-size: 11px; color: var(--soft); margin-top: 4px; }
-  #brain .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: 0; }
+  #brain canvas { display: block; margin-top: 6px; }
+  #brain .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--soft); margin-top: 5px; }
+  #brain .legend i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; }
+  #brain .legend .note { margin-left: auto; }
   #brain.mini canvas, #brain.mini .legend { display: none; }
-  @media (max-width: 760px) {
-    #brain { width: 178px; padding: 8px 8px 6px; }
-    #brain canvas { width: 160px; }
-    #brain .legend { display: none; }
+  @media (max-width: 759px) {
+    #brain { left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); width: auto; padding: 8px 10px 6px; }
   }
 </style>
 </head>
@@ -60,7 +118,7 @@
   <button class="close" id="closePanel" aria-label="Close panel" title="Close (H)">✕</button>
   <a class="back" href="../index.html">← Home</a>
   <h1>Hector the worm</h1>
-  <p class="sub">This is the actual mapped-out nervous system of the worm C. elegans: 302 neurons and about 5,700 connections between them and the muscles, wired into a virtual body. Hector is essentially living a little virtual life on this website.</p>
+  <p class="sub">Hector runs on the real, fully mapped nervous system of the worm C. elegans: 302 neurons and about 5,700 connections, wired into a little virtual body.</p>
 
   <label>tools</label>
   <div class="tools" id="tools">
@@ -80,14 +138,14 @@
     <span>Firing</span><span id="stFiring">-</span>
     <span>Senses</span><span id="stSense">-</span>
   </div>
-  <p class="hint" style="margin-top:10px">Smells reach the chemosensory neurons (AWC, AWA, ASE), heat and cold reach AFD, ASH, FLP and PVD, touch reaches ALM, AVM and PLM, and bumping the dish wall presses the nose neurons. The motor neurons drive the body wall muscles. Whether he crawls forward, backs up or turns comes out of the network; homing in on food also gets a small built-in nudge.</p>
+  <p class="hint" style="margin-top:10px">Smells reach AWC, AWA and ASE. Heat and cold reach AFD, ASH, FLP and PVD, touch reaches ALM, AVM and PLM, and the dish wall presses his nose. Crawling, backing up and turning come out of the network; finding food gets a small built-in nudge.</p>
   <p class="credit">Connectome data: Cook et al. 2019 (from the White et al. 1986 electron micrographs), via the <a href="https://github.com/openworm/c302" target="_blank" rel="noopener noreferrer">OpenWorm c302</a> project, MIT licence. Synapse signs: Fenyves et al. 2020, CC BY 4.0.</p>
 </div>
 
 <div id="brain">
   <div class="head" id="brainHead"><b>Brain</b><span id="brainInfo"></span></div>
-  <canvas id="brainCv"></canvas>
-  <div class="legend"><span><i style="background:#7fd1c7"></i>Sensory</span><span><i style="background:#8fb4ec"></i>Inter</span><span><i style="background:#f0a37a"></i>Motor</span></div>
+  <canvas id="brainCv" aria-label="Map of Hector's neurons, head on the left"></canvas>
+  <div class="legend"><span><i style="background:var(--c-s)"></i>Sensory</span><span><i style="background:var(--c-i)"></i>Inter</span><span><i style="background:var(--c-m)"></i>Motor</span><span class="note">Lit when firing</span></div>
 </div>
 
 <script>
@@ -524,184 +582,136 @@ function touchAt(x, y) {
 }
 
 // ===================================================================
-//  rendering
+//  rendering: flat shapes, colours come from the CSS theme variables
 // ===================================================================
 const cv = document.getElementById("dish"), ctx = cv.getContext("2d");
 let W = 0, H = 0, DPR = 1, cx = 0, cy = 0, sc = 1;
 let bgCanvas = null;
+const DRAW_HALFW = 0.025;    // drawn body half width: plumper than HALFW so he reads at a glance (drawing only)
 const trackCv = document.createElement("canvas"); trackCv.width = trackCv.height = 1024;
 const tctx = trackCv.getContext("2d");
 const toScreen = (x, y) => [cx + x * sc, cy + y * sc];
 const toWorld = (px, py) => [(px - cx) / sc, (py - cy) / sc];
+const TAU = Math.PI * 2;
 
 function mulberry(a) { return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
+let PAL = {};
+function readTheme() {
+  const cs = getComputedStyle(document.documentElement), v = (k) => cs.getPropertyValue(k).trim();
+  PAL = {
+    bg: v("--bg"), agar: v("--agar"), rim: v("--rim"), rimLine: v("--rim-line"), trail: v("--trail"),
+    worm: v("--worm"), wormLine: v("--worm-line"), wormDark: v("--worm-dark"), eye: v("--eye"),
+    food: v("--food"), foodDot: v("--food-dot"), hot: v("--hot-rgb"), cold: v("--cold-rgb"), touch: v("--touch"),
+    hotFill: [v("--hot-1"), v("--hot-2")], coldFill: [v("--cold-1"), v("--cold-2")],
+    sil: v("--sil"), silLine: v("--sil-line"), grp: [v("--c-s"), v("--c-i"), v("--c-m")],
+  };
+}
+
+const brainBox = document.getElementById("brain");
 function resize() {
   DPR = Math.min(2, window.devicePixelRatio || 1);
   W = innerWidth; H = innerHeight;
   cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  layoutBrain();
   const narrow = W < 760;
-  cx = W / 2; cy = narrow ? H * 0.45 : H / 2;
-  sc = Math.min(W * (narrow ? 0.46 : 0.42), H * (narrow ? 0.38 : 0.44));
-  if (W >= 1000) {   // keep the dish between the panel (left) and the brain view (right)
-    const left = 344, right = W - 290, avail = right - left;
-    cx = left + avail / 2; sc = Math.min(H * 0.44, avail * 0.47);
+  if (W >= 1000) {   // keep the dish between the panel (left) and the brain map (bottom right)
+    const left = 344, right = W - 352, avail = right - left;
+    cx = left + avail / 2; cy = H / 2; sc = Math.min(H * 0.44, avail * 0.47);
+  } else {           // brain map along the bottom: centre the dish in what is left above it
+    const top = narrow ? 56 : 20, bottom = H - brainBox.offsetHeight - (narrow ? 24 : 32);
+    cx = W / 2; cy = (top + bottom) / 2;
+    sc = Math.max(40, Math.min(W * (narrow ? 0.46 : 0.42), (bottom - top) / 2 / 1.04));
   }
   buildBackground();
 }
 
+// the plain table and the dish: one flat agar colour inside a thin glass rim
 function buildBackground() {
   bgCanvas = document.createElement("canvas");
   bgCanvas.width = cv.width; bgCanvas.height = cv.height;
   const g = bgCanvas.getContext("2d");
   g.scale(DPR, DPR);
-  // table
-  const tb = g.createRadialGradient(cx - sc * 0.3, cy - sc * 0.4, sc * 0.2, cx, cy, Math.max(W, H) * 0.8);
-  tb.addColorStop(0, "#3a4a50"); tb.addColorStop(0.55, "#26323a"); tb.addColorStop(1, "#141a1f");
-  g.fillStyle = tb; g.fillRect(0, 0, W, H);
-  // low-poly facets on the table
-  const rnd = mulberry(7);
-  const step = Math.max(60, sc * 0.32);
-  for (let y = -step; y < H + step; y += step) for (let x = -step; x < W + step; x += step) {
-    const p = [[x + rnd() * step * 0.5, y + rnd() * step * 0.5], [x + step + rnd() * step * 0.5, y + rnd() * step * 0.5],
-               [x + rnd() * step * 0.5, y + step + rnd() * step * 0.5], [x + step + rnd() * step * 0.5, y + step + rnd() * step * 0.5]];
-    for (const tri of [[0, 1, 2], [1, 3, 2]]) {
-      g.beginPath(); g.moveTo(...p[tri[0]]); g.lineTo(...p[tri[1]]); g.lineTo(...p[tri[2]]); g.closePath();
-      g.fillStyle = rnd() < 0.5 ? `rgba(255,255,255,${rnd() * 0.025})` : `rgba(0,0,0,${rnd() * 0.05})`;
-      g.fill();
-    }
-  }
-  const r = sc;
-  // dish shadow
-  g.save(); g.shadowColor = "rgba(5,10,14,.55)"; g.shadowBlur = sc * 0.12; g.shadowOffsetX = sc * 0.04; g.shadowOffsetY = sc * 0.07;
-  g.beginPath(); g.arc(cx, cy, r * 1.045, 0, Math.PI * 2); g.fillStyle = "#2b383f"; g.fill(); g.restore();
-  // glass rim
-  g.beginPath(); g.arc(cx, cy, r * 1.045, 0, Math.PI * 2);
-  const rim = g.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
-  rim.addColorStop(0, "rgba(225,238,240,.55)"); rim.addColorStop(0.5, "rgba(170,195,200,.25)"); rim.addColorStop(1, "rgba(120,145,150,.35)");
-  g.fillStyle = rim; g.fill();
-  // agar, faceted
-  g.save();
-  g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.clip();
-  const ag = g.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.05, cx, cy, r * 1.05);
-  ag.addColorStop(0, "#f2d9a4"); ag.addColorStop(0.6, "#e6c287"); ag.addColorStop(1, "#d3a86c");
-  g.fillStyle = ag; g.fillRect(cx - r, cy - r, r * 2, r * 2);
-  const fs = r / 7, rn = mulberry(11);
-  const verts = [];
-  const nx = Math.ceil((2 * r) / fs) + 2;
-  for (let j = 0; j < nx; j++) { verts.push([]); for (let i = 0; i < nx; i++) verts[j].push([cx - r - fs + i * fs + (rn() - 0.5) * fs * 0.7, cy - r - fs + j * fs + (rn() - 0.5) * fs * 0.7]); }
-  for (let j = 0; j < nx - 1; j++) for (let i = 0; i < nx - 1; i++) {
-    const a = verts[j][i], b = verts[j][i + 1], c = verts[j + 1][i], d = verts[j + 1][i + 1];
-    for (const tri of [[a, b, c], [b, d, c]]) {
-      // flat shading: each facet gets a slightly tilted normal lit from the top left
-      const nxv = (rn() - 0.5) * 0.5, nyv = (rn() - 0.5) * 0.5;
-      const lit = -0.6 * nxv - 0.7 * nyv;
-      g.beginPath(); g.moveTo(...tri[0]); g.lineTo(...tri[1]); g.lineTo(...tri[2]); g.closePath();
-      g.fillStyle = lit > 0 ? `rgba(255,248,230,${lit * 0.22})` : `rgba(120,70,20,${-lit * 0.14})`;
-      g.fill();
-    }
-  }
-  // meniscus where agar meets the glass
-  const men = g.createRadialGradient(cx, cy, r * 0.86, cx, cy, r);
-  men.addColorStop(0, "rgba(150,95,40,0)"); men.addColorStop(0.8, "rgba(150,95,40,.10)"); men.addColorStop(1, "rgba(110,65,25,.28)");
-  g.fillStyle = men; g.fillRect(cx - r, cy - r, r * 2, r * 2);
-  g.restore();
-  // rim highlights
-  g.lineWidth = Math.max(1.5, r * 0.012);
-  g.strokeStyle = "rgba(255,255,255,.55)";
-  g.beginPath(); g.arc(cx, cy, r * 1.03, Math.PI * 1.05, Math.PI * 1.55); g.stroke();
-  g.lineWidth = Math.max(1, r * 0.006); g.strokeStyle = "rgba(255,255,255,.25)";
-  g.beginPath(); g.arc(cx, cy, r * 1.03, Math.PI * 0.1, Math.PI * 0.35); g.stroke();
-  g.strokeStyle = "rgba(255,255,255,.18)"; g.lineWidth = 1;
-  g.beginPath(); g.arc(cx, cy, r * 1.045, 0, Math.PI * 2); g.stroke();
+  g.fillStyle = PAL.bg; g.fillRect(0, 0, W, H);
+  g.beginPath(); g.arc(cx, cy, sc * 1.035, 0, TAU);
+  g.fillStyle = PAL.rim; g.fill();
+  g.lineWidth = 1.5; g.strokeStyle = PAL.rimLine; g.stroke();
+  g.beginPath(); g.arc(cx, cy, sc, 0, TAU);
+  g.fillStyle = PAL.agar; g.fill();
+  g.lineWidth = 1; g.stroke();
 }
 
-// faint grooves left in the agar
+// a dotted trail where he has been, fading slowly
 let trackPrev = null, trackFade = 0;
 function trackStep() {
   const h = worm.pts[0];
   const p = [(h.x + 1) * 512, (h.y + 1) * 512];
-  if (trackPrev && Math.hypot(p[0] - trackPrev[0], p[1] - trackPrev[1]) > 2) {
-    tctx.strokeStyle = "rgba(120,72,28,.07)"; tctx.lineWidth = HALFW * 1.6 * 512; tctx.lineCap = "round";
-    tctx.beginPath(); tctx.moveTo(...trackPrev); tctx.lineTo(...p); tctx.stroke();
+  if (!trackPrev || Math.hypot(p[0] - trackPrev[0], p[1] - trackPrev[1]) > 0.034 * 512) {
+    tctx.fillStyle = PAL.trail || "rgba(0,0,0,.1)";
+    tctx.beginPath(); tctx.arc(p[0], p[1], 0.0055 * 512, 0, TAU); tctx.fill();
     trackPrev = p;
-  } else if (!trackPrev) trackPrev = p;
+  }
   trackFade += DT;
   if (trackFade > 1.5) {
     trackFade = 0;
-    tctx.globalCompositeOperation = "destination-out"; tctx.fillStyle = "rgba(0,0,0,.025)";
+    tctx.globalCompositeOperation = "destination-out"; tctx.fillStyle = "rgba(0,0,0,.05)";
     tctx.fillRect(0, 0, 1024, 1024); tctx.globalCompositeOperation = "source-over";
   }
 }
 
-function poly(g, n, rad, rnd, x, y) {
-  const pts = [];
-  for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2 + rnd() * 0.3; const rr = rad * (0.85 + rnd() * 0.25); pts.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]); }
-  return pts;
-}
+function disc(g, x, y, r) { g.beginPath(); g.arc(x, y, r, 0, TAU); }
 
+// food: a soft flat patch of bacteria with a few dots
 function drawFood(g) {
   for (const f of world.food) {
     const [x, y] = toScreen(f.x, f.y), rad = f.r * Math.sqrt(f.amt) * sc;
-    // odour halo
-    const halo = g.createRadialGradient(x, y, rad * 0.5, x, y, rad * 3.2);
-    halo.addColorStop(0, "rgba(236,240,200,.22)"); halo.addColorStop(1, "rgba(236,240,200,0)");
-    g.fillStyle = halo; g.beginPath(); g.arc(x, y, rad * 3.2, 0, Math.PI * 2); g.fill();
-    const rnd = mulberry(f.seed | 0);
-    const pts = poly(g, 13, rad, rnd, x, y);
-    g.save(); g.shadowColor = "rgba(110,70,30,.25)"; g.shadowBlur = rad * 0.25; g.shadowOffsetY = rad * 0.06;
-    g.beginPath(); pts.forEach((p, i) => (i ? g.lineTo(...p) : g.moveTo(...p))); g.closePath();
-    g.fillStyle = "#eef0cf"; g.fill(); g.restore();
-    // flat-shaded wedges, thicker lighter rim like a real bacterial lawn
-    for (let i = 0; i < pts.length; i++) {
-      const a = pts[i], b = pts[(i + 1) % pts.length];
-      const mx = (a[0] + b[0]) / 2 - x, my = (a[1] + b[1]) / 2 - y;
-      const lit = (-mx * 0.6 - my * 0.8) / (rad + 1e-6);
-      g.beginPath(); g.moveTo(x, y); g.lineTo(...a); g.lineTo(...b); g.closePath();
-      g.fillStyle = lit > 0 ? `rgba(255,255,240,${lit * 0.35})` : `rgba(120,140,70,${-lit * 0.18})`;
-      g.fill();
-    }
-    g.strokeStyle = "rgba(250,250,232,.9)"; g.lineWidth = Math.max(1.5, rad * 0.09);
-    g.beginPath(); pts.forEach((p, i) => (i ? g.lineTo(...p) : g.moveTo(...p))); g.closePath(); g.stroke();
-    // a few colonies
-    for (let i = 0; i < 7; i++) {
-      const a = rnd() * Math.PI * 2, rr = rnd() * rad * 0.65;
-      g.fillStyle = "rgba(196,206,140,.55)";
-      g.beginPath(); g.arc(x + Math.cos(a) * rr, y + Math.sin(a) * rr, rad * (0.05 + rnd() * 0.06), 0, Math.PI * 2); g.fill();
+    g.fillStyle = PAL.food; disc(g, x, y, rad); g.fill();
+    const rnd = mulberry(f.seed | 0), n = 7;
+    g.fillStyle = PAL.foodDot;
+    for (let i = 0; i < n; i++) {
+      const a = i * 2.4 + rnd() * 0.6, rr = rad * 0.62 * Math.sqrt((i + 0.5) / n);
+      disc(g, x + Math.cos(a) * rr, y + Math.sin(a) * rr, rad * (0.1 + rnd() * 0.05)); g.fill();
     }
   }
 }
 
+// heat and cold: flat translucent discs, the inner one where it gets too hot or too cold for him
 function drawTemp(g) {
+  const SIG = 0.14;   // same spread as tempAt()
   for (const s of world.temp) {
-    const [x, y] = toScreen(s.x, s.y), rad = 0.3 * sc;
-    const hot = s.sign > 0, a = s.life;
-    const glow = g.createRadialGradient(x, y, 0, x, y, rad);
-    glow.addColorStop(0, hot ? `rgba(255,112,70,${0.62 * a})` : `rgba(120,190,255,${0.7 * a})`);
-    glow.addColorStop(0.4, hot ? `rgba(255,140,90,${0.3 * a})` : `rgba(150,205,255,${0.34 * a})`);
-    glow.addColorStop(1, "rgba(255,255,255,0)");
-    g.fillStyle = glow; g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
-    // little faceted token in the middle
-    const t = sc * 0.04 * (0.6 + 0.4 * a);
-    const cols = hot ? ["#ffb68a", "#f08a5d", "#d96d45"] : ["#e6f5ff", "#a9d6f5", "#7fb6e0"];
-    for (let i = 0; i < 6; i++) {
-      const a0 = (i / 6) * Math.PI * 2 - Math.PI / 2, a1 = ((i + 1) / 6) * Math.PI * 2 - Math.PI / 2;
-      g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a0) * t, y + Math.sin(a0) * t); g.lineTo(x + Math.cos(a1) * t, y + Math.sin(a1) * t); g.closePath();
-      g.globalAlpha = 0.4 + 0.6 * a; g.fillStyle = cols[i < 2 ? 0 : i < 4 ? 1 : 2]; g.fill();
+    const [x, y] = toScreen(s.x, s.y), rgb = s.sign > 0 ? PAL.hot : PAL.cold, fills = s.sign > 0 ? PAL.hotFill : PAL.coldFill;
+    [0.08, 0.25].forEach((thr, k) => {
+      if (s.life <= thr) return;
+      disc(g, x, y, SIG * Math.sqrt(2 * Math.log(s.life / thr)) * sc);
+      g.globalAlpha = 0.85; g.fillStyle = fills[k]; g.fill(); g.globalAlpha = 1;
+      g.lineWidth = 1.25; g.strokeStyle = `rgba(${rgb},.55)`; g.stroke();
+    });
+    // a small sun or snowflake in the middle
+    const k = Math.max(6, sc * 0.03);
+    g.strokeStyle = `rgba(${rgb},${0.45 + 0.55 * s.life})`; g.lineWidth = Math.max(1.5, k * 0.18); g.lineCap = "round";
+    g.beginPath();
+    if (s.sign > 0) {
+      g.moveTo(x + k * 0.42, y); g.arc(x, y, k * 0.42, 0, TAU);
+      for (let i = 0; i < 8; i++) { const a = (i / 8) * TAU; g.moveTo(x + Math.cos(a) * k * 0.72, y + Math.sin(a) * k * 0.72); g.lineTo(x + Math.cos(a) * k, y + Math.sin(a) * k); }
+    } else {
+      for (let i = 0; i < 3; i++) { const a = (i / 3) * Math.PI + Math.PI / 2; g.moveTo(x - Math.cos(a) * k, y - Math.sin(a) * k); g.lineTo(x + Math.cos(a) * k, y + Math.sin(a) * k); }
     }
-    g.globalAlpha = 1;
+    g.stroke();
   }
 }
 
+// touch: a ring that pops out and fades
 function drawRipples(g) {
   for (const r of world.ripples) {
-    const [x, y] = toScreen(r.x, r.y), k = r.t / 1.2;
-    g.strokeStyle = `rgba(255,252,240,${0.55 * (1 - k)})`; g.lineWidth = 2;
-    g.beginPath(); g.arc(x, y, 6 + k * sc * 0.12, 0, Math.PI * 2); g.stroke();
+    const k = r.t / 0.5; if (k >= 1) continue;
+    const e = 1 - (1 - k) ** 3, [x, y] = toScreen(r.x, r.y);
+    g.globalAlpha = 1 - k; g.strokeStyle = PAL.touch; g.lineWidth = 0.75 + 2.25 * (1 - k);
+    disc(g, x, y, (0.02 + 0.07 * e) * sc); g.stroke();
   }
+  g.globalAlpha = 1;
 }
 
-// body outline from the segment points: a smooth, tapered tube
+// body outline from the segment points: a smooth tube, round nose, tapering to a blunt tail
 function bodyGeometry() {
   const P0 = worm.pts.map((p) => toScreen(p.x, p.y));
   const pts = [];
@@ -714,74 +724,41 @@ function bodyGeometry() {
     }
   }
   pts.push(P0[P0.length - 1]);
-  const n = pts.length, left = [], right = [], nrm = [];
+  const n = pts.length, left = [], right = [], wid = [];
   for (let i = 0; i < n; i++) {
     const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)];
     let tx = b[0] - a[0], ty = b[1] - a[1]; const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
     const u = i / (n - 1);
-    const w = HALFW * sc * (u < 0.08 ? Math.sqrt(u / 0.08) * 0.75 + 0.25 * (u / 0.08) : u > 0.7 ? Math.pow((1 - u) / 0.3, 0.8) : 1) + 0.6;
-    nrm.push([-ty, tx]);
+    const prof = u < 0.07 ? Math.sqrt(1 - (1 - u / 0.07) ** 2) : u > 0.66 ? 0.24 + 0.76 * Math.pow((1 - u) / 0.34, 1.2) : 1;
+    const w = DRAW_HALFW * sc * prof;
+    wid.push(w);
     left.push([pts[i][0] - ty * w, pts[i][1] + tx * w]);
     right.push([pts[i][0] + ty * w, pts[i][1] - tx * w]);
   }
-  return { pts, left, right, nrm, n };
+  return { pts, left, right, wid, n };
 }
 
 function drawWorm(g) {
-  const { pts, left, right, nrm, n } = bodyGeometry();
-  const outline = () => {
-    g.beginPath(); g.moveTo(...left[0]);
-    for (let i = 1; i < n; i++) g.lineTo(...left[i]);
-    for (let i = n - 1; i >= 0; i--) g.lineTo(...right[i]);
-    g.closePath();
-  };
-  // soft shadow
-  g.save(); g.shadowColor = "rgba(90,50,15,.35)"; g.shadowBlur = HALFW * sc * 2.2; g.shadowOffsetX = HALFW * sc * 0.5; g.shadowOffsetY = HALFW * sc * 1.1;
-  outline(); g.fillStyle = "#ead3bd"; g.fill(); g.restore();
-  // flat-shaded halves per segment: a low-poly tube lit from the top left
-  const light = [-0.55, -0.83];
-  const rows = S.rows;
-  for (let i = 0; i < n - 1; i++) {
-    const seg = Math.min(SEG - 1, Math.floor((i / (n - 1)) * SEG));
-    const r = rows[seg];
-    const mD = r ? (net.tr[r[0]] || 0) + (net.tr[r[1]] || 0) : 0, mV = r ? (net.tr[r[2]] || 0) + (net.tr[r[3]] || 0) : 0;
-    for (const side of [0, 1]) {
-      const edge = side ? right : left, s = side ? 1 : -1;
-      const nx = -nrm[i][0] * s, ny = -nrm[i][1] * s;
-      const lit = nx * light[0] + ny * light[1];
-      const band = (seg % 2) ? 0.02 : 0;
-      // which side is dorsal depends on which side he lies on
-      const m = (s * worm.ventral > 0 ? mV : mD) * 0.5;
-      const base = [246 - band * 300, 220 - band * 300, 198 - band * 300];
-      const k = 0.13 * lit;
-      const col = [base[0] * (1 + k) + m * 10, base[1] * (1 + k) - m * 22, base[2] * (1 + k) - m * 18].map((v) => clamp(Math.round(v), 0, 255));
-      g.beginPath(); g.moveTo(...pts[i]); g.lineTo(...edge[i]); g.lineTo(...edge[i + 1]); g.lineTo(...pts[i + 1]); g.closePath();
-      g.fillStyle = `rgb(${col[0]},${col[1]},${col[2]})`; g.fill();
-      g.strokeStyle = g.fillStyle; g.lineWidth = 0.6; g.stroke();
-    }
-  }
-  // gut and pharynx, seen through the body
-  g.strokeStyle = "rgba(180,125,90,.26)"; g.lineWidth = HALFW * sc * 0.6; g.lineCap = "round"; g.lineJoin = "round";
-  g.beginPath();
-  const i0 = Math.floor(n * 0.2), i1 = Math.floor(n * 0.86);
-  g.moveTo(...pts[i0]); for (let i = i0 + 1; i <= i1; i++) g.lineTo(...pts[i]); g.stroke();
-  g.strokeStyle = "rgba(170,120,85,.28)"; g.lineWidth = HALFW * sc * 0.3;
-  g.beginPath(); g.moveTo(...pts[1]); for (let i = 2; i <= i0; i++) g.lineTo(...pts[i]); g.stroke();
-  const bulb = pts[Math.floor(n * 0.15)];
-  g.fillStyle = "rgba(175,120,85,.3)"; g.beginPath(); g.arc(bulb[0], bulb[1], HALFW * sc * 0.5, 0, Math.PI * 2); g.fill();
-  // highlight along the lit side
-  g.strokeStyle = "rgba(255,250,242,.55)"; g.lineWidth = Math.max(1, HALFW * sc * 0.28);
-  g.beginPath();
-  for (let i = 2; i < n - 4; i++) {
-    // slide the highlight smoothly towards the light across the tube
-    const w = Math.hypot(left[i][0] - pts[i][0], left[i][1] - pts[i][1]);
-    const k = -(nrm[i][0] * light[0] + nrm[i][1] * light[1]) * 0.55;
-    const q = [pts[i][0] - nrm[i][0] * k * w, pts[i][1] - nrm[i][1] * k * w];
-    i === 2 ? g.moveTo(...q) : g.lineTo(...q);
-  }
+  const { pts, left, right, wid, n } = bodyGeometry();
+  const W0 = DRAW_HALFW * sc;
+  g.beginPath(); g.moveTo(...left[0]);
+  for (let i = 1; i < n; i++) g.lineTo(...left[i]);
+  const a = pts[n - 1], b = pts[n - 2], tl = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1;
+  const al = Math.atan2((a[0] - b[0]) / tl, -(a[1] - b[1]) / tl);
+  g.arc(a[0], a[1], wid[n - 1], al, al - Math.PI, true);    // round tail tip
+  for (let i = n - 1; i >= 0; i--) g.lineTo(...right[i]);
+  g.closePath();
+  g.fillStyle = PAL.worm; g.fill();
+  g.lineJoin = "round"; g.lineCap = "round"; g.lineWidth = Math.max(1.5, W0 * 0.2); g.strokeStyle = PAL.wormLine; g.stroke();
+  // pharynx: a thin tube from the mouth to its round bulb
+  const at = (u) => pts[Math.round(u * (n - 1))];
+  g.strokeStyle = PAL.wormDark; g.lineWidth = Math.max(1, W0 * 0.28);
+  g.beginPath(); g.moveTo(...at(0.065));
+  for (let i = Math.round(0.065 * (n - 1)) + 1; i <= Math.round(0.14 * (n - 1)); i++) g.lineTo(...pts[i]);
   g.stroke();
-  // outline
-  outline(); g.strokeStyle = "rgba(130,85,55,.35)"; g.lineWidth = 1; g.stroke();
+  g.fillStyle = PAL.wormDark; disc(g, ...at(0.14), W0 * 0.42); g.fill();
+  // a dot at the nose, so you can tell which way he faces
+  g.fillStyle = PAL.eye; disc(g, ...at(0.03), Math.max(1.4, W0 * 0.2)); g.fill();
 }
 
 function render() {
@@ -789,8 +766,7 @@ function render() {
   ctx.drawImage(bgCanvas, 0, 0);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.save();
-  ctx.beginPath(); ctx.arc(cx, cy, sc, 0, Math.PI * 2); ctx.clip();
-  ctx.globalAlpha = 1;
+  disc(ctx, cx, cy, sc); ctx.clip();
   ctx.drawImage(trackCv, cx - sc, cy - sc, sc * 2, sc * 2);
   drawTemp(ctx);
   drawFood(ctx);
@@ -800,104 +776,118 @@ function render() {
 }
 
 // ===================================================================
-//  brain view: ring of neurons grouped as sensory / inter / motor, muscle strip, a few named traces
+//  brain map: a side view of the worm with every neuron as a dot at roughly its place in the body
 // ===================================================================
+// The connectome has no coordinates, so positions come from anatomy by name: the ventral cord motor
+// neurons in order along the cord, a few midbody cells where they sit, the tail ganglia at the back,
+// and everything else packed into the head ganglia around the nerve ring (sensory cells to the front).
+// The head is drawn wider than to scale (the first 18% of the body takes a third of the map).
+// Left/right partners share a spot, as they do in a side view. Dorsal is up, ventral down.
 const bcv = document.getElementById("brainCv"), bctx = bcv.getContext("2d");
-const COL = ["#7fd1c7", "#8fb4ec", "#f0a37a"];
-const NAMED = [["AWC", ["AWCL", "AWCR"]], ["ASH", ["ASHL", "ASHR"]], ["ALM", ["ALML", "ALMR"]], ["AFD", ["AFDL", "AFDR"]],
-               ["AIY", ["AIYL", "AIYR"]], ["AVA", ["AVAL", "AVAR"]], ["AVB", ["AVBL", "AVBR"]]];
-let BW = 240, BH = 300, ringR = 0, ringC = [0, 0], npos = [], chordCv = null, hist = [], narrowBrain = false;
+const CORD = {   // first and last cell along the body (0 = nose, 1 = tail), lane (0 = mid, 1 = ventral edge), nudge
+  VB: [0.15, 0.80, 0.08, 0], DB: [0.14, 0.78, 0.08, 0.5], VA: [0.17, 0.80, 0.34, 0], DA: [0.16, 0.85, 0.34, 0.5],
+  DD: [0.16, 0.80, 0.58, 0], AS: [0.17, 0.82, 0.58, 0.5], VD: [0.16, 0.85, 0.82, 0], VC: [0.36, 0.66, 0.82, 0.5],
+};
+const MID = { BDU: [0.27, -0.4], AVM: [0.38, -0.15], SDQ: [0.40, -0.62], ALM: [0.45, -0.35], CAN: [0.50, -0.18],
+              HSN: [0.50, -0.56], PVM: [0.62, -0.15], PVD: [0.64, -0.45], PDE: [0.64, -0.72] };
+const TAIL = new Set(["PHA", "PHB", "PHC", "PLM", "PLN", "ALN", "PQR", "PVQ", "PVC", "PVR", "PVN", "PVP", "PVT", "PVW",
+                      "PDA", "PDB", "DVA", "DVB", "DVC", "LUA"]);
+const PHARYNX = new Set(["I1", "I2", "I3", "I4", "I5", "I6", "M1", "M2", "M3", "M4", "M5", "MC", "MI", "NSM"]);
+const RVG = new Set(["SABD", "SABV", "AVG"]);   // retrovesicular ganglion, just behind the head
+let BW = 300, BH = 60, bhw = 24, bx0 = 3, bx1 = 297, bdot = 1.7, npos = [], silCv = null;
+const mapX = (u) => bx0 + (bx1 - bx0) * (u < 0.18 ? (u / 0.18) * 0.32 : 0.32 + ((u - 0.18) / 0.82) * 0.68);
+function silHalf(x) {   // half height of the silhouette at x
+  const len = bx1 - bx0, xs = x - bx0, rn = bhw * 1.1, t0 = len * 0.9;
+  if (xs <= 0 || xs >= len) return 0;
+  if (xs < rn) return bhw * Math.sqrt(1 - ((rn - xs) / rn) ** 2);
+  if (xs > t0) return bhw * (1 - 0.82 * Math.pow((xs - t0) / (len - t0), 1.3));
+  return bhw;
+}
+const strHash = (s) => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return ((h >>> 0) % 1000) / 1000; };
+// hex-pack n spots into [xa, xb], inside the silhouette, front to back
+function pack(n, xa, xb, vmax) {
+  let s = Math.sqrt(((xb - xa) * 2 * vmax * bhw) / n) * 1.4, out = [];
+  for (let it = 0; it < 120; it++) {
+    out = [];
+    const dy = s * 0.866, rows = Math.floor((2 * vmax * bhw) / dy) + 1;
+    for (let r = 0; r < rows; r++) {
+      const y = (r - (rows - 1) / 2) * dy;
+      for (let x = xa + s / 2 + (r % 2) * s / 2; x <= xb; x += s) if (Math.abs(y) <= silHalf(x) * 0.86 - bdot) out.push([x, y]);
+    }
+    if (out.length >= n) break;
+    s *= 0.96;
+  }
+  out.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  return Array.from({ length: n }, (_, i) => out[Math.min(out.length - 1, Math.floor(((i + 0.5) * out.length) / n))] || [xa, 0]);
+}
 function layoutBrain() {
-  narrowBrain = innerWidth < 760;
-  BW = narrowBrain ? 160 : 240;
-  const ringH = BW, strip = narrowBrain ? 22 : 30, traces = narrowBrain ? 0 : NAMED.length * 15 + 6;
-  BH = ringH + strip + traces;
+  BW = Math.max(120, Math.floor(brainBox.clientWidth - 20));
+  BH = Math.round(clamp(BW * 0.19, 46, 64));
+  bhw = BH * 0.42; bx0 = 3; bx1 = BW - 3; bdot = clamp(bhw * 0.075, 1.3, 1.9);
   bcv.style.width = BW + "px"; bcv.style.height = BH + "px";
-  bcv.width = BW * DPR; bcv.height = BH * DPR;
-  ringR = BW * 0.43; ringC = [BW / 2, BW / 2];
-  const order = [];
-  for (const gi of [0, 1, 2]) order.push(net.name.slice(0, net.nN).map((s, i) => i).filter((i) => net.grp[i] === gi));
-  const total = net.nN, gap = 0.12;
-  let a = -Math.PI / 2 + gap / 2;
+  bcv.width = Math.round(BW * DPR); bcv.height = Math.round(BH * DPR);
+  // group neurons into spots: left/right partners share one
+  const fam = (s) => (/[LR]$/.test(s) && net.idx[s.slice(0, -1) + (s.endsWith("L") ? "R" : "L")] !== undefined ? s.slice(0, -1) : s);
+  const spots = new Map();
+  for (let i = 0; i < net.nN; i++) { const f = fam(net.name[i]); if (!spots.has(f)) spots.set(f, []); spots.get(f).push(i); }
+  const head = [], tail = [];
   npos = new Array(net.nN);
-  for (const list of order) {
-    const span = (Math.PI * 2 - gap * 3) * (list.length / total);
-    list.forEach((i, k) => { const t = a + span * (k + 0.5) / list.length; npos[i] = [ringC[0] + Math.cos(t) * ringR, ringC[1] + Math.sin(t) * ringR, t]; });
-    a += span + gap;
+  const place = (list, x, y) => list.forEach((i) => {
+    const side = net.name[i].endsWith("L") && list.length > 1 ? -1 : net.name[i].endsWith("R") && list.length > 1 ? 1 : 0;
+    npos[i] = [x + side * 0.6, BH / 2 + y + side * 0.6];
+  });
+  const key = (f, list) => (PHARYNX.has(f) ? -0.6 : RVG.has(f) ? 3 : [0, 1.5, 0.9][net.grp[list[0]]]) + strHash(f) * 1.3;
+  for (const [f, list] of spots) {
+    const m = /^(VA|VB|VD|DA|DB|DD|AS|VC)(\d\d)$/.exec(f);
+    if (m) {
+      const [u0, u1, lane, nudge] = CORD[m[1]], count = Object.keys(net.idx).filter((s) => s.startsWith(m[1]) && /\d\d$/.test(s)).length;
+      const u = u0 + ((+m[2] - 1) / Math.max(1, count - 1)) * (u1 - u0);
+      place(list, mapX(u) + nudge * bdot * 2, lane * bhw * 0.82);
+    } else if (MID[f]) place(list, mapX(MID[f][0]), MID[f][1] * bhw * 0.82);
+    else if (TAIL.has(f)) tail.push([f, list]);
+    else head.push([f, list]);
   }
-  // static chords: every neuron-to-neuron chemical connection, faint
-  chordCv = document.createElement("canvas"); chordCv.width = bcv.width; chordCv.height = bcv.height;
-  const g = chordCv.getContext("2d"); g.scale(DPR, DPR);
-  g.lineWidth = 0.5;
-  for (let j = 0; j < net.nN; j++) for (let e = net.start[j]; e < net.start[j + 1]; e++) {
-    const t = net.tgt[e]; if (t >= net.nN) continue;
-    g.strokeStyle = net.wt[e] < 0 ? `rgba(240,163,122,${narrowBrain ? 0.02 : 0.03})` : `rgba(143,180,236,${narrowBrain ? 0.016 : 0.025})`;
-    g.beginPath(); g.moveTo(npos[j][0], npos[j][1]); g.quadraticCurveTo(ringC[0], ringC[1], npos[t][0], npos[t][1]); g.stroke();
+  for (const [grpList, xa, xb] of [[head, bx0 + 2, mapX(0.18)], [tail, mapX(0.865), mapX(0.97)]]) {
+    grpList.sort((a, b) => key(...a) - key(...b));
+    const slots = pack(grpList.length, xa, xb, 0.86);
+    grpList.forEach(([, list], k) => place(list, slots[k][0], slots[k][1]));
   }
+  drawBrainBg();
+}
+function drawBrainBg() {
+  silCv = document.createElement("canvas"); silCv.width = bcv.width; silCv.height = bcv.height;
+  const g = silCv.getContext("2d"); g.scale(DPR, DPR);
+  const mid = BH / 2;
+  g.beginPath();
+  for (let x = bx0; x <= bx1; x += 1) g.lineTo(x, mid - silHalf(x));
+  for (let x = bx1; x >= bx0; x -= 1) g.lineTo(x, mid + silHalf(x));
+  g.closePath();
+  g.fillStyle = PAL.sil; g.fill();
+  g.lineJoin = "round"; g.lineWidth = 1; g.strokeStyle = PAL.silLine; g.stroke();
+  // ventral nerve cord
+  g.beginPath(); g.moveTo(mapX(0.16), mid + bhw * 0.45); g.lineTo(mapX(0.86), mid + bhw * 0.45); g.stroke();
 }
 
 function drawBrain() {
   const g = bctx;
   g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, bcv.width, bcv.height);
-  g.drawImage(chordCv, 0, 0);
+  g.drawImage(silCv, 0, 0);
   g.setTransform(DPR, 0, 0, DPR, 0, 0);
-  // live chords from neurons firing right now
-  g.lineWidth = narrowBrain ? 0.5 : 0.7;
-  let drawn = 0;
-  for (let j = 0; j < net.nN && drawn < 40; j++) {
-    if (net.glow[j] < 0.75) continue;
-    drawn++;
-    for (let e = net.start[j]; e < net.start[j + 1]; e++) {
-      const t = net.tgt[e]; if (t >= net.nN) continue;
-      g.strokeStyle = net.wt[e] < 0 ? "rgba(240,163,122,.2)" : "rgba(170,200,245,.14)";
-      g.beginPath(); g.moveTo(npos[j][0], npos[j][1]); g.quadraticCurveTo(ringC[0], ringC[1], npos[t][0], npos[t][1]); g.stroke();
-    }
+  // quiet neurons, one path per colour
+  g.globalAlpha = 0.3;
+  for (let c = 0; c < 3; c++) {
+    g.beginPath();
+    for (let i = 0; i < net.nN; i++) if (net.grp[i] === c && net.glow[i] < 0.06) { const [x, y] = npos[i]; g.moveTo(x + bdot, y); g.arc(x, y, bdot, 0, TAU); }
+    g.fillStyle = PAL.grp[c]; g.fill();
   }
-  const dot = narrowBrain ? 1.5 : 2;
+  // neurons that fired just now light up, and fade over a few tenths of a second
   for (let i = 0; i < net.nN; i++) {
-    const [x, y] = npos[i], gl = net.glow[i];
-    g.fillStyle = COL[net.grp[i]];
-    g.globalAlpha = 0.25 + 0.75 * gl;
-    g.beginPath(); g.arc(x, y, dot + gl * 1.6, 0, Math.PI * 2); g.fill();
+    const gl = net.glow[i]; if (gl < 0.06) continue;
+    const [x, y] = npos[i];
+    g.globalAlpha = 0.3 + 0.7 * gl; g.fillStyle = PAL.grp[net.grp[i]];
+    disc(g, x, y, bdot + gl * 1.3); g.fill();
   }
   g.globalAlpha = 1;
-  // labels for the arcs
-  if (!narrowBrain) {
-    g.font = "10px Public Sans, sans-serif"; g.fillStyle = "rgba(200,205,210,.7)"; g.textAlign = "center";
-    g.fillText("sensory", ringC[0] + ringR * 0.55, ringC[1] - ringR * 0.18);
-    g.fillText("inter", ringC[0] - ringR * 0.1, ringC[1] + ringR * 0.52);
-    g.fillText("motor", ringC[0] - ringR * 0.55, ringC[1] - ringR * 0.25);
-  }
-  // muscle strip: 24 rows, dorsal on top, ventral below
-  const y0 = BW + 2, sw = (BW - 30) / 24, sh = narrowBrain ? 8 : 11;
-  g.font = "9px Public Sans, sans-serif"; g.fillStyle = "rgba(200,205,210,.6)"; g.textAlign = "left";
-  g.fillText("D", 4, y0 + sh * 0.8); g.fillText("V", 4, y0 + sh * 1.8 + 1);
-  for (let k = 0; k < 24; k++) {
-    const r = S.rows[k];
-    const d = ((net.tr[r[0]] || 0) + (net.tr[r[1]] || 0)) / 2, v = ((net.tr[r[2]] || 0) + (net.tr[r[3]] || 0)) / 2;
-    g.fillStyle = `rgba(240,163,122,${0.12 + clamp(d, 0, 1) * 0.88})`; g.fillRect(18 + k * sw, y0, sw - 1.5, sh - 1);
-    g.fillStyle = `rgba(240,163,122,${0.12 + clamp(v, 0, 1) * 0.88})`; g.fillRect(18 + k * sw, y0 + sh, sw - 1.5, sh - 1);
-  }
-  if (narrowBrain) return;
-  // named traces
-  const ty = y0 + sh * 2 + 10, len = hist.length;
-  NAMED.forEach(([lab], r) => {
-    const yy = ty + r * 15;
-    g.fillStyle = "rgba(200,205,210,.75)"; g.fillText(lab, 0, yy + 9);
-    g.strokeStyle = r < 4 ? COL[0] : COL[1]; g.lineWidth = 1.2;
-    g.beginPath();
-    for (let k = 0; k < len; k++) {
-      const x = 30 + (k / 179) * (BW - 32), v = hist[k][r];
-      const y = yy + 11 - v * 11;
-      k ? g.lineTo(x, y) : g.moveTo(x, y);
-    }
-    g.stroke();
-  });
-}
-let namedIds = [];
-function recordHist() {
-  hist.push(namedIds.map((l) => { let m = 0; for (const i of l) m = Math.max(m, net.glow[i]); return m; }));
-  if (hist.length > 180) hist.shift();
 }
 
 // ===================================================================
@@ -943,7 +933,19 @@ addEventListener("keydown", (e) => {
   const map = { 1: "food", 2: "heat", 3: "cold", 4: "touch" };
   if (map[k]) document.querySelector(`#tools button[data-tool="${map[k]}"]`).click();
 });
-document.getElementById("brainHead").onclick = () => document.getElementById("brain").classList.toggle("mini");
+document.getElementById("brainHead").onclick = () => { brainBox.classList.toggle("mini"); if (net.nN) resize(); };
+
+// follow the site's light/dark choice if it changes while the page is open
+function applyTheme() {
+  readTheme(); buildBackground(); drawBrainBg();
+  tctx.clearRect(0, 0, 1024, 1024); trackPrev = null;
+}
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (net.nN) applyTheme(); });
+addEventListener("storage", (e) => {
+  if (e.key !== "theme") return;
+  if (e.newValue) document.documentElement.dataset.theme = e.newValue; else delete document.documentElement.dataset.theme;
+  if (net.nN) applyTheme();
+});
 
 const elDoing = document.getElementById("stDoing"), elFiring = document.getElementById("stFiring"), elSense = document.getElementById("stSense"), elInfo = document.getElementById("brainInfo");
 let uiT = 0, firingAvg = 0;
@@ -965,25 +967,24 @@ function updateUi(dt) {
   elInfo.textContent = `${net.nN} neurons`;
 }
 
-let last = 0, acc = 0, histT = 0;
+let last = 0, acc = 0;
 function frame(t) {
   const dtReal = Math.min(0.25, (t - last) / 1000 || 0); last = t;   // keeps real-time pace down to ~4 fps
   acc += dtReal;
-  while (acc >= DT) { step(DT); acc -= DT; histT += DT; if (histT >= 1 / 30) { histT = 0; recordHist(); } }
+  while (acc >= DT) { step(DT); acc -= DT; }
   render();
   drawBrain();
   updateUi(dtReal);
   requestAnimationFrame(frame);
 }
 
+readTheme();
 fetch("../assets/worm/connectome.json").then((r) => r.json()).then((d) => {
   buildNet(d);
   makeGroups();
-  namedIds = NAMED.map(([, l]) => ids(...l));
   resetWorm();
   resize();
-  layoutBrain();
-  addEventListener("resize", () => { resize(); layoutBrain(); });
+  addEventListener("resize", resize);
   // let the network settle before the first frame
   for (let i = 0; i < 60; i++) netTick();
   requestAnimationFrame(frame);

@@ -1,5 +1,5 @@
 /* Lab toolbox, part two: resonator fit, photon number, transmon, Josephson junction,
-   superconductor basics, lumped elements and RF power.
+   superconductor basics and lumped elements.
    Uses the helpers and constants defined in the main script of toolbox.html
    ($, num, fmt, fmtFixed, rows, ellipK, KK, C0, MU0, EPS0, HP, HBAR, KB, QE, PHI0, PEEK, peekObs, updatePeek). */
 "use strict";
@@ -725,49 +725,6 @@ function renderPhoton() {
 }
 
 /* ======================================================================
-   5. RF power converter
-   ====================================================================== */
-const RF_UNITS = [
-  { n: "dBm", toW: (x) => 1e-3 * Math.pow(10, x / 10), fromW: (W) => 10 * Math.log10(W / 1e-3) },
-  { n: "dBW", toW: (x) => Math.pow(10, x / 10), fromW: (W) => 10 * Math.log10(W) },
-  { n: "W", toW: x => x, fromW: W => W },
-  { n: "mW", toW: x => x * 1e-3, fromW: W => W * 1e3 },
-  { n: "µW", toW: x => x * 1e-6, fromW: W => W * 1e6 },
-  { n: "nW", toW: x => x * 1e-9, fromW: W => W * 1e9 },
-  { n: "pW", toW: x => x * 1e-12, fromW: W => W * 1e12 },
-  { n: "fW", toW: x => x * 1e-15, fromW: W => W * 1e15 },
-  { n: "aW", toW: x => x * 1e-18, fromW: W => W * 1e18 },
-  { n: "V rms", v: 1, rms: true }, { n: "mV rms", v: 1e-3, rms: true }, { n: "µV rms", v: 1e-6, rms: true }, { n: "nV rms", v: 1e-9, rms: true },
-  { n: "V peak", v: 1 / Math.SQRT2, rms: true, note: "sine amplitude" }, { n: "mV peak", v: 1e-3 / Math.SQRT2, rms: true, note: "sine amplitude" },
-  { n: "V peak-to-peak", v: 1 / (2 * Math.SQRT2), rms: true, note: "sine" }, { n: "mV peak-to-peak", v: 1e-3 / (2 * Math.SQRT2), rms: true, note: "sine" },
-  { n: "dBV", dbv: true, note: "dB relative to 1 V rms" },
-  { n: "photons/s", ph: true, note: "P/hf at the frequency below" },
-];
-function initRF() {
-  $("rf-from").innerHTML = RF_UNITS.map(u => `<option>${u.n}</option>`).join("");
-  $("rf-from").value = "dBm";
-  $("tool-rf").addEventListener("input", renderRF);
-  $("rf-body").addEventListener("click", e => {
-    const tr = e.target.closest("tr"); if (!tr || !tr.dataset.u) return;
-    $("rf-val").value = tr.dataset.raw; $("rf-from").value = tr.dataset.u; renderRF();
-  });
-}
-function renderRF() {
-  const x = num("rf-val"), Z = num("rf-z"), f = num("rf-f") * 1e9;
-  const src = RF_UNITS.find(u => u.n === $("rf-from").value);
-  if (!(Z > 0 && f > 0) || !isFinite(x)) { $("rf-body").innerHTML = ""; okMsg("rf-msg", "Enter a number, a positive impedance and a positive frequency.", "msg err"); return; }
-  const toW = (u, x) => u.toW ? u.toW(x) : u.dbv ? Math.pow(Math.pow(10, x / 20), 2) / Z : u.ph ? x * HP * f : Math.pow(x * u.v, 2) / Z;
-  const fromW = (u, W) => u.fromW ? u.fromW(W) : u.dbv ? 20 * Math.log10(Math.sqrt(W * Z)) : u.ph ? W / (HP * f) : Math.sqrt(W * Z) / u.v;
-  const W = toW(src, x);
-  if (!(W > 0)) { $("rf-body").innerHTML = ""; okMsg("rf-msg", "Power must be positive (voltages and powers above zero).", "msg err"); return; }
-  okMsg("rf-msg", "");
-  $("rf-body").innerHTML = RF_UNITS.map(u => {
-    const y = fromW(u, W), raw = String(Number(y.toPrecision(10)));
-    return `<tr data-u="${u.n}" data-raw="${raw}" class="${u === src ? "src" : ""}"><td>${u.n}</td><td class="num">${fmt(y, 6)}</td><td class="hint">${u.note || ""}</td></tr>`;
-  }).join("");
-}
-
-/* ======================================================================
    6. Superconductor basics and Mattis–Bardeen
    ====================================================================== */
 const SC = [
@@ -892,7 +849,7 @@ function renderSC() {
    ====================================================================== */
 const DIEL = [
   { n: "SiO₂ (thermal) 3.9", e: 3.9 }, { n: "Si₃N₄ (LPCVD) 7.5", e: 7.5 }, { n: "a-Si:H ≈ 11", e: 11 },
-  { n: "Al₂O₃ (ALD) ≈ 9", e: 9 }, { n: "Vacuum 1", e: 1 }, { n: "Custom", e: null },
+  { n: "Al₂O₃ (ALD) ≈ 8", e: 8 }, { n: "Vacuum 1", e: 1 }, { n: "Custom", e: null },
 ];
 function idc(N, L, W, G, er) {   // Igreja & Silva, semi-infinite substrate, air above
   const eta = W / (W + G);
@@ -933,7 +890,7 @@ function renderLC() {
   if (N >= 4 && Lf > 0 && W > 0 && G > 0 && er >= 1) {
     const r = idc(N, Lf, W, G, er);
     lcVals.idc = r.C;
-    out("lc-ires", [["Capacitance (Igreja–Silva)", `<b>${fmt(r.C * 1e15, 4)}${NB}fF</b>`], ["Alley/Bahl closed form (assumes W = G)", `${fmt(r.alley * 1e15, 4)}${NB}fF`], ["Metallisation ratio η = W/(W+G)", fmt(r.eta, 3)], ["Footprint", `${fmt(N * (W + G) * 1e6, 4)} × ${fmt(Lf * 1e6, 4)}${NB}µm`]]);
+    out("lc-ires", [["Capacitance (Igreja–Dias)", `<b>${fmt(r.C * 1e15, 4)}${NB}fF</b>`], ["Alley/Bahl closed form (assumes W = G)", `${fmt(r.alley * 1e15, 4)}${NB}fF`], ["Metallisation ratio η = W/(W+G)", fmt(r.eta, 3)], ["Footprint", `${fmt(N * (W + G) * 1e6, 4)} × ${fmt(Lf * 1e6, 4)}${NB}µm`]]);
   } else { lcVals.idc = NaN; out("lc-ires", [["", `<span class="err">Need N ≥ 4 fingers and positive sizes, ε<sub>r</sub> ≥ 1.</span>`]]); }
   // parallel plate
   const pw = num("lc-pw") * 1e-6, pl = num("lc-pl") * 1e-6, d = num("lc-pt") * 1e-9, pe = num("lc-pe");
@@ -969,9 +926,25 @@ function renderLC() {
   updatePeek();
 }
 
+/* ---------------------------------------------------------------- dimension diagrams */
+// The dimension that belongs to the focused input lights up; clicking a dimension focuses its input.
+function hlDims(id) {
+  document.querySelectorAll("svg.dia [data-for]").forEach(g => g.classList.toggle("hl", !!id && g.dataset.for.split(" ").includes(id)));
+}
+document.addEventListener("focusin", e => hlDims(e.target.id));
+document.addEventListener("focusout", () => hlDims(null));
+document.querySelectorAll("svg.dia [data-for]").forEach(g => g.addEventListener("click", () => {
+  const id = g.dataset.for.split(" ").find(i => $(i) && !$(i).disabled && $(i).offsetParent !== null);
+  if (id) $(id).focus();
+}));
+// quarter-wave: shorted end; half-wave: open end
+const resEnd = () => { $("res-dia-short").classList.toggle("hide", resType !== 4); $("res-dia-open").classList.toggle("hide", resType === 4); };
+document.querySelectorAll("#res-type button").forEach(b => b.addEventListener("click", () => setTimeout(resEnd)));
+resEnd();
+
 /* ---------------------------------------------------------------- wiring */
-initFit(); initTransmon(); initJJ(); initPhoton(); initRF(); initSC(); initLC();
-runFit(); renderTransmon(); renderJJ(); renderPhoton(); renderRF(); renderSC(); renderLC();
+initFit(); initTransmon(); initJJ(); initPhoton(); initSC(); initLC();
+runFit(); renderTransmon(); renderJJ(); renderPhoton(); renderSC(); renderLC();
 // redraw plots when their tab becomes visible
 document.querySelectorAll("#tabs button").forEach(b => b.addEventListener("click", () => setTimeout(() => redraw.forEach(f => f()), 30)));
 window.addEventListener("hashchange", () => setTimeout(() => redraw.forEach(f => f()), 30));
