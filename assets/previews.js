@@ -7,9 +7,8 @@
   function julia(c, w, h) {
     if (typeof JuliaDay === "undefined") return;
     const s = JuliaDay.spec(JuliaDay.dateKey(new Date()));
-    const small = document.createElement("canvas"); small.width = Math.round(w / 2); small.height = Math.round(h / 2);
-    JuliaDay.renderCPU(small, s, { maxIt: 180, zoom: 2.6 });
-    const g = c.getContext("2d"); g.imageSmoothingEnabled = true; g.drawImage(small, 0, 0, w, h);
+    const g = c.getContext("2d");
+    JuliaDay.renderCPU(c, s, { maxIt: 180, zoom: 2.6 });   // full resolution of the tile (device pixels)
     g.fillStyle = "rgba(0,0,0,.45)"; g.fillRect(0, h - 22, w, 22);
     g.fillStyle = "#ececea"; g.font = `${Math.round(h / 14)}px "Public Sans", Arial, sans-serif`; const f = (v) => (v < 0 ? "−" : "") + Math.abs(v).toFixed(3);
     g.fillText("c = " + f(s.c[0]) + (s.c[1] < 0 ? " − " : " + ") + Math.abs(s.c[1]).toFixed(3) + "i", 10, h - 8);

@@ -3,17 +3,17 @@
 A static site for GitHub Pages. It has no build step and no dependencies. Plain HTML, CSS and JS.
 
 ```
-index.html                     homepage (about, research, projects, publications, experience, playground)
+index.html                     homepage (about, research, projects, publications, experience, playground, the Menagerie of pets)
 assets/style.css               homepage styles (light/dark)
 assets/toy.css                 shared look of the playground pages
 assets/site.js                 theme toggle, nav highlighting, email link
 assets/julia-day.js            date-seeded Julia-set parameters (shared)
 assets/previews.js             generated previews for the Julia and stereogram tiles
 assets/ambient.js              calm generated music + mute button (cats, fish, chickens); cinema mode goes fullscreen
-assets/thumbs/                 screenshots used as playground thumbnails
+assets/thumbs/                 screenshots used as playground thumbnails (worm.jpg: headless capture of worm.html?thumb&theme=dark at 1600x900, scale 2, right 1000x562 px cropped)
 assets/salemi-mouse.svg        Salemi group logo (stereogram default)
 playground/flight.html         flight sim: Pilatus aircraft + helicopter, fuel, airports, high scores (Supabase)
-playground/worm.html           Hector: the C. elegans connectome driving a virtual worm
+playground/worm.html           C. elegans connectome: worm brain simulator, with the activity map and a connectivity (weight) matrix
 playground/aquarium.html       perch in a mangrove creek
 playground/chickens.html       back-garden chickens
 playground/cats.html           six cats at home

@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Hector the worm</title>
-<script>/* same light/dark choice as the rest of the site */ try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
-<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<title>C. elegans connectome · worm brain simulator</title>
+<script>/* same light/dark choice as the rest of the site (?theme=dark|light overrides it) */ try { const t = new URLSearchParams(location.search).get("theme") || localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,600;1,6..72,500&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/toy.css?v=20261122k">
 <!--
   Connectome data: assets/worm/connectome.json, converted from
@@ -18,88 +18,117 @@
   https://journals.plos.org/ploscompbiol/article/file?type=supplementary&id=10.1371/journal.pcbi.1007974.s003 (CC BY 4.0).
 -->
 <style>
-  /* flat palette: paper by day, slate by night; the canvas reads these too */
+  /* light: a lab bench under a bright-field scope; dark: dark-field. The canvases read these too. */
   :root {
-    --bg: #f3efe6;
-    --panel: rgba(255, 253, 248, .97);
-    --ink: #262521;
-    --soft: #6b6860;
-    --rule: rgba(60, 50, 30, .13);
+    --bg: #ebeae5;
+    --panel: rgba(255, 255, 253, .97);
+    --ink: #24252a;
+    --soft: #6a6c72;
+    --rule: rgba(30, 32, 40, .12);
     --accent: #2f5d9a;
     --accent-ink: #ffffff;
-    --btn: rgba(60, 50, 30, .045);
-    --btn-hover: rgba(60, 50, 30, .09);
-    --shadow: 0 4px 16px rgba(60, 45, 20, .08);
-    --agar: #f7e8c4;
-    --rim: #fcf9f2;
-    --rim-line: #d8cbae;
-    --trail: rgba(176, 136, 66, .32);
-    --worm: #a8dc8f;
-    --worm-line: #3f7d36;
-    --worm-dark: #6fae5f;
-    --eye: #1f3a1b;
-    --food: #ecd7a4;
-    --food-dot: #b88a4c;
-    --hot-rgb: 228, 112, 74;
-    --cold-rgb: 72, 138, 206;
-    --hot-1: #fbdcc4; --hot-2: #f7c3a2;
-    --cold-1: #dce9f5; --cold-2: #c1d8ef;
-    --touch: #3d3c37;
-    --sil: #ebe4d6;
-    --sil-line: #d3c7ad;
-    --c-s: #3a9a8d;
-    --c-i: #5579bd;
-    --c-m: #d9764f;
+    --btn: rgba(30, 32, 40, .045);
+    --btn-hover: rgba(30, 32, 40, .09);
+    --shadow: 0 1px 2px rgba(20, 22, 30, .06), 0 6px 20px rgba(20, 22, 30, .06);
+    --shadow-float: 0 12px 36px rgba(20, 22, 30, .18);
+    --field: #f8f7f3;
+    --grid: rgba(40, 45, 60, .05);
+    --grid-major: rgba(40, 45, 60, .1);
+    --trail: rgba(90, 85, 70, .24);
+    --worm: #e3ded1;
+    --worm-line: #7c7463;
+    --gut: #cbc2ad;
+    --phx: #a59a84;
+    --food: rgba(205, 180, 110, .22);
+    --food-edge: rgba(175, 145, 70, .45);
+    --hot-rgb: 214, 96, 60;
+    --cold-rgb: 60, 128, 200;
+    --touch: #3d3e44;
+    --sil: #efeee9;
+    --sil-line: #d4d2ca;
+    --c-s: #2e9184;
+    --c-i: #4d72b8;
+    --c-m: #d2703f;
+    --mx-bg: #fcfcfa;
+    --exc-rgb: 214, 92, 52;
+    --inh-rgb: 40, 104, 196;
+    --gap-rgb: 128, 84, 186;
   }
   :root[data-theme="dark"] {
-    --bg: #17181b; --panel: rgba(30, 31, 35, .96); --ink: #ecebe6; --soft: #a2a4a9; --rule: rgba(255, 255, 255, .1);
-    --accent: #8fb4ec; --accent-ink: #0c1524; --btn: rgba(255, 255, 255, .06); --btn-hover: rgba(255, 255, 255, .11);
-    --shadow: 0 8px 24px rgba(0, 0, 0, .3);
-    --agar: #2d2b26; --rim: #222327; --rim-line: #3e4147; --trail: rgba(240, 222, 175, .17);
-    --worm: #9bd284; --worm-line: #3a7432; --worm-dark: #64a355; --eye: #1f3a1b;
-    --food: #4a402d; --food-dot: #c9a063; --hot-rgb: 240, 122, 88; --cold-rgb: 104, 162, 232;
-    --hot-1: #43312a; --hot-2: #58392d; --cold-1: #27323f; --cold-2: #2c4055; --touch: #efece4;
-    --sil: #292b30; --sil-line: #3b3e45; --c-s: #77cdc1; --c-i: #93b3ea; --c-m: #f0a37a;
+    --bg: #111215; --panel: rgba(27, 28, 32, .97); --ink: #ebeae6; --soft: #a0a2a8; --rule: rgba(255, 255, 255, .09);
+    --accent: #8fb4ec; --accent-ink: #0c1524; --btn: rgba(255, 255, 255, .05); --btn-hover: rgba(255, 255, 255, .1);
+    --shadow: 0 8px 24px rgba(0, 0, 0, .3); --shadow-float: 0 14px 40px rgba(0, 0, 0, .55);
+    --field: #0e1012; --grid: rgba(255, 255, 255, .035); --grid-major: rgba(255, 255, 255, .07); --trail: rgba(220, 225, 215, .16);
+    --worm: #383d3a; --worm-line: #c5cec7; --gut: #4f5651; --phx: #7c867e;
+    --food: rgba(210, 190, 120, .1); --food-edge: rgba(225, 205, 140, .32);
+    --hot-rgb: 240, 122, 88; --cold-rgb: 104, 162, 232; --touch: #efece4;
+    --sil: #23252a; --sil-line: #3a3d44; --c-s: #77cdc1; --c-i: #93b3ea; --c-m: #f0a37a;
+    --mx-bg: #16171a; --exc-rgb: 240, 128, 88; --inh-rgb: 98, 156, 238; --gap-rgb: 180, 146, 236;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #17181b; --panel: rgba(30, 31, 35, .96); --ink: #ecebe6; --soft: #a2a4a9; --rule: rgba(255, 255, 255, .1);
-      --accent: #8fb4ec; --accent-ink: #0c1524; --btn: rgba(255, 255, 255, .06); --btn-hover: rgba(255, 255, 255, .11);
-      --shadow: 0 8px 24px rgba(0, 0, 0, .3);
-      --agar: #2d2b26; --rim: #222327; --rim-line: #3e4147; --trail: rgba(240, 222, 175, .17);
-      --worm: #9bd284; --worm-line: #3a7432; --worm-dark: #64a355; --eye: #1f3a1b;
-      --food: #4a402d; --food-dot: #c9a063; --hot-rgb: 240, 122, 88; --cold-rgb: 104, 162, 232;
-      --hot-1: #43312a; --hot-2: #58392d; --cold-1: #27323f; --cold-2: #2c4055; --touch: #efece4;
-      --sil: #292b30; --sil-line: #3b3e45; --c-s: #77cdc1; --c-i: #93b3ea; --c-m: #f0a37a;
+      --bg: #111215; --panel: rgba(27, 28, 32, .97); --ink: #ebeae6; --soft: #a0a2a8; --rule: rgba(255, 255, 255, .09);
+      --accent: #8fb4ec; --accent-ink: #0c1524; --btn: rgba(255, 255, 255, .05); --btn-hover: rgba(255, 255, 255, .1);
+      --shadow: 0 8px 24px rgba(0, 0, 0, .3); --shadow-float: 0 14px 40px rgba(0, 0, 0, .55);
+      --field: #0e1012; --grid: rgba(255, 255, 255, .035); --grid-major: rgba(255, 255, 255, .07); --trail: rgba(220, 225, 215, .16);
+      --worm: #383d3a; --worm-line: #c5cec7; --gut: #4f5651; --phx: #7c867e;
+      --food: rgba(210, 190, 120, .1); --food-edge: rgba(225, 205, 140, .32);
+      --hot-rgb: 240, 122, 88; --cold-rgb: 104, 162, 232; --touch: #efece4;
+      --sil: #23252a; --sil-line: #3a3d44; --c-s: #77cdc1; --c-i: #93b3ea; --c-m: #f0a37a;
+      --mx-bg: #16171a; --exc-rgb: 240, 128, 88; --inh-rgb: 98, 156, 238; --gap-rgb: 180, 146, 236;
     }
   }
   html, body { background: var(--bg); }
   button { background: var(--btn); }
   button:not(.on):hover { background: var(--btn-hover); }
-  #dish { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
-  .toggle-panel { display: none; }
+  [hidden] { display: none !important; }
+
+  /* ---------- layout: controls (left) · arena (middle) · activity and connectivity (right) ---------- */
+  #stage { position: fixed; top: 16px; bottom: 16px; left: 16px; right: 16px; display: flex; }
+  body.panel-docked #stage { left: 352px; }
+  body.side-docked #stage { right: 392px; }
   .panel { padding-top: 14px; box-shadow: var(--shadow); }
+  body:not(.panel-docked) .panel { box-shadow: var(--shadow-float); }
+  .panel h1 i { font-style: italic; }
   .panel .close {
     position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; padding: 0;
     font-size: 14px; line-height: 1; border-radius: 50%;
   }
-  .fab {
-    position: fixed; top: max(12px, env(safe-area-inset-top)); left: 12px; z-index: 12;
-    background: var(--panel); box-shadow: var(--shadow);
-    font-size: 12px; padding: 8px 12px; border-radius: 999px;
+  #side {
+    position: fixed; top: 16px; right: 16px; bottom: 16px; width: 360px; z-index: 9;
+    display: flex; flex-direction: column; gap: 12px; overflow-y: auto; scrollbar-width: none; pointer-events: none;
   }
-  .fab[hidden] { display: none; }
+  #side::-webkit-scrollbar { display: none; }
+  #side > * { pointer-events: auto; }
+  body:not(.side-docked) #side .win { box-shadow: var(--shadow-float); }
+
+  /* ---------- windows ---------- */
+  .win { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; box-shadow: var(--shadow); display: flex; flex-direction: column; min-height: 0; flex: none; }
+  .win-bar { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 7px 0 12px; border-bottom: 1px solid var(--rule); font-size: 12px; color: var(--soft); user-select: none; }
+  .win-bar .ttl { color: var(--ink); font-weight: 600; font-size: 12.5px; white-space: nowrap; }
+  .win-bar .meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+  .win-bar .sp { flex: 1; }
+  .win-bar button { font-size: 11.5px; padding: 3px 9px; border-radius: 6px; white-space: nowrap; }
+  .win-bar .x { width: 26px; height: 26px; padding: 0; border: 0; background: none; color: var(--soft); font-size: 16px; line-height: 1; }
+  .win-bar .x:hover { color: var(--ink); }
+  .win-body { padding: 10px; }
+  .seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; padding: 3px 8px; background: none; }
+  .seg button + button { border-left: 1px solid var(--rule); }
+  .seg button.on { background: var(--accent); color: var(--accent-ink); }
+
+  #arenaWin { flex: 1; min-width: 0; }
+  #arenaBody { position: relative; flex: 1; min-height: 0; overflow: hidden; border-radius: 0 0 9px 9px; }
+  #arena { position: absolute; left: 0; top: 0; display: block; touch-action: none; cursor: crosshair; }
+
+  /* ---------- controls ---------- */
   .tools { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
   .tools button { padding: 7px 4px; }
   .credit { color: var(--soft); font-size: 11.5px; line-height: 1.45; margin: 12px 0 0; }
-  #brain {
-    position: fixed; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); z-index: 9;
-    background: var(--panel); border: 1px solid var(--rule); border-radius: 10px;
-    box-shadow: var(--shadow); padding: 10px 10px 8px; width: 324px;
-  }
-  #brain .head { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--soft); cursor: pointer; user-select: none; }
-  #brain .head b { color: var(--ink); font-weight: 500; margin-right: 6px; }
-  #keysBtn { font-size: 11.5px; padding: 2px 9px; border-radius: 999px; color: var(--soft); }
+
+  /* ---------- neural activity ---------- */
+  #brain canvas { display: block; }
+  #keysBtn { color: var(--soft); }
   #keysBtn::after { content: " ▾"; }
   #brain.keys-open #keysBtn::after { content: " ▴"; }
   #brain .keys { display: none; margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--rule); }
@@ -112,26 +141,61 @@
   .krow span { color: var(--soft); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .krow.on { background: var(--btn-hover); }
   #brain #keyCv { position: absolute; right: 0; top: 0; pointer-events: none; margin: 0; }
-  #brain canvas { display: block; margin-top: 6px; }
-  #brain .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--soft); margin-top: 5px; }
-  #brain .legend i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; }
-  #brain .legend .note { margin-left: auto; }
-  #brain.mini canvas, #brain.mini .legend, #brain.mini .keys { display: none; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; color: var(--soft); margin-top: 6px; }
+  .legend i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; }
+  .legend .note { margin-left: auto; }
+  .mx-legend i { border-radius: 2px; width: 8px; height: 8px; }
+
+  /* ---------- connectivity ---------- */
+  #mxCv { display: block; cursor: crosshair; touch-action: none; }
+  .mx-info { font-size: 12px; color: var(--soft); margin: 8px 0 8px; min-height: 36px; line-height: 1.5; }
+  .mx-info b { color: var(--ink); font-weight: 600; }
+  #mxFind { font-size: 12px; padding: 5px 8px; }
+  #mxDetail { margin-top: 10px; font-size: 12px; line-height: 1.45; }
+  .mx-sum { color: var(--soft); margin: 0; }
+  .nhead { display: flex; align-items: baseline; gap: 8px; }
+  .nhead b { font-size: 14px; font-weight: 600; }
+  .nhead span { color: var(--soft); flex: 1; }
+  .nhead button { border: 0; background: none; color: var(--soft); padding: 0 4px; font-size: 12px; }
+  .ndesc { color: var(--soft); margin: 3px 0 0; }
+  .lists { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px; }
+  .lists h4 { margin: 0 0 3px; font-size: 11.5px; font-weight: 500; color: var(--soft); }
+  .lrow { display: grid; grid-template-columns: 46px 1fr 20px; align-items: center; gap: 6px; height: 19px; }
+  .lrow button, .lrow .nm { font-size: 11.5px; font-weight: 600; padding: 0; border: 0; background: none; color: var(--ink); text-align: left; white-space: nowrap; }
+  .lrow button:hover { color: var(--accent); background: none; }
+  .lrow .nm { color: var(--soft); font-weight: 500; }
+  .lrow .bar { height: 6px; border-radius: 3px; background: var(--btn); overflow: hidden; }
+  .lrow .bar i { display: block; height: 100%; border-radius: 3px; }
+  .lrow .n { font-size: 11px; color: var(--soft); text-align: right; font-variant-numeric: tabular-nums; }
+
+  @media (max-width: 1199px) {
+    #side { justify-content: flex-start; }
+  }
   @media (max-width: 759px) {
-    #brain { left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); width: auto; padding: 8px 10px 6px; }
+    #stage { top: max(12px, env(safe-area-inset-top)); left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); }
+    #side { top: auto; left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); width: auto; max-height: 50vh; }
+    #arenaSize { display: none; }
+    .win-bar button { padding: 3px 7px; }
   }
 </style>
 </head>
 <body>
-<canvas id="dish"></canvas>
+<div id="stage">
+  <section class="win" id="arenaWin" aria-label="Arena">
+    <div class="win-bar">
+      <span class="ttl">Arena</span><span class="meta" id="arenaSize"></span><span class="meta" id="arenaClock"></span>
+      <span class="sp"></span>
+      <button id="tgPanel" title="Controls (H)">Controls</button><button id="tgBrain" title="Neural activity (A)">Activity</button><button id="tgConn" title="Connectivity matrix (C)">Connectivity</button>
+    </div>
+    <div id="arenaBody"><canvas id="arena" aria-label="The worm in its arena. Click to place food, heat, cold, or to touch."></canvas></div>
+  </section>
+</div>
 
-<button class="fab" id="openPanel" hidden>☰ Menu</button>
-
-<div class="panel" id="panel">
-  <button class="close" id="closePanel" aria-label="Close panel" title="Close (H)">✕</button>
+<div class="panel hidden" id="panel">
+  <button class="close" id="closePanel" aria-label="Close controls" title="Close (H)">✕</button>
   <a class="back" href="../index.html">← Home</a>
-  <h1>Hector the worm</h1>
-  <p class="sub">Hector runs on the real, fully mapped nervous system of the worm C. elegans: 302 neurons and about 5,700 connections, wired into a little virtual body.</p>
+  <h1><i>C. elegans</i> connectome</h1>
+  <p class="sub">Worm brain simulator. The complete nervous system of the nematode <i>C. elegans</i>, mapped synapse by synapse from electron micrographs: 302 neurons and about 5,700 connections, running live and driving a virtual worm.</p>
 
   <label>tools</label>
   <div class="tools" id="tools">
@@ -151,28 +215,53 @@
     <span>Firing</span><span id="stFiring">-</span>
     <span>Senses</span><span id="stSense">-</span>
   </div>
-  <p class="hint" style="margin-top:10px">Smells reach AWC, AWA and ASE. Heat and cold reach AFD, ASH, FLP and PVD, touch reaches ALM, AVM and PLM, and the dish wall presses his nose. Crawling, backing up and turning come out of the network; finding food gets a small built-in nudge.</p>
+  <p class="hint" style="margin-top:10px">Smells reach AWC, AWA and ASE. Heat and cold reach AFD, ASH, FLP and PVD, touch reaches ALM, AVM and PLM, and the arena walls press on the nose. Crawling, backing up and turning come out of the network; finding food gets a small built-in nudge.</p>
+  <p class="hint" style="margin-top:6px">Keys: <kbd>1</kbd>–<kbd>4</kbd> tools, <kbd>H</kbd> controls, <kbd>A</kbd> activity, <kbd>C</kbd> connectivity.</p>
   <p class="credit">Connectome data: Cook et al. 2019 (from the White et al. 1986 electron micrographs), via the <a href="https://github.com/openworm/c302" target="_blank" rel="noopener noreferrer">OpenWorm c302</a> project, MIT licence. Synapse signs: Fenyves et al. 2020, CC BY 4.0.</p>
 </div>
 
-<div id="brain">
-  <div class="head" id="brainHead"><span><b>Brain</b><span id="brainInfo"></span></span><button id="keysBtn" aria-expanded="false" aria-controls="keys">Key neurons</button></div>
-  <canvas id="brainCv" aria-label="Map of Hector's neurons, head on the left"></canvas>
-  <div class="legend"><span><i style="background:var(--c-s)"></i>Sensory</span><span><i style="background:var(--c-i)"></i>Inter</span><span><i style="background:var(--c-m)"></i>Motor</span><span class="note">Lit when firing</span></div>
-  <div class="keys" id="keys">
-    <p class="cap">Voltage over the last 7 s, ticks are spikes. Point at a row to find it on the map.</p>
-    <div class="klist" id="klist"><canvas id="keyCv"></canvas></div>
-  </div>
+<div id="side">
+  <section class="win" id="brain" aria-label="Neural activity">
+    <div class="win-bar">
+      <span class="ttl">Neural activity</span><span class="meta" id="brainInfo"></span><span class="sp"></span>
+      <button id="keysBtn" aria-expanded="false" aria-controls="keys">Key neurons</button>
+      <button class="x" id="brainHide" title="Hide (A)" aria-label="Hide neural activity">–</button>
+    </div>
+    <div class="win-body" id="brainBody">
+      <canvas id="brainCv" aria-label="Map of the worm's neurons, head on the left"></canvas>
+      <div class="legend"><span><i style="background:var(--c-s)"></i>Sensory</span><span><i style="background:var(--c-i)"></i>Inter</span><span><i style="background:var(--c-m)"></i>Motor</span><span class="note">Lit when firing</span></div>
+      <div class="keys" id="keys">
+        <p class="cap">Voltage over the last 7 s, ticks are spikes. Point at a row to find it on the map.</p>
+        <div class="klist" id="klist"><canvas id="keyCv"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="win" id="conn" aria-label="Connectivity">
+    <div class="win-bar">
+      <span class="ttl">Connectivity</span><span class="sp"></span>
+      <span class="seg" role="group" aria-label="Connection type"><button data-mode="chem" class="on" title="Chemical synapses, one way">Chemical</button><button data-mode="gap" title="Gap junctions (electrical synapses), both ways">Gap junctions</button></span>
+      <button class="x" id="connHide" title="Hide (C)" aria-label="Hide connectivity">–</button>
+    </div>
+    <div class="win-body" id="connBody">
+      <canvas id="mxCv" aria-label="Connectivity matrix: rows send, columns receive"></canvas>
+      <div class="legend mx-legend" id="mxLegend"></div>
+      <p class="mx-info" id="mxInfo"></p>
+      <input type="text" id="mxFind" list="mxNames" placeholder="Find a neuron, e.g. AVAL" autocomplete="off" spellcheck="false" aria-label="Find a neuron">
+      <datalist id="mxNames"></datalist>
+      <div id="mxDetail"></div>
+    </div>
+  </section>
 </div>
 
 <script>
 "use strict";
 // ===================================================================
-//  constants (world units: dish radius = 1)
+//  constants (world units: the worm is L = 0.3 long, which is 1 mm; the arena's shorter half-side is 1)
 // ===================================================================
 const DT = 1 / 60;          // body step
 const NET_EVERY = 2;        // network steps at 30 Hz
-const DISH = 1;
+let AX = 1.4, AY = 1;      // arena half-width and half-height, set by the window's shape
 const L = 0.3;              // body length
 const SEG = 24;             // body segments, one per row of body wall muscles
 const SEGLEN = L / SEG;
@@ -226,21 +315,22 @@ function buildNet(d) {
   for (const [a] of d.chem) start[a + 1]++;
   for (let i = 0; i < n; i++) start[i + 1] += start[i];
   const pos = start.slice(), tgt = new Int32Array(d.chem.length), wt = new Float32Array(d.chem.length);
+  const cnt = new Float32Array(d.chem.length), src = new Int32Array(d.chem.length);   // for the connectivity window
   for (const [a, b, w, pol] of d.chem) {
     const e = pos[a]++;
     const byNT = inh[a] ? -1 : 1;
     let sign = pol === 1 ? 1 : pol === -1 ? -1 : pol === 2 ? byNT * P.mixed : byNT;
     if ((pol === 2 || pol === 0) && opposing(name[a], name[b])) sign = -1;
     const ov = TOUCH_SIGNS[name[a] + ">" + name[b]];
-    tgt[e] = b; wt[e] = (ov || sign) * w / Math.pow(inW[b], b >= nN ? 0.5 : P.inExp);
+    tgt[e] = b; cnt[e] = w; src[e] = a; wt[e] = (ov || sign) * w / Math.pow(inW[b], b >= nN ? 0.5 : P.inExp);
   }
   const gTot = new Float32Array(n);
   for (const [a, b, w] of d.gap) { gTot[a] += w; gTot[b] += w; }
-  const gA = new Int32Array(d.gap.length), gB = new Int32Array(d.gap.length), gW = new Float32Array(d.gap.length);
-  d.gap.forEach(([a, b, w], k) => { gA[k] = a; gB[k] = b; gW[k] = w / Math.max(gTot[a], gTot[b]); });
+  const gA = new Int32Array(d.gap.length), gB = new Int32Array(d.gap.length), gW = new Float32Array(d.gap.length), gC = new Float32Array(d.gap.length);
+  d.gap.forEach(([a, b, w], k) => { gA[k] = a; gB[k] = b; gW[k] = w / Math.max(gTot[a], gTot[b]); gC[k] = w; });
   const idx = {}; name.forEach((s, i) => idx[s] = i);
   Object.assign(net, {
-    nN, nM, n, name, grp, inh, idx, start, tgt, wt, gA, gB, gW,
+    nN, nM, n, name, grp, inh, idx, start, tgt, wt, cnt, src, gA, gB, gW, gC, nt: d.neurons.map((x) => x[3] || ""),
     V: new Float32Array(n), I: new Float32Array(n), ext: new Float32Array(n), A: new Float32Array(n),
     spk: new Uint8Array(n), tr: new Float32Array(n), glow: new Float32Array(n),
     chemCount: d.chem.length, gapCount: d.gap.length, synapses: d.chem.reduce((s, e) => s + e[2], 0),
@@ -342,9 +432,8 @@ function samplePts() {
   for (let k = 0; k <= SEG; k++) { const q = pathAt(worm.sHead - k * SEGLEN); worm.pts[k].x = q.x; worm.pts[k].y = q.y; }
 }
 function keepIn(x, y, margin) {
-  const r = Math.hypot(x, y), lim = DISH - margin;
-  if (r > lim) return { x: x / r * lim, y: y / r * lim, hit: true };
-  return { x, y, hit: false };
+  const kx = clamp(x, -AX + margin, AX - margin), ky = clamp(y, -AY + margin, AY - margin);
+  return { x: kx, y: ky, hitX: kx !== x, hitY: ky !== y, hit: kx !== x || ky !== y };
 }
 
 // ===================================================================
@@ -403,8 +492,8 @@ function senseAndDrive(dtNet) {
   if (tt > 0.3) add(S.tailHeat, clamp((tt - 0.3) * 1.2, 0, 0.7));
   if (t < -0.25) add(S.cold, clamp((-t - 0.25) * 1.2, 0, 0.7));
   if (tt < -0.3) add(S.cold, clamp((-tt - 0.3) * 0.8, 0, 0.5));
-  // nose touch at the dish wall
-  const wall = Math.hypot(head.x, head.y) > DISH - HALFW * 2.2;
+  // nose touch at the arena wall
+  const wall = Math.abs(head.x) > AX - HALFW * 2.2 || Math.abs(head.y) > AY - HALFW * 2.2;
   if (wall) add(S.nose, 0.55);
   // transient touch pulses
   for (const p of world.pulses) { p.t += dtNet; add(p.list, p.amp * Math.max(0, 1 - p.t / p.dur)); }
@@ -496,11 +585,10 @@ function bodyStep(dt) {
     const dir = worm.heading + amp * Math.sin(worm.phase);
     const h = worm.path[worm.path.length - 1];
     const np = keepIn(h.x + Math.cos(dir) * ds, h.y + Math.sin(dir) * ds, HALFW * 1.6);
-    if (np.hit) {   // sliding along the wall: the heading follows the wall tangent
-      const tang = Math.atan2(np.y, np.x) + Math.PI / 2;
-      const a1 = tang, a2 = tang + Math.PI;
+    if (np.hit) {   // sliding along the wall: the heading follows the wall, and turns out of a corner
       const da = (a) => Math.abs(Math.atan2(Math.sin(a - worm.heading), Math.cos(a - worm.heading)));
-      const target = da(a1) < da(a2) ? a1 : a2;
+      const tang = np.hitX ? Math.PI / 2 : 0;
+      const target = np.hitX && np.hitY ? Math.atan2(-np.y, -np.x) : da(tang) < da(tang + Math.PI) ? tang : tang + Math.PI;
       worm.heading += Math.atan2(Math.sin(target - worm.heading), Math.cos(target - worm.heading)) * 0.05;
     }
     const step = Math.hypot(np.x - h.x, np.y - h.y);
@@ -570,7 +658,7 @@ function simulate(seconds) { const n = Math.round(seconds / DT); for (let i = 0;
 // ===================================================================
 let tool = "food";
 function act(x, y) {
-  if (Math.hypot(x, y) > DISH - 0.02) return;
+  if (Math.abs(x) > AX - 0.02 || Math.abs(y) > AY - 0.02) return;
   if (tool === "food") {
     world.food.push({ x, y, amt: 1, r: 0.14, seed: Math.random() * 1000 });
     if (world.food.length > 8) world.food.shift();
@@ -592,143 +680,153 @@ function touchAt(x, y) {
     else { pulse(S.ant, P.touchAmp * 0.7, P.touchDur); pulse(S.post, P.touchAmp * 0.7, P.touchDur); }
     return k < SEG * 0.45 ? "anterior" : k > SEG * 0.55 ? "posterior" : "middle";
   }
-  // tapped the plate: a weaker push to all the touch cells
+  // tapped the floor: a weaker push to all the touch cells
   const a = P.touchAmp * 0.8 * clamp(1 - best / 0.8, 0.3, 1);
   pulse(S.ant, a, P.touchDur * 0.8); pulse(S.post, a * 0.8, P.touchDur * 0.8);
   return "plate";
 }
 
+
 // ===================================================================
-//  rendering: flat shapes, colours come from the CSS theme variables
+//  rendering: the arena window; colours come from the CSS theme variables
 // ===================================================================
-const cv = document.getElementById("dish"), ctx = cv.getContext("2d");
+const cv = document.getElementById("arena"), ctx = cv.getContext("2d");
+const arenaBody = document.getElementById("arenaBody");
 let W = 0, H = 0, DPR = 1, cx = 0, cy = 0, sc = 1;
 let bgCanvas = null;
-const DRAW_HALFW = 0.025;    // drawn body half width: plumper than HALFW so he reads at a glance (drawing only)
-const trackCv = document.createElement("canvas"); trackCv.width = trackCv.height = 1024;
-const tctx = trackCv.getContext("2d");
+const MM = L;                // an adult worm is about 1 mm long, which sets the scale
+const DRAW_HALFW = 0.017;    // drawn body half width, a little plumper than life so it reads (drawing only)
+const trackCv = document.createElement("canvas"), tctx = trackCv.getContext("2d");
 const toScreen = (x, y) => [cx + x * sc, cy + y * sc];
 const toWorld = (px, py) => [(px - cx) / sc, (py - cy) / sc];
 const TAU = Math.PI * 2;
-
-function mulberry(a) { return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const UI_FONT = "'Public Sans', 'Helvetica Neue', Arial, sans-serif";
 
 let PAL = {};
+const rgbList = (s) => s.split(",").map(Number);
+const hexRgb = (h) => { h = h.replace("#", ""); if (h.length === 3) h = h.replace(/./g, "$&$&"); const n = parseInt(h, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
 function readTheme() {
   const cs = getComputedStyle(document.documentElement), v = (k) => cs.getPropertyValue(k).trim();
   PAL = {
-    bg: v("--bg"), agar: v("--agar"), rim: v("--rim"), rimLine: v("--rim-line"), trail: v("--trail"),
-    worm: v("--worm"), wormLine: v("--worm-line"), wormDark: v("--worm-dark"), eye: v("--eye"),
-    food: v("--food"), foodDot: v("--food-dot"), hot: v("--hot-rgb"), cold: v("--cold-rgb"), touch: v("--touch"),
-    hotFill: [v("--hot-1"), v("--hot-2")], coldFill: [v("--cold-1"), v("--cold-2")],
-    sil: v("--sil"), silLine: v("--sil-line"), grp: [v("--c-s"), v("--c-i"), v("--c-m")], ink: v("--ink"),
+    field: v("--field"), grid: v("--grid"), gridMajor: v("--grid-major"), soft: v("--soft"), ink: v("--ink"), trail: v("--trail"),
+    worm: v("--worm"), wormLine: v("--worm-line"), gut: v("--gut"), phx: v("--phx"),
+    food: v("--food"), foodEdge: v("--food-edge"), hot: v("--hot-rgb"), cold: v("--cold-rgb"), touch: v("--touch"),
+    sil: v("--sil"), silLine: v("--sil-line"), grp: [v("--c-s"), v("--c-i"), v("--c-m")],
+    mxBg: hexRgb(v("--mx-bg")), exc: v("--exc-rgb"), inh: v("--inh-rgb"), gap: v("--gap-rgb"),
   };
 }
 
-const brainBox = document.getElementById("brain");
-function resize() {
+const arenaSize = document.getElementById("arenaSize"), arenaClock = document.getElementById("arenaClock");
+// the world fills the window: its shorter half-side is 1, the longer one follows the window's shape
+function sizeArena() {
   DPR = Math.min(2, window.devicePixelRatio || 1);
-  W = innerWidth; H = innerHeight;
+  const w = Math.max(1, arenaBody.clientWidth), h = Math.max(1, arenaBody.clientHeight);
+  if (w === W && h === H && cv.width === Math.round(w * DPR)) return;
+  W = w; H = h;
   cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
-  layoutBrain();
-  const narrow = W < 760;
-  if (W >= 1000) {   // keep the dish between the panel (left) and the brain map (bottom right)
-    const left = 344, right = W - 352, avail = right - left;
-    cx = left + avail / 2; cy = H / 2; sc = Math.min(H * 0.44, avail * 0.47);
-  } else {           // brain map along the bottom: centre the dish in what is left above it
-    const top = narrow ? 56 : 20, bottom = H - brainBox.offsetHeight - (narrow ? 24 : 32);
-    cx = W / 2; cy = (top + bottom) / 2;
-    sc = Math.max(40, Math.min(W * (narrow ? 0.46 : 0.42), (bottom - top) / 2 / 1.04));
-  }
+  cv.style.width = W + "px"; cv.style.height = H + "px";
+  sc = Math.min(W, H) / 2; cx = W / 2; cy = H / 2;
+  AX = W / 2 / sc; AY = H / 2 / sc;
+  // whatever ended up outside a smaller window comes back inside
+  for (const o of world.food.concat(world.temp)) { o.x = clamp(o.x, -AX + 0.05, AX - 0.05); o.y = clamp(o.y, -AY + 0.05, AY - 0.05); }
+  trackCv.width = cv.width; trackCv.height = cv.height; trackPrev = null;
+  tctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   buildBackground();
+  arenaSize.textContent = `${(2 * AX / MM).toFixed(1)} × ${(2 * AY / MM).toFixed(1)} mm`;
 }
 
-// the plain table and the dish: one flat agar colour inside a thin glass rim
+// the empty arena: a flat field with a fine millimetre grid and a scale bar
 function buildBackground() {
+  if (!W) return;
   bgCanvas = document.createElement("canvas");
   bgCanvas.width = cv.width; bgCanvas.height = cv.height;
   const g = bgCanvas.getContext("2d");
   g.scale(DPR, DPR);
-  g.fillStyle = PAL.bg; g.fillRect(0, 0, W, H);
-  g.beginPath(); g.arc(cx, cy, sc * 1.035, 0, TAU);
-  g.fillStyle = PAL.rim; g.fill();
-  g.lineWidth = 1.5; g.strokeStyle = PAL.rimLine; g.stroke();
-  g.beginPath(); g.arc(cx, cy, sc, 0, TAU);
-  g.fillStyle = PAL.agar; g.fill();
-  g.lineWidth = 1; g.stroke();
+  g.fillStyle = PAL.field; g.fillRect(0, 0, W, H);
+  const step = (MM / 2) * sc;   // a line every 0.5 mm, a stronger one every millimetre
+  for (const major of [false, true]) {
+    g.beginPath();
+    for (let k = Math.ceil(-cx / step); k <= Math.floor((W - cx) / step); k++) {
+      if ((k % 2 === 0) !== major) continue;
+      const x = Math.round(cx + k * step) + 0.5; g.moveTo(x, 0); g.lineTo(x, H);
+    }
+    for (let k = Math.ceil(-cy / step); k <= Math.floor((H - cy) / step); k++) {
+      if ((k % 2 === 0) !== major) continue;
+      const y = Math.round(cy + k * step) + 0.5; g.moveTo(0, y); g.lineTo(W, y);
+    }
+    g.lineWidth = 1; g.strokeStyle = major ? PAL.gridMajor : PAL.grid; g.stroke();
+  }
+  const bl = MM * sc, x0 = 16, y0 = H - 16;
+  g.strokeStyle = PAL.ink; g.lineWidth = 1.5; g.lineCap = "butt";
+  g.beginPath(); g.moveTo(x0, y0); g.lineTo(x0 + bl, y0); g.moveTo(x0 + 0.75, y0 - 4); g.lineTo(x0 + 0.75, y0 + 3); g.moveTo(x0 + bl - 0.75, y0 - 4); g.lineTo(x0 + bl - 0.75, y0 + 3); g.stroke();
+  g.fillStyle = PAL.ink; g.font = `500 11px ${UI_FONT}`; g.textBaseline = "bottom"; g.fillText("1 mm", x0, y0 - 6);
 }
 
-// a dotted trail where he has been, fading slowly
+// a thin line along the track the nose has taken, fading slowly
 let trackPrev = null, trackFade = 0;
 function trackStep() {
-  const h = worm.pts[0];
-  const p = [(h.x + 1) * 512, (h.y + 1) * 512];
-  if (!trackPrev || Math.hypot(p[0] - trackPrev[0], p[1] - trackPrev[1]) > 0.034 * 512) {
-    tctx.fillStyle = PAL.trail || "rgba(0,0,0,.1)";
-    tctx.beginPath(); tctx.arc(p[0], p[1], 0.0055 * 512, 0, TAU); tctx.fill();
-    trackPrev = p;
+  if (!W) return;
+  const [x, y] = toScreen(worm.pts[0].x, worm.pts[0].y);
+  if (!trackPrev) trackPrev = [x, y];
+  const d = Math.hypot(x - trackPrev[0], y - trackPrev[1]);
+  if (d > 2) {
+    if (d < 30) {
+      tctx.strokeStyle = PAL.trail; tctx.lineWidth = 1; tctx.lineCap = "round";
+      tctx.beginPath(); tctx.moveTo(trackPrev[0], trackPrev[1]); tctx.lineTo(x, y); tctx.stroke();
+    }
+    trackPrev = [x, y];
   }
   trackFade += DT;
   if (trackFade > 1.5) {
     trackFade = 0;
     tctx.globalCompositeOperation = "destination-out"; tctx.fillStyle = "rgba(0,0,0,.05)";
-    tctx.fillRect(0, 0, 1024, 1024); tctx.globalCompositeOperation = "source-over";
+    tctx.fillRect(0, 0, W, H); tctx.globalCompositeOperation = "source-over";
   }
 }
 
-function disc(g, x, y, r) { g.beginPath(); g.arc(x, y, r, 0, TAU); }
+function disc(g, x, y, r) { g.beginPath(); g.arc(x, y, Math.max(0, r), 0, TAU); }
 
-// food: a soft flat patch of bacteria with a few dots
+// food: a lawn of E. coli OP50, the standard lab food, thickest at its rim as real lawns are
 function drawFood(g) {
+  g.font = `500 10px ${UI_FONT}`; g.textBaseline = "middle"; g.textAlign = "left";
   for (const f of world.food) {
     const [x, y] = toScreen(f.x, f.y), rad = f.r * Math.sqrt(f.amt) * sc;
-    g.fillStyle = PAL.food; disc(g, x, y, rad); g.fill();
-    const rnd = mulberry(f.seed | 0), n = 7;
-    g.fillStyle = PAL.foodDot;
-    for (let i = 0; i < n; i++) {
-      const a = i * 2.4 + rnd() * 0.6, rr = rad * 0.62 * Math.sqrt((i + 0.5) / n);
-      disc(g, x + Math.cos(a) * rr, y + Math.sin(a) * rr, rad * (0.1 + rnd() * 0.05)); g.fill();
-    }
+    disc(g, x, y, rad); g.fillStyle = PAL.food; g.fill();
+    g.lineWidth = Math.max(1.2, rad * 0.07); g.strokeStyle = PAL.foodEdge; disc(g, x, y, rad * 0.965); g.stroke();
+    if (rad > 22) { g.fillStyle = PAL.soft; g.fillText("OP50", x + rad * 0.72 + 3, y + rad * 0.72 + 3); }
   }
 }
 
-// heat and cold: flat translucent discs, the inner one where it gets too hot or too cold for him
+// heat and cold: a soft tint where the temperature changes, a dashed isotherm where it starts to hurt
 function drawTemp(g) {
   const SIG = 0.14;   // same spread as tempAt()
   for (const s of world.temp) {
-    const [x, y] = toScreen(s.x, s.y), rgb = s.sign > 0 ? PAL.hot : PAL.cold, fills = s.sign > 0 ? PAL.hotFill : PAL.coldFill;
-    [0.08, 0.25].forEach((thr, k) => {
-      if (s.life <= thr) return;
-      disc(g, x, y, SIG * Math.sqrt(2 * Math.log(s.life / thr)) * sc);
-      g.globalAlpha = 0.85; g.fillStyle = fills[k]; g.fill(); g.globalAlpha = 1;
-      g.lineWidth = 1.25; g.strokeStyle = `rgba(${rgb},.55)`; g.stroke();
-    });
-    // a small sun or snowflake in the middle
-    const k = Math.max(6, sc * 0.03);
-    g.strokeStyle = `rgba(${rgb},${0.45 + 0.55 * s.life})`; g.lineWidth = Math.max(1.5, k * 0.18); g.lineCap = "round";
-    g.beginPath();
-    if (s.sign > 0) {
-      g.moveTo(x + k * 0.42, y); g.arc(x, y, k * 0.42, 0, TAU);
-      for (let i = 0; i < 8; i++) { const a = (i / 8) * TAU; g.moveTo(x + Math.cos(a) * k * 0.72, y + Math.sin(a) * k * 0.72); g.lineTo(x + Math.cos(a) * k, y + Math.sin(a) * k); }
-    } else {
-      for (let i = 0; i < 3; i++) { const a = (i / 3) * Math.PI + Math.PI / 2; g.moveTo(x - Math.cos(a) * k, y - Math.sin(a) * k); g.lineTo(x + Math.cos(a) * k, y + Math.sin(a) * k); }
+    const [x, y] = toScreen(s.x, s.y), rgb = s.sign > 0 ? PAL.hot : PAL.cold, R = SIG * 3 * sc;
+    const gr = g.createRadialGradient(x, y, 0, x, y, R);
+    gr.addColorStop(0, `rgba(${rgb},${0.3 * s.life})`); gr.addColorStop(0.4, `rgba(${rgb},${0.13 * s.life})`); gr.addColorStop(1, `rgba(${rgb},0)`);
+    g.fillStyle = gr; disc(g, x, y, R); g.fill();
+    if (s.life > 0.25) {
+      g.setLineDash([4, 3]); g.lineWidth = 1; g.strokeStyle = `rgba(${rgb},.8)`;
+      disc(g, x, y, SIG * Math.sqrt(2 * Math.log(s.life / 0.25)) * sc); g.stroke(); g.setLineDash([]);
     }
-    g.stroke();
+    const k = 5;   // a plus for heat, a minus for cold
+    g.strokeStyle = `rgba(${rgb},${0.5 + 0.5 * s.life})`; g.lineWidth = 1.5; g.lineCap = "butt";
+    g.beginPath(); g.moveTo(x - k, y); g.lineTo(x + k, y); if (s.sign > 0) { g.moveTo(x, y - k); g.lineTo(x, y + k); } g.stroke();
   }
 }
 
-// touch: a ring that pops out and fades
+// touch: a thin ring that spreads and fades
 function drawRipples(g) {
   for (const r of world.ripples) {
     const k = r.t / 0.5; if (k >= 1) continue;
     const e = 1 - (1 - k) ** 3, [x, y] = toScreen(r.x, r.y);
-    g.globalAlpha = 1 - k; g.strokeStyle = PAL.touch; g.lineWidth = 0.75 + 2.25 * (1 - k);
+    g.globalAlpha = 1 - k; g.strokeStyle = PAL.touch; g.lineWidth = 0.75 + 1.25 * (1 - k);
     disc(g, x, y, (0.02 + 0.07 * e) * sc); g.stroke();
   }
   g.globalAlpha = 1;
 }
 
-// body outline from the segment points: a smooth tube, round nose, tapering to a blunt tail
+// body outline from the segment points: a smooth tube with a blunt head, tapering to a pointed tail
 function bodyGeometry() {
   const P0 = worm.pts.map((p) => toScreen(p.x, p.y));
   const pts = [];
@@ -746,7 +844,7 @@ function bodyGeometry() {
     const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)];
     let tx = b[0] - a[0], ty = b[1] - a[1]; const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
     const u = i / (n - 1);
-    const prof = u < 0.07 ? Math.sqrt(1 - (1 - u / 0.07) ** 2) : u > 0.66 ? 0.24 + 0.76 * Math.pow((1 - u) / 0.34, 1.2) : 1;
+    const prof = u < 0.06 ? 0.35 + 0.65 * Math.sqrt(1 - (1 - u / 0.06) ** 2) : u > 0.7 ? 0.07 + 0.93 * Math.pow((1 - u) / 0.3, 1.15) : 1;
     const w = DRAW_HALFW * sc * prof;
     wid.push(w);
     left.push([pts[i][0] - ty * w, pts[i][1] + tx * w]);
@@ -758,36 +856,39 @@ function bodyGeometry() {
 function drawWorm(g) {
   const { pts, left, right, wid, n } = bodyGeometry();
   const W0 = DRAW_HALFW * sc;
-  g.beginPath(); g.moveTo(...left[0]);
-  for (let i = 1; i < n; i++) g.lineTo(...left[i]);
-  const a = pts[n - 1], b = pts[n - 2], tl = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1;
-  const al = Math.atan2((a[0] - b[0]) / tl, -(a[1] - b[1]) / tl);
-  g.arc(a[0], a[1], wid[n - 1], al, al - Math.PI, true);    // round tail tip
-  for (let i = n - 1; i >= 0; i--) g.lineTo(...right[i]);
-  g.closePath();
-  g.fillStyle = PAL.worm; g.fill();
-  g.lineJoin = "round"; g.lineCap = "round"; g.lineWidth = Math.max(1.5, W0 * 0.2); g.strokeStyle = PAL.wormLine; g.stroke();
-  // pharynx: a thin tube from the mouth to its round bulb
+  const outline = () => {
+    g.beginPath();
+    // blunt nose
+    const h0 = pts[0], h1 = pts[1], hl = Math.hypot(h0[0] - h1[0], h0[1] - h1[1]) || 1;
+    const ah = Math.atan2(-(h0[0] - h1[0]) / hl, (h0[1] - h1[1]) / hl);
+    g.moveTo(...right[0]); g.arc(h0[0], h0[1], wid[0], ah + Math.PI, ah, true);
+    for (let i = 1; i < n; i++) g.lineTo(...left[i]);
+    const a = pts[n - 1], b = pts[n - 2], tl = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1;
+    const al = Math.atan2((a[0] - b[0]) / tl, -(a[1] - b[1]) / tl);
+    g.arc(a[0], a[1], wid[n - 1], al, al - Math.PI, true);    // tail tip
+    for (let i = n - 1; i >= 0; i--) g.lineTo(...right[i]);
+    g.closePath();
+  };
+  outline(); g.fillStyle = PAL.worm; g.fill();
   const at = (u) => pts[Math.round(u * (n - 1))];
-  g.strokeStyle = PAL.wormDark; g.lineWidth = Math.max(1, W0 * 0.28);
-  g.beginPath(); g.moveTo(...at(0.065));
-  for (let i = Math.round(0.065 * (n - 1)) + 1; i <= Math.round(0.14 * (n - 1)); i++) g.lineTo(...pts[i]);
-  g.stroke();
-  g.fillStyle = PAL.wormDark; disc(g, ...at(0.14), W0 * 0.42); g.fill();
-  // a dot at the nose, so you can tell which way he faces
-  g.fillStyle = PAL.eye; disc(g, ...at(0.03), Math.max(1.4, W0 * 0.2)); g.fill();
+  const run = (u0, u1) => { g.beginPath(); g.moveTo(...at(u0)); for (let i = Math.round(u0 * (n - 1)) + 1; i <= Math.round(u1 * (n - 1)); i++) g.lineTo(...pts[i]); };
+  g.lineCap = "round"; g.lineJoin = "round";
+  // intestine
+  run(0.19, 0.84); g.strokeStyle = PAL.gut; g.lineWidth = W0 * 0.95; g.stroke();
+  // pharynx: a narrow tube with two muscular bulbs, the second one just in front of the intestine
+  run(0.015, 0.165); g.strokeStyle = PAL.phx; g.lineWidth = Math.max(1, W0 * 0.3); g.stroke();
+  g.fillStyle = PAL.phx; disc(g, ...at(0.085), W0 * 0.42); g.fill(); disc(g, ...at(0.165), W0 * 0.58); g.fill();
+  outline(); g.lineWidth = Math.max(1, W0 * 0.15); g.strokeStyle = PAL.wormLine; g.stroke();
 }
 
 function render() {
+  if (!bgCanvas) return;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(bgCanvas, 0, 0);
+  ctx.drawImage(trackCv, 0, 0);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  ctx.save();
-  disc(ctx, cx, cy, sc); ctx.clip();
-  ctx.drawImage(trackCv, cx - sc, cy - sc, sc * 2, sc * 2);
   drawTemp(ctx);
   drawFood(ctx);
-  ctx.restore();
   drawWorm(ctx);
   drawRipples(ctx);
 }
@@ -800,6 +901,7 @@ function render() {
 // and everything else packed into the head ganglia around the nerve ring (sensory cells to the front).
 // The head is drawn wider than to scale (the first 18% of the body takes a third of the map).
 // Left/right partners share a spot, as they do in a side view. Dorsal is up, ventral down.
+const brainBox = document.getElementById("brain"), brainBody = document.getElementById("brainBody");
 const bcv = document.getElementById("brainCv"), bctx = bcv.getContext("2d");
 const CORD = {   // first and last cell along the body (0 = nose, 1 = tail), lane (0 = mid, 1 = ventral edge), nudge
   VB: [0.15, 0.80, 0.08, 0], DB: [0.14, 0.78, 0.08, 0.5], VA: [0.17, 0.80, 0.34, 0], DA: [0.16, 0.85, 0.34, 0.5],
@@ -838,7 +940,8 @@ function pack(n, xa, xb, vmax) {
   return Array.from({ length: n }, (_, i) => out[Math.min(out.length - 1, Math.floor(((i + 0.5) * out.length) / n))] || [xa, 0]);
 }
 function layoutBrain() {
-  BW = Math.max(120, Math.floor(brainBox.clientWidth - 20));
+  if (brainBox.hidden || !net.nN) return;
+  BW = Math.max(120, Math.floor(brainBody.clientWidth - 20));
   BH = Math.round(clamp(BW * 0.19, 46, 64));
   bhw = BH * 0.42; bx0 = 3; bx1 = BW - 3; bdot = clamp(bhw * 0.075, 1.3, 1.9);
   bcv.style.width = BW + "px"; bcv.style.height = BH + "px";
@@ -873,6 +976,7 @@ function layoutBrain() {
   layoutKeys();
 }
 function drawBrainBg() {
+  if (!net.nN) return;
   silCv = document.createElement("canvas"); silCv.width = bcv.width; silCv.height = bcv.height;
   const g = silCv.getContext("2d"); g.scale(DPR, DPR);
   const mid = BH / 2;
@@ -887,6 +991,7 @@ function drawBrainBg() {
 }
 
 function drawBrain() {
+  if (brainBox.hidden || !silCv || !npos.length) return;
   const g = bctx;
   g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, bcv.width, bcv.height);
   g.drawImage(silCv, 0, 0);
@@ -905,7 +1010,7 @@ function drawBrain() {
     g.globalAlpha = 0.3 + 0.7 * gl; g.fillStyle = PAL.grp[net.grp[i]];
     disc(g, x, y, bdot + gl * 1.3); g.fill();
   }
-  // a key neuron row is pointed at: dim the rest, ring its cells
+  // a key neuron row or a connection is pointed at: dim the rest, ring its cells
   const hl = keyHl();
   if (hl) {
     g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 0.7; g.drawImage(silCv, 0, 0); g.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -927,10 +1032,10 @@ function drawBrain() {
 // motor neurons (VB, DB: forward) with the A-type (VA, DA: backward), as spike rates.
 const KEY = [
   ["AWC", ["AWCL", "AWCR"], "smell of food", "Smells attractive odours. Like the real cell it fires when the smell fades, and it hushes AIY."],
-  ["ASH", ["ASHL", "ASHR"], "danger and pain", "Nociceptor: fires on painful heat and when his nose bumps the wall."],
-  ["AFD", ["AFDL", "AFDR"], "temperature", "Thermosensor: fires while the temperature at his head is changing."],
-  ["ALM", ["ALML", "ALMR", "AVM"], "touch, front", "ALM and AVM: touch receptors in the front half. A poke there makes him back up."],
-  ["PLM", ["PLML", "PLMR"], "touch, back", "Touch receptors in the tail. A poke there sends him forward."],
+  ["ASH", ["ASHL", "ASHR"], "danger and pain", "Nociceptor: fires on painful heat and when the nose bumps into a wall."],
+  ["AFD", ["AFDL", "AFDR"], "temperature", "Thermosensor: fires while the temperature at the head is changing."],
+  ["ALM", ["ALML", "ALMR", "AVM"], "touch, front", "ALM and AVM: touch receptors in the front half. A poke there makes the worm back up."],
+  ["PLM", ["PLML", "PLMR"], "touch, back", "Touch receptors in the tail. A poke there sends the worm forward."],
   ["AIY", ["AIYL", "AIYR"], "steers toward good", "Interneuron that favours running forward. Food smell (via AWC and ASE) pushes its voltage down."],
   ["AIB", ["AIBL", "AIBR"], "turns, reversals", "Interneuron that promotes turns and reversals."],
   ["AVA", ["AVAL", "AVAR"], "command: back up", "Command interneuron for backward crawling."],
@@ -944,7 +1049,12 @@ const klist = document.getElementById("klist"), kcv = document.getElementById("k
 let keyIds = [], keyGrp = [], kV = null, kS = null, kAcc = null, kSpk = null, kHead = 0, kFill = 0, kTicks = 0;
 const kRows = [];
 let kHover = -1, kPin = -1;
-const keyHl = () => { const r = kPin >= 0 ? kPin : kHover; return r >= 0 && brainBox.classList.contains("keys-open") ? keyIds[r] : null; };
+const keyHl = () => {
+  if (mx.hover) return [mx.hover.a, mx.hover.b];   // a square in the connectivity matrix: both cells
+  const r = kPin >= 0 ? kPin : kHover;
+  if (r >= 0 && brainBox.classList.contains("keys-open")) return keyIds[r];
+  return mx.pin >= 0 ? [mx.pin] : null;            // the neuron being inspected
+};
 function buildKeys() {
   const motor = S.bMN.concat(S.aMN);
   keyIds = KEY.map(([, names]) => (names ? ids(...names) : motor));
@@ -996,7 +1106,7 @@ function keyTick() {
   kHead = (kHead + 1) % KN; kFill = Math.min(KN, kFill + 1); kTicks = 0;
 }
 function drawKeys() {
-  if (!kV || !brainBox.classList.contains("keys-open") || brainBox.classList.contains("mini")) return;
+  if (!kV || !brainBox.classList.contains("keys-open") || brainBox.hidden) return;
   const g = kctx, R = KEY.length, last = R - 1, pw = KW - 12, dx = pw / (KN - 1);
   g.setTransform(DPR, 0, 0, DPR, 0, 0); g.clearRect(0, 0, KW, R * KROW);
   for (let r = 0; r < R; r++) {
@@ -1037,14 +1147,239 @@ function drawKeys() {
   g.globalAlpha = 1;
 }
 
+
+// ===================================================================
+//  connectivity: every neuron-to-neuron weight the model uses, as a matrix
+// ===================================================================
+// Rows send, columns receive. Both run through the sensory, inter and motor neurons, alphabetical
+// within each class. A chemical synapse is coloured by the sign the model gives it (warm excites,
+// blue inhibits) and shaded by its weight: the synapse count from the electron micrographs,
+// normalised by the target's total input, which is exactly what netTick() adds per spike. Gap
+// junctions are symmetric and get their own colour and their own normalised coupling. Body wall
+// muscles are left out of the picture, but they are listed among a motor neuron's outputs.
+const connBox = document.getElementById("conn"), connBody = document.getElementById("connBody");
+const mcv = document.getElementById("mxCv"), mctx = mcv.getContext("2d");
+const mxInfo = document.getElementById("mxInfo"), mxDetail = document.getElementById("mxDetail"), mxLegend = document.getElementById("mxLegend");
+const mxFind = document.getElementById("mxFind");
+const mx = { mode: "chem", ord: null, rank: null, chemW: null, chemC: null, gapW: null, gapC: null, ref: {}, img: {}, bounds: [],
+             S: 0, G: 9, hover: null, pin: -1, nChem: 0, nGap: 0 };
+const CLASS = ["Sensory neuron", "Interneuron", "Motor neuron", "Body wall muscle"];
+
+function buildMatrix() {
+  const N = net.nN;
+  mx.ord = Array.from({ length: N }, (_, i) => i).sort((a, b) => net.grp[a] - net.grp[b] || (net.name[a] < net.name[b] ? -1 : 1));
+  mx.rank = new Int32Array(N); mx.ord.forEach((i, k) => { mx.rank[i] = k; });
+  mx.chemW = new Float32Array(N * N); mx.chemC = new Float32Array(N * N);
+  mx.gapW = new Float32Array(N * N); mx.gapC = new Float32Array(N * N);
+  for (let e = 0; e < net.tgt.length; e++) {
+    const a = net.src[e], b = net.tgt[e]; if (b >= N) continue;
+    mx.chemW[a * N + b] += net.wt[e]; mx.chemC[a * N + b] += net.cnt[e];
+  }
+  for (let k = 0; k < net.gA.length; k++) {
+    const a = net.gA[k], b = net.gB[k]; if (a >= N || b >= N) continue;
+    mx.gapW[a * N + b] += net.gW[k]; mx.gapC[a * N + b] += net.gC[k];
+    if (a !== b) { mx.gapW[b * N + a] += net.gW[k]; mx.gapC[b * N + a] += net.gC[k]; }
+  }
+  // colour scale: the 95th percentile of the weights reaches full colour
+  for (const [m, arr] of [["chem", mx.chemW], ["gap", mx.gapW]]) {
+    const v = []; for (const x of arr) if (x) v.push(Math.abs(x));
+    v.sort((p, q) => p - q); mx.ref[m] = v[Math.floor(v.length * 0.95)] || 1;
+    if (m === "chem") mx.nChem = v.length; else mx.nGap = v.length;
+  }
+  mx.bounds = [0, 1, 2].map((c) => { const k0 = mx.ord.findIndex((i) => net.grp[i] === c); let k1 = k0; while (k1 < N && net.grp[mx.ord[k1]] === c) k1++; return [c, k0, k1]; });
+  const dl = document.getElementById("mxNames");
+  for (const s of net.name.slice(0, N).slice().sort()) { const o = document.createElement("option"); o.value = s; dl.appendChild(o); }
+}
+
+// one pixel per pair, coloured once per theme; drawn scaled up without smoothing
+function buildMatrixImages() {
+  if (!mx.ord) return;
+  const N = net.nN, bg = PAL.mxBg;
+  for (const mode of ["chem", "gap"]) {
+    const c = document.createElement("canvas"); c.width = c.height = N;
+    const g = c.getContext("2d"), im = g.createImageData(N, N), D = im.data;
+    const M = mode === "chem" ? mx.chemW : mx.gapW, ref = mx.ref[mode];
+    const cols = { exc: rgbList(PAL.exc), inh: rgbList(PAL.inh), gap: rgbList(PAL.gap) };
+    for (let r = 0; r < N; r++) for (let q = 0; q < N; q++) {
+      const w = M[mx.ord[r] * N + mx.ord[q]], o = (r * N + q) * 4;
+      let col = bg, t = 0;
+      if (w) { col = mode === "gap" ? cols.gap : w > 0 ? cols.exc : cols.inh; t = clamp(Math.sqrt(Math.abs(w) / ref), 0.22, 1); }
+      D[o] = bg[0] + (col[0] - bg[0]) * t; D[o + 1] = bg[1] + (col[1] - bg[1]) * t; D[o + 2] = bg[2] + (col[2] - bg[2]) * t; D[o + 3] = 255;
+    }
+    g.putImageData(im, 0, 0); mx.img[mode] = c;
+  }
+}
+
+function layoutMatrix() {
+  if (connBox.hidden || !mx.ord) return;
+  mx.S = Math.max(120, Math.floor(connBody.clientWidth - 20) - mx.G);
+  const T = mx.S + mx.G;
+  mcv.style.width = T + "px"; mcv.style.height = T + "px";
+  mcv.width = Math.round(T * DPR); mcv.height = Math.round(T * DPR);
+}
+
+function drawMatrix() {
+  if (connBox.hidden || !mx.img.chem || !mx.S) return;
+  const g = mctx, N = net.nN, G = mx.G, S = mx.S, cell = S / N;
+  g.setTransform(DPR, 0, 0, DPR, 0, 0); g.clearRect(0, 0, S + G, S + G);
+  // class strips along the top (receivers) and the left (senders)
+  for (const [c, k0, k1] of mx.bounds) {
+    g.fillStyle = PAL.grp[c];
+    g.fillRect(G + k0 * cell, 0, (k1 - k0) * cell - 1, 4);
+    g.fillRect(0, G + k0 * cell, 4, (k1 - k0) * cell - 1);
+  }
+  g.imageSmoothingEnabled = false;
+  g.drawImage(mx.img[mx.mode], G, G, S, S);
+  g.strokeStyle = PAL.silLine; g.lineWidth = 1; g.beginPath();
+  for (const [, k0] of mx.bounds.slice(1)) { const p = Math.round(G + k0 * cell) + 0.5; g.moveTo(p, G); g.lineTo(p, G + S); g.moveTo(G, p); g.lineTo(G + S, p); }
+  g.stroke();
+  g.strokeRect(G - 0.5, G - 0.5, S + 1, S + 1);
+  // a row lights up while its neuron fires, so you can watch activity run along the wiring
+  for (let i = 0; i < N; i++) {
+    const gl = net.glow[i]; if (gl < 0.15) continue;
+    const y = G + mx.rank[i] * cell, h = Math.max(1, cell);
+    g.globalAlpha = 0.11 * gl; g.fillStyle = PAL.ink; g.fillRect(G, y, S, h);
+    g.globalAlpha = 0.35 + 0.65 * gl; g.fillStyle = PAL.grp[net.grp[i]]; g.fillRect(5, y, 3, Math.max(1.5, cell));
+  }
+  g.globalAlpha = 1;
+  g.strokeStyle = PAL.ink; g.lineWidth = 1;
+  if (mx.pin >= 0) {   // the inspected neuron: its row (what it sends) and its column (what it receives)
+    const k = mx.rank[mx.pin];
+    g.globalAlpha = 0.55;
+    g.strokeRect(G - 0.5, G + k * cell - 1, S + 1, cell + 2);
+    g.strokeRect(G + k * cell - 1, G - 0.5, cell + 2, S + 1);
+  }
+  if (mx.hover) {
+    const y = G + (mx.rank[mx.hover.a] + 0.5) * cell, x = G + (mx.rank[mx.hover.b] + 0.5) * cell;
+    g.globalAlpha = 0.3; g.beginPath(); g.moveTo(G, y); g.lineTo(G + S, y); g.moveTo(x, G); g.lineTo(x, G + S); g.stroke();
+    g.globalAlpha = 1; g.strokeRect(x - 3, y - 3, 6, 6);
+  }
+  g.globalAlpha = 1;
+}
+
+const fmtW = (w) => (w > 0 ? "+" : "−") + Math.abs(w).toFixed(2);
+const plural = (n, s) => `${n} ${s}${n === 1 ? "" : "s"}`;
+function mxCell(e) {
+  const r = mcv.getBoundingClientRect(), cell = mx.S / net.nN;
+  const q = Math.floor((e.clientX - r.left - mx.G) / cell), k = Math.floor((e.clientY - r.top - mx.G) / cell);
+  if (q < 0 || k < 0 || q >= net.nN || k >= net.nN) return null;
+  return { a: mx.ord[k], b: mx.ord[q] };
+}
+function showCell(c) {
+  if (!c) {
+    mxInfo.textContent = mx.mode === "chem"
+      ? "Point at a square to read one connection. Click a row to inspect that neuron."
+      : "Gap junctions couple two cells both ways, so this matrix is symmetric. Click a row to inspect a neuron.";
+    return;
+  }
+  const N = net.nN, k = c.a * N + c.b, A = net.name[c.a], B = net.name[c.b];
+  let line;
+  if (mx.mode === "chem") {
+    const n = mx.chemC[k], w = mx.chemW[k];
+    line = n ? `${plural(n, "synapse")}, ${w > 0 ? "excitatory" : "inhibitory"}, weight ${fmtW(w)}` : "No chemical synapse.";
+  } else {
+    const n = mx.gapC[k], w = mx.gapW[k];
+    line = n ? `${plural(n, "gap junction")}, coupling ${w.toFixed(2)}` : "No gap junction.";
+  }
+  mxInfo.innerHTML = `<b>${A}</b> ${mx.mode === "chem" ? "→" : "↔"} <b>${B}</b><br>${line}`;
+}
+function setLegend() {
+  const sw = (rgb, t) => `<span><i style="background:rgb(var(${rgb}))"></i>${t}</span>`;
+  mxLegend.innerHTML = (mx.mode === "chem" ? sw("--exc-rgb", "Excites") + sw("--inh-rgb", "Inhibits") : sw("--gap-rgb", "Gap junction"))
+    + `<span class="note">Rows send, columns receive</span>`;
+}
+
+function listBlock(title, rows, total) {
+  const box = document.createElement("div");
+  const h = document.createElement("h4"); h.textContent = `${title} (${total})`; box.appendChild(h);
+  const top = rows.sort((p, q) => Math.abs(q[1]) - Math.abs(p[1])).slice(0, 8);
+  const mxw = top.reduce((m, r) => Math.max(m, Math.abs(r[1])), 1e-9);
+  for (const [j, w, n] of top) {
+    const row = document.createElement("div"); row.className = "lrow";
+    let nm;
+    if (j < net.nN) { nm = document.createElement("button"); nm.onclick = () => pinNeuron(j); nm.title = `Inspect ${net.name[j]}`; }
+    else { nm = document.createElement("span"); nm.className = "nm"; nm.title = "Body wall muscle"; }
+    nm.textContent = net.name[j];
+    const bar = document.createElement("span"); bar.className = "bar";
+    const fill = document.createElement("i");
+    fill.style.width = (100 * Math.abs(w) / mxw).toFixed(1) + "%";
+    fill.style.background = `rgb(${mx.mode === "gap" ? PAL.gap : w > 0 ? PAL.exc : PAL.inh})`;
+    bar.appendChild(fill);
+    const cnt = document.createElement("span"); cnt.className = "n"; cnt.textContent = n; cnt.title = mx.mode === "gap" ? "Gap junctions" : "Synapses";
+    row.append(nm, bar, cnt); box.appendChild(row);
+  }
+  if (!top.length) { const p = document.createElement("p"); p.className = "mx-sum"; p.textContent = "None."; box.appendChild(p); }
+  return box;
+}
+function renderDetail() {
+  mxDetail.replaceChildren();
+  const i = mx.pin;
+  if (i < 0) {
+    if (!mx.ord) return;
+    const p = document.createElement("p"); p.className = "mx-sum";
+    p.textContent = mx.mode === "chem"
+      ? `${net.nN} neurons, ${mx.nChem.toLocaleString("en")} chemical connections between them. Colour shows the sign, depth the weight each spike carries. Rows flash while their neuron fires.`
+      : `${net.nN} neurons, ${(mx.nGap / 2).toLocaleString("en")} pairs joined by gap junctions, which pull the voltages of the two cells together.`;
+    mxDetail.appendChild(p);
+    return;
+  }
+  const name = net.name[i];
+  const head = document.createElement("div"); head.className = "nhead";
+  const b = document.createElement("b"); b.textContent = name;
+  const s = document.createElement("span"); s.textContent = CLASS[net.grp[i]] + (net.nt[i] ? " · " + net.nt[i].split("/").map((t) => (t === "GABA" ? t : t.toLowerCase())).join(", ") : "");
+  const x = document.createElement("button"); x.textContent = "✕"; x.title = "Close (Esc)"; x.setAttribute("aria-label", "Stop inspecting"); x.onclick = () => pinNeuron(-1);
+  head.append(b, s, x); mxDetail.appendChild(head);
+  const key = KEY.find(([, names]) => names && names.includes(name));
+  if (key) { const p = document.createElement("p"); p.className = "ndesc"; p.textContent = key[3]; mxDetail.appendChild(p); }
+  const lists = document.createElement("div"); lists.className = "lists";
+  if (mx.mode === "chem") {
+    const outs = [], ins = [];
+    for (let e = net.start[i]; e < net.start[i + 1]; e++) outs.push([net.tgt[e], net.wt[e], net.cnt[e]]);
+    for (let e = 0; e < net.tgt.length; e++) if (net.tgt[e] === i) ins.push([net.src[e], net.wt[e], net.cnt[e]]);
+    lists.append(listBlock("Sends to", outs, outs.length), listBlock("Receives from", ins, ins.length));
+  } else {
+    const part = [];
+    for (let k = 0; k < net.gA.length; k++) {
+      if (net.gA[k] === i) part.push([net.gB[k], net.gW[k], net.gC[k]]);
+      else if (net.gB[k] === i) part.push([net.gA[k], net.gW[k], net.gC[k]]);
+    }
+    lists.append(listBlock("Coupled to", part, part.length));
+  }
+  mxDetail.appendChild(lists);
+}
+function pinNeuron(i) {
+  mx.pin = i;
+  if (i >= 0) mxFind.value = "";
+  renderDetail();
+}
+function setMxMode(m) {
+  mx.mode = m;
+  document.querySelectorAll("#conn .seg button").forEach((b) => b.classList.toggle("on", b.dataset.mode === m));
+  setLegend(); showCell(null); renderDetail();
+}
+
+mcv.addEventListener("pointermove", (e) => { if (!mx.ord) return; mx.hover = mxCell(e); showCell(mx.hover); });
+mcv.addEventListener("pointerleave", () => { mx.hover = null; });
+mcv.addEventListener("click", (e) => {
+  if (!mx.ord) return;
+  const c = mxCell(e); if (!c) return;
+  pinNeuron(mx.pin === c.a ? -1 : c.a); showCell(c);
+});
+document.querySelectorAll("#conn .seg button").forEach((b) => b.onclick = () => { setMxMode(b.dataset.mode); b.blur(); });
+mxFind.addEventListener("change", () => {
+  const s = mxFind.value.trim().toUpperCase(), i = net.idx ? net.idx[s] : undefined;
+  if (i !== undefined && i < net.nN) { pinNeuron(i); mxFind.blur(); }
+});
+mxFind.addEventListener("keydown", (e) => { if (e.key === "Enter") mxFind.dispatchEvent(new Event("change")); });
+
 // ===================================================================
 //  ui
 // ===================================================================
 const HINTS = {
-  food: "Click the dish to drop a spot of bacteria. He smells it from afar and slows down to eat.",
-  heat: "Click to warm a spot. Too hot and his pain neurons fire.",
-  cold: "Click to chill a spot. Harsh cold makes PVD fire.",
-  touch: "Click his head or tail to poke him, or the plate to tap it.",
+  food: "Click the arena to drop a lawn of bacteria. The worm smells it from afar and slows down to eat.",
+  heat: "Click to warm a spot. Inside the dashed line it is hot enough to hurt, and the pain neurons fire.",
+  cold: "Click to chill a spot. Inside the dashed line the harsh cold makes PVD fire.",
+  touch: "Click the head or the tail to poke the worm, or the floor to tap the arena.",
 };
 document.querySelectorAll("#tools button").forEach((b) => b.onclick = () => {
   tool = b.dataset.tool;
@@ -1054,50 +1389,81 @@ document.querySelectorAll("#tools button").forEach((b) => b.onclick = () => {
 });
 document.getElementById("toolHint").textContent = HINTS[tool];
 function resetAll() {
-  world.food = []; world.temp = []; world.ripples = []; world.pulses = [];
-  tctx.clearRect(0, 0, 1024, 1024); trackPrev = null;
+  world.food = []; world.temp = []; world.ripples = []; world.pulses = []; world.t = 0;
+  tctx.clearRect(0, 0, W, H); trackPrev = null;
   net.V.fill(0); net.tr.fill(0); net.spk.fill(0); net.glow.fill(0); net.A.fill(0);
   resetWorm(); clearKeys();
 }
 document.getElementById("reset").onclick = (e) => { resetAll(); e.target.blur(); };
 
 cv.addEventListener("pointerdown", (e) => {
-  const [x, y] = toWorld(e.clientX, e.clientY);
-  act(x, y);
+  const r = cv.getBoundingClientRect();
+  act(...toWorld(e.clientX - r.left, e.clientY - r.top));
 });
 
-const panel = document.getElementById("panel"), openBtn = document.getElementById("openPanel");
-function setPanel(open) { panel.classList.toggle("hidden", !open); openBtn.hidden = open; }
-document.getElementById("closePanel").onclick = () => setPanel(false);
-openBtn.onclick = () => setPanel(true);
-const isTouch = matchMedia("(pointer: coarse)").matches;
-setPanel(!(innerWidth < 760 || isTouch));
-const autoClose = () => { if (isTouch || innerWidth < 760) setPanel(false); };
+// three windows around the arena: controls on the left, activity and connectivity on the right.
+// Wide screens dock them beside the arena; smaller ones float them over it.
+const panel = document.getElementById("panel"), side = document.getElementById("side"), stage = document.getElementById("stage");
+const tg = { panel: document.getElementById("tgPanel"), brain: document.getElementById("tgBrain"), conn: document.getElementById("tgConn") };
+const THUMB = new URLSearchParams(location.search).has("thumb");   // a tidy first frame for the homepage picture
+const ui = { panel: innerWidth >= 1000 && !THUMB, brain: innerWidth >= 1200 || innerWidth < 760, conn: innerWidth >= 1200 };
+function layout() {
+  const w = innerWidth, sideOn = ui.brain || ui.conn;
+  panel.classList.toggle("hidden", !ui.panel);
+  brainBox.hidden = !ui.brain; connBox.hidden = !ui.conn; side.hidden = !sideOn;
+  document.body.classList.toggle("panel-docked", ui.panel && w >= 1000);
+  document.body.classList.toggle("side-docked", sideOn && w >= 1200);
+  for (const k in tg) { tg[k].classList.toggle("on", ui[k]); tg[k].setAttribute("aria-pressed", ui[k]); }
+  if (net.nN) resize();
+}
+function show(k, on) {
+  ui[k] = on;
+  if (on && innerWidth < 760) {          // phones: one window at a time
+    for (const o in ui) if (o !== k) ui[o] = false;
+  } else if (on && innerWidth < 1000) {  // tablets: the controls and the right-hand windows would overlap
+    if (k === "panel") ui.brain = ui.conn = false; else ui.panel = false;
+  }
+  layout();
+}
+for (const k in tg) tg[k].onclick = (e) => { show(k, !ui[k]); e.currentTarget.blur(); };
+document.getElementById("closePanel").onclick = () => show("panel", false);
+document.getElementById("brainHide").onclick = () => show("brain", false);
+document.getElementById("connHide").onclick = () => show("conn", false);
+const autoClose = () => { if (innerWidth < 1000) show("panel", false); };
 addEventListener("keydown", (e) => {
-  if (e.target.tagName === "INPUT") return;
+  if (e.target.tagName === "INPUT" || e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
-  if (k === "h") setPanel(panel.classList.contains("hidden"));
+  if (k === "h") show("panel", !ui.panel);
+  if (k === "a") show("brain", !ui.brain);
+  if (k === "c") show("conn", !ui.conn);
+  if (k === "escape" && mx.pin >= 0) pinNeuron(-1);
   const map = { 1: "food", 2: "heat", 3: "cold", 4: "touch" };
   if (map[k]) document.querySelector(`#tools button[data-tool="${map[k]}"]`).click();
 });
-document.getElementById("brainHead").onclick = () => { brainBox.classList.toggle("mini"); if (net.nN) resize(); };
 const keysBtn = document.getElementById("keysBtn");
 function setKeys(open) {
   brainBox.classList.toggle("keys-open", open); keysBtn.setAttribute("aria-expanded", open);
   if (!open) { kPin = -1; kHover = -1; markRows(); }
 }
 keysBtn.onclick = (e) => {
-  e.stopPropagation(); keysBtn.blur();
-  brainBox.classList.remove("mini");
+  keysBtn.blur();
   setKeys(!brainBox.classList.contains("keys-open"));
   if (net.nN) resize();
 };
-setKeys(innerWidth >= 1000);   // open on laptops and desktops, behind the button on phones and tablets
+setKeys(innerWidth >= 1200 && innerHeight >= 1150 && !THUMB);   // when there is room for it next to the matrix
+
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  layoutBrain(); layoutMatrix();
+  // phones: the activity or connectivity window sits under the arena, not on top of it
+  stage.style.bottom = innerWidth < 760 && !side.hidden ? side.offsetHeight + 24 + "px" : "";
+  sizeArena();
+}
 
 // follow the site's light/dark choice if it changes while the page is open
 function applyTheme() {
-  readTheme(); buildBackground(); drawBrainBg();
-  tctx.clearRect(0, 0, 1024, 1024); trackPrev = null;
+  readTheme(); buildBackground(); drawBrainBg(); buildMatrixImages(); renderDetail();
+  tctx.clearRect(0, 0, W, H); trackPrev = null;
 }
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (net.nN) applyTheme(); });
 addEventListener("storage", (e) => {
@@ -1115,7 +1481,7 @@ function updateUi(dt) {
   elDoing.textContent = doing.charAt(0).toUpperCase() + doing.slice(1);
   elFiring.textContent = `${Math.round(firingAvg * 30)} spikes a second`;
   const s = [];
-  if (sense.wall) s.push("wall on his nose");
+  if (sense.wall) s.push("wall at the nose");
   if (sense.lawn) s.push("bacteria");
   else if (sense.odour > 0.05) s.push("smell of food");
   if (sense.temp > 0.25) s.push("too hot"); else if (sense.temp < -0.25) s.push("too cold");
@@ -1124,6 +1490,8 @@ function updateUi(dt) {
   const txt = s.length ? s.join(", ") : "nothing much";
   elSense.textContent = txt.charAt(0).toUpperCase() + txt.slice(1);
   elInfo.textContent = `${net.nN} neurons`;
+  const t = Math.floor(world.t);
+  arenaClock.textContent = `· ${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
 }
 
 let last = 0, acc = 0;
@@ -1134,26 +1502,46 @@ function frame(t) {
   render();
   drawBrain();
   drawKeys();
+  drawMatrix();
   updateUi(dtReal);
   requestAnimationFrame(frame);
 }
 
 readTheme();
+layout();
+setMxMode("chem");
 fetch("../assets/worm/connectome.json").then((r) => r.json()).then((d) => {
   buildNet(d);
   makeGroups();
   buildKeys();
+  buildMatrix();
+  buildMatrixImages();
   resetWorm();
-  resize();
-  addEventListener("resize", resize);
+  layout();
+  addEventListener("resize", layout);
   // let the network settle before the first frame
   for (let i = 0; i < 60; i++) netTick();
+  if (THUMB) {   // the same picture every time: a seeded worm, close to the right-hand windows
+    let seed = +(new URLSearchParams(location.search).get("seed") || 11);
+    Math.random = () => { seed = (seed + 0x6d2b79f5) >>> 0; let t = seed; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    resetWorm();
+    const h0 = worm.pts[0], tx = AX * 0.55, ty = -0.2;
+    for (const p of worm.path) { p.x += tx - h0.x; p.y += ty - h0.y; }
+    samplePts();
+    const hx = Math.cos(worm.heading), hy = Math.sin(worm.heading);
+    world.food.push({ x: clamp(tx + hx * 0.42, -AX + 0.2, AX - 0.2), y: clamp(ty + hy * 0.42, -AY + 0.2, AY - 0.2), amt: 1, r: 0.14 });
+    world.temp.push({ x: AX * 0.2, y: -0.55, sign: 1, life: 1 });
+    simulate(3.5);
+  }
+  setMxMode(mx.mode);
   requestAnimationFrame(frame);
+  if (document.fonts) document.fonts.ready.then(() => buildBackground());
 }).catch((err) => {
-  document.getElementById("stDoing").textContent = "Could not load the connectome";
+  elDoing.textContent = "Could not load the connectome";
   console.error(err);
 });
 </script>
 <script>/* links to other websites open in a new tab */ document.querySelectorAll("a[href]").forEach((a) => { if (/^https?:$/.test(a.protocol) && a.origin !== location.origin) { a.target = "_blank"; a.rel = "noopener noreferrer"; } });</script>
 </body>
 </html>
+
