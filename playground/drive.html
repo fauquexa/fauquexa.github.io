@@ -52,7 +52,7 @@
   <button class="close" id="closePanel" aria-label="Close settings" title="Close (H)">✕</button>
   <a class="back" href="../index.html">← Home</a>
   <h1>Driving simulator</h1>
-  <p class="sub">An endless countryside, generated as you drive: rolling hills, fields, forests, villages and lakes, all grown from one random seed. The roads never end, and the same place always looks the same when you come back.</p>
+  <p class="sub">An endless countryside, generated as you drive: rolling hills, fields, forests and villages, all grown from one random seed. The roads never end, and the same place always looks the same when you come back.</p>
 
   <label>camera</label>
   <div class="row">
@@ -118,11 +118,11 @@ function hash(i, j, k) {
 function rng(a, b, c) { let s = (Math.floor(hash(a, b, c) * 4294967296) >>> 0) || 1; return () => { s = (s + 0x6d2b79f5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
 // ===================================================================
-//  landscape: smooth hills the roads follow, lakes in the hollows, a little detail on top
+//  landscape: smooth hills the roads follow, a little detail on top (no lakes: Alain asked for dry land)
 // ===================================================================
 const fbm = (x, z) => N1(x, z) + 0.5 * N1(x * 2.03 + 17, z * 2.03 - 9) + 0.25 * N1(x * 4.1 - 31, z * 4.1 + 5);
 const hillH = (x, z) => 24 * fbm(x / 1100, z / 1100) + 6 * N1(x / 300 + 7.3, z / 300 - 2.1);   // what the roads ride on
-const lakeK = (x, z) => smooth(0.38, 0.7, N1(x / 760 + 41.7, z / 760 - 13.2));                    // 0 = dry, 1 = deep lake
+const lakeK = (x, z) => 0;   // lakes are switched off; everything that tests for water stays, and never finds any
 const forestK = (x, z) => N1(x / 420 - 70.1, z / 420 + 23.9) + 0.35 * N1(x / 90, z / 90);
 const detailH = (x, z) => 1.1 * N1(x / 38 + 3.1, z / 38 + 8.7);
 const roadSurf = (x, z) => hillH(x, z) + 0.35;
@@ -132,17 +132,22 @@ const rawH = (x, z) => hillH(x, z) - 11 * lakeK(x, z) + detailH(x, z) * (1 - lak
 // ===================================================================
 //  road network: a jittered lattice of junctions joined by gently curving roads
 // ===================================================================
-// Junction (i, j) sits near (i*S, j*S). Every fifth row and column is a wider main road that always exists;
-// the side roads in between exist with a fixed probability, and every road out of a village exists, so
-// the network is endless and connected in practice. Each road is a cubic Bezier sampled every ~5 m.
-const S = 330, JIT = 85;
-const isVillage = (i, j) => hash(i, j, 4) < 0.2;
+// Junction (i, j) sits near (i*S, j*S). A road is a whole row or column of the lattice: every fifth one is
+// a wider main road, and about half of the others exist too, all the way through, so a road never just
+// ends in a sharp corner. Each segment is a cubic Bezier whose end tangents are shared with its neighbours
+// (Catmull-Rom style), so a road runs through its junctions without a kink and only ever bends gently.
+const S = 330, JIT = 60;
+const rowRoad = (j) => j % 5 === 0 || hash(0, j, 10) < 0.45;   // an east-west road along row j
+const colRoad = (i) => i % 5 === 0 || hash(i, 0, 11) < 0.45;   // a north-south road along column i
+const isVillage = (i, j) => hash(i, j, 4) < 0.2 && (rowRoad(j) || colRoad(i));
 const node = (i, j) => [i * S + (hash(i, j, 1) - 0.5) * 2 * JIT, j * S + (hash(i, j, 2) - 0.5) * 2 * JIT];
 function edgeExists(i, j, dir) {           // dir 0: (i,j)->(i+1,j), dir 1: (i,j)->(i,j+1)
-  if (dir === 0 ? j % 5 === 0 : i % 5 === 0) return true;
-  const [ni, nj] = dir === 0 ? [i + 1, j] : [i, j + 1];
-  if (isVillage(i, j) || isVillage(ni, nj)) return true;
-  return hash(i, j, 10 + dir) < 0.66;
+  return dir === 0 ? rowRoad(j) : colRoad(i);
+}
+// the road's direction through junction (i, j): half the chord between its two neighbours
+function tangentAt(i, j, dir) {
+  const p = dir === 0 ? node(i - 1, j) : node(i, j - 1), q = dir === 0 ? node(i + 1, j) : node(i, j + 1);
+  return [(q[0] - p[0]) / 2, (q[1] - p[1]) / 2];
 }
 const isMain = (i, j, dir) => (dir === 0 ? j % 5 === 0 : i % 5 === 0);
 const edgeCache = new Map();
@@ -152,10 +157,9 @@ function getEdge(i, j, dir) {
   if (e !== undefined) return e;
   if (!edgeExists(i, j, dir)) { edgeCache.set(key, null); return null; }
   const a = node(i, j), b = dir === 0 ? node(i + 1, j) : node(i, j + 1);
-  const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz), ux = dx / L, uz = dz / L, px = -uz, pz = ux;
-  const main = isMain(i, j, dir), bend = main ? 35 : 70;
-  const b1 = (hash(i, j, 20 + dir) - 0.5) * 2 * bend, b2 = (hash(i, j, 22 + dir) - 0.5) * 2 * bend;
-  const c1 = [a[0] + ux * L / 3 + px * b1, a[1] + uz * L / 3 + pz * b1], c2 = [b[0] - ux * L / 3 + px * b2, b[1] - uz * L / 3 + pz * b2];
+  const L = Math.hypot(b[0] - a[0], b[1] - a[1]), main = isMain(i, j, dir);
+  const ta = tangentAt(i, j, dir), tb = dir === 0 ? tangentAt(i + 1, j, dir) : tangentAt(i, j + 1, dir);
+  const c1 = [a[0] + ta[0] / 3, a[1] + ta[1] / 3], c2 = [b[0] - tb[0] / 3, b[1] - tb[1] / 3];
   const n = Math.max(8, Math.ceil(L / 5)), pts = [];
   for (let k = 0; k <= n; k++) {
     const t = k / n, u = 1 - t;
@@ -621,7 +625,7 @@ const carMesh = (() => {
 
 // The whole car state in one small plain object, changed only in drive().
 // Multiplayer will later broadcast exactly this (Azure Web PubSub, or the Supabase project's realtime channels).
-const car = { x: 0, y: 0, z: 0, heading: 0, speed: 0, vx: 0, vz: 0, steer: 0, pitch: 0, roll: 0, onRoad: true, dist: 0 };
+const car = { x: 0, y: 0, z: 0, heading: 0, speed: 0, vx: 0, vz: 0, steer: 0, yaw: 0, pitch: 0, roll: 0, onRoad: true, dist: 0 };
 const input = { thr: 0, brk: 0, steer: 0, hb: false };
 
 function placeOnRoad(x, z) {
@@ -635,7 +639,7 @@ function placeOnRoad(x, z) {
   car.x = best.p[0]; car.z = best.p[1];
   let h = Math.atan2(best.q[0] - best.p[0], best.q[1] - best.p[1]);
   if (Math.cos(h - car.heading) < 0 && Math.abs(car.speed) > 1) h += Math.PI;   // keep roughly the way we were going
-  car.heading = h; car.speed = 0; car.vx = car.vz = 0; car.steer = 0;
+  car.heading = h; car.speed = 0; car.vx = car.vz = 0; car.steer = 0; car.yaw = 0;
   car.y = roadSurf(car.x, car.z);
 }
 function startPos() {
@@ -661,7 +665,7 @@ function drive(dt) {
   const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
   let vf = car.vx * fx + car.vz * fz;
   const here = heightAt(car.x, car.z), onRoad = here.d < 0.4;
-  const vmax = onRoad ? 47 : 19, acc = onRoad ? 8 : 5.2;
+  const vmax = onRoad ? 30 : 13, acc = onRoad ? 5.2 : 3.8;   // about 108 km/h on the road
   const v0 = vf;
   if (input.thr > 0) { if (vf < -0.5) vf += 15 * input.thr * dt; else vf += acc * input.thr * Math.max(0, 1 - vf / vmax) * dt; }
   if (input.brk > 0) { if (vf > 0.5) vf -= 17 * input.brk * dt; else vf -= 4.5 * input.brk * Math.max(0, 1 + vf / 9) * dt; }
@@ -670,10 +674,13 @@ function drive(dt) {
   vf -= Math.sign(vf) * Math.min(Math.abs(vf), drag * dt);
   vf -= 9.81 * Math.sin(car.pitch) * dt;                       // hills pull you back, or along
   car.vx += fx * (vf - v0); car.vz += fz * (vf - v0);
-  // steering: less lock at speed, a bit more yaw on the handbrake
-  const lock = 0.62 / (1 + Math.abs(vf) / 13);
-  car.steer += (input.steer * lock - car.steer) * Math.min(1, dt * 7);
-  car.heading += (vf / 2.65) * Math.tan(car.steer) * (input.hb ? 1.5 : 1) * dt;
+  // steering: the wheel asks for a turn rate, never more than about 40 degrees a second, and less at speed
+  // (sideways pull capped near 0.65 g), and the car eases into it, so a turn rolls in instead of snapping
+  const vabs = Math.abs(vf), dirv = vf < 0 ? -1 : 1;
+  const maxYaw = Math.min(0.7, vabs / 5, 6.5 / Math.max(vabs, 1)) * (input.hb ? 1.5 : 1);
+  car.yaw += (input.steer * maxYaw * (vabs < 0.3 ? 0 : dirv) - car.yaw) * Math.min(1, dt * 2.6);
+  car.heading += car.yaw * dt;
+  car.steer = clamp(Math.atan((car.yaw * 2.65) / (dirv * Math.max(2, vabs))), -0.6, 0.6);   // front wheel angle, for show
   // grip: kill the sideways part of the velocity in the new heading (slowly on the handbrake, so it drifts)
   const gx = Math.sin(car.heading), gz = Math.cos(car.heading), rx = Math.cos(car.heading), rz = -Math.sin(car.heading);
   let f2 = car.vx * gx + car.vz * gz, l2 = car.vx * rx + car.vz * rz;
@@ -738,9 +745,9 @@ function placeCamera(dt, snap) {
     px = car.x - fx * 18; pz = car.z - fz * 18; py = car.y + 42;
     lx = car.x + fx * 6; ly = car.y; lz = car.z + fz * 6;
   }
-  const k = snap ? 1 : v === "chase" ? 1 - Math.exp(-dt * 5) : 1;
+  const k = snap ? 1 : v === "chase" ? 1 - Math.exp(-dt * 3.2) : 1;
   camPos.lerp(_p.set(px, py, pz), k);
-  camLook.lerp(_s.set(lx, ly, lz), snap ? 1 : 1 - Math.exp(-dt * 9));
+  camLook.lerp(_s.set(lx, ly, lz), snap ? 1 : 1 - Math.exp(-dt * 5));
   camera.position.copy(camPos); camera.lookAt(camLook);
 }
 function updateCarMesh(dt) {
@@ -791,10 +798,10 @@ function readInput(dt) {
   const up = keys.has("w") || keys.has("arrowup") || touch.gas, down = keys.has("s") || keys.has("arrowdown") || touch.brk;
   const left = keys.has("a") || keys.has("arrowleft") || touch.l, right = keys.has("d") || keys.has("arrowright") || touch.r;
   // throttle eases in so a tap is gentle; steering eases too, faster back to centre
-  input.thr += ((up ? 1 : 0) - input.thr) * Math.min(1, dt * 6);
+  input.thr += ((up ? 1 : 0) - input.thr) * Math.min(1, dt * 3);
   input.brk = down ? 1 : 0;
   const target = (left ? 1 : 0) - (right ? 1 : 0);
-  input.steer += (target - input.steer) * Math.min(1, dt * (target ? 5 : 9));
+  input.steer += (target - input.steer) * Math.min(1, dt * (target ? 2.2 : 3.2));
   input.hb = keys.has(" ") || touch.hb;
 }
 for (const [id, k] of [["tLeft", "l"], ["tRight", "r"], ["tGas", "gas"], ["tBrake", "brk"], ["tHb", "hb"]]) {
