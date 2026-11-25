@@ -13,7 +13,7 @@ assets/ambient.js              calm generated music + mute button (cats, fish, c
 assets/thumbs/                 screenshots used as playground thumbnails (worm.jpg: headless capture of worm.html?thumb&theme=dark at 1600x900, scale 2, right 1000x562 px cropped)
 assets/salemi-mouse.svg        Salemi group logo (stereogram default)
 playground/flight.html         flight sim: Pilatus aircraft + helicopter, fuel, airports, high scores (Supabase)
-playground/drive.html          driving sim: endless seeded low-poly countryside and roads (multiplayer planned)
+playground/drive.html          driving sim: DB9-style GT, endless low-poly countryside (fixed seed 7), multiplayer via Supabase realtime broadcast
 playground/worm.html           C. elegans connectome: worm brain simulator, with the activity map and a connectivity (weight) matrix
 playground/aquarium.html       perch in a mangrove creek
 playground/chickens.html       back-garden chickens

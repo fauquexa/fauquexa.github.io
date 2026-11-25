@@ -52,15 +52,25 @@
   <button class="close" id="closePanel" aria-label="Close settings" title="Close (H)">✕</button>
   <a class="back" href="../index.html">← Home</a>
   <h1>Driving simulator</h1>
-  <p class="sub">An endless countryside, generated as you drive: rolling hills, fields, forests and villages, all grown from one random seed. The roads never end, and the same place always looks the same when you come back.</p>
+  <p class="sub">A DB9-style grand tourer and an endless countryside of rolling hills, fields, forests and villages. Everyone drives in the same world: other drivers show up as ghost cars. Around 290 km/h flat out; brake for the bends.</p>
+
+  <label>paint</label>
+  <div class="row" id="paints">
+    <button data-paint="green" class="on">racing green</button>
+    <button data-paint="silver">silver</button>
+    <button data-paint="red">red</button>
+    <button data-paint="blue">midnight blue</button>
+  </div>
 
   <label>camera</label>
   <div class="row">
     <button id="camBtn">chase</button>
     <button id="resetBtn">back to the road</button>
-    <button id="seedBtn">new world</button>
   </div>
-  <p class="hint" id="seedInfo" style="margin:8px 0 0"></p>
+
+  <label>online</label>
+  <input type="text" id="nameIn" maxlength="20" autocomplete="off" spellcheck="false" aria-label="Your name, shown above your car" placeholder="Your name">
+  <p class="hint" id="netInfo" style="margin:8px 0 0">Connecting…</p>
 
   <div class="keys">
     <span><kbd>W</kbd> <kbd>↑</kbd></span><span>accelerate</span>
@@ -73,6 +83,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
 // ===================================================================
@@ -80,7 +91,7 @@
 // ===================================================================
 const Q = new URLSearchParams(location.search);
 const THUMB = Q.has("thumb");
-let SEED = (+Q.get("seed") || 7) >>> 0;
+let SEED = 7;   // one world, the same for everyone: multiplayer needs all drivers in the same place
 
 function makeNoise(seed) {
   const perm = new Uint8Array(512);
@@ -198,22 +209,27 @@ function segsIn(x0, z0, x1, z1, m) {
   }
   return new Float32Array(segs);
 }
-// distance from (x, z) to the nearest road edge (negative = on the road), and that road's direction
+// distance from (x, z) to the nearest road edge (negative = on the road), that road's direction, and the
+// nearest point on its centre line (px, pz), whose height is the height of the road deck across its width
 function roadDist(segs, x, z) {
-  let best = 1e9, dirx = 0, dirz = 1;
+  let best = 1e9, dirx = 0, dirz = 1, px = x, pz = z, low = 1e9;
   for (let s = 0; s < segs.length; s += 5) {
     const ax = segs[s], az = segs[s + 1], bx = segs[s + 2], bz = segs[s + 3];
     const vx = bx - ax, vz = bz - az, l2 = vx * vx + vz * vz;
     const t = l2 > 0 ? clamp(((x - ax) * vx + (z - az) * vz) / l2, 0, 1) : 0;
     const d = Math.hypot(x - ax - vx * t, z - az - vz * t) - segs[s + 4];
-    if (d < best) { best = d; dirx = vx; dirz = vz; }
+    if (d < best) { best = d; dirx = vx; dirz = vz; px = ax + vx * t; pz = az + vz * t; }
+    if (d < 2) low = Math.min(low, roadSurf(ax + vx * t, az + vz * t));   // at a junction: the lowest deck nearby
   }
-  return { d: best, dirx, dirz };
+  return { d: best, dirx, dirz, px, pz, low };
 }
-// ground height: the landscape, flattened onto the road and its verges
+// ground height: the landscape, cut and filled around each road. The road deck is level across its width at
+// its centre-line height, so the ground under it and just beside it takes that height (about 30 cm below the deck),
+// then blends back into the hillside over the next dozen metres, like a cutting or an embankment. Following
+// the hillside right up to the road instead let the uphill side poke up through the road on side slopes.
 function groundAt(segs, x, z) {
-  const r = roadDist(segs, x, z), t = smooth(0.8, 13, r.d);
-  return { h: lerp(hillH(x, z), rawH(x, z), t), d: r.d };
+  const r = roadDist(segs, x, z), t = smooth(1.8, 15, r.d);
+  return { h: lerp(Math.min(roadSurf(r.px, r.pz), r.low) - 0.32, rawH(x, z), t), d: r.d, px: r.px, pz: r.pz };
 }
 
 // ===================================================================
@@ -558,7 +574,7 @@ function stream(px, pz, all) {
   for (const [k, c] of chunks) if (!want.has(k)) { disposeChunk(c); chunks.delete(k); }
   const pending = [...want].filter((k) => !chunks.has(k)).map((k) => k.split(",").map(Number))
     .sort((a, b) => Math.hypot(a[0] - ccx, a[1] - ccz) - Math.hypot(b[0] - ccx, b[1] - ccz));
-  const budget = all ? Infinity : 1;
+  const budget = all ? Infinity : Math.abs(car.speed) > 45 ? 2 : 1;
   for (let i = 0; i < budget && i < pending.length; i++) chunks.set(pending[i].join(","), buildChunk(pending[i][0], pending[i][1]));
   // roads and junctions, re-checked every 40 m of travel
   if (all || !streamAt || Math.hypot(px - streamAt[0], pz - streamAt[1]) > 40) {
@@ -592,36 +608,90 @@ function segsNear(x, z) {
 // ===================================================================
 //  the car
 // ===================================================================
-const carMesh = (() => {
-  // a cute, chunky little car: coral body, cream cabin and roof, big soft wheels standing proud, round lamps
-  const g = new THREE.Group(), B = new Bake(5), body = 0xec8a52, bodyDark = 0xd97a45, cream = 0xfbf3e2, trim = 0xd8d0c0, glassC = 0xa9d4e2;
-  B.box(body, 1.86, 0.6, 3.9, 0, 0.78, 0, 0, 0.03);                                  // body
-  B.box(body, 1.8, 0.16, 1.05, 0, 1.15, 1.35, 0, 0.03);                              // bonnet
-  B.box(body, 1.8, 0.16, 0.8, 0, 1.15, -1.5, 0, 0.03);                               // boot
-  B.box(bodyDark, 1.9, 0.12, 3.95, 0, 0.5, 0, 0, 0.03);                              // a darker sill
-  B.box(cream, 1.62, 0.6, 1.95, 0, 1.5, -0.12, 0, 0.03);                             // cabin
-  B.box(glassC, 1.66, 0.4, 1.7, 0, 1.52, -0.12, 0, 0.02);                            // windows all round
-  B.box(glassC, 1.5, 0.42, 0.06, 0, 1.5, 0.86, 0, 0.02); B.box(glassC, 1.5, 0.42, 0.06, 0, 1.5, -1.1, 0, 0.02);
-  B.box(cream, 1.74, 0.13, 2.05, 0, 1.86, -0.12, 0, 0.02);                           // roof
-  B.box(trim, 1.96, 0.2, 0.22, 0, 0.6, 1.98, 0, 0.03); B.box(trim, 1.96, 0.2, 0.22, 0, 0.6, -1.98, 0, 0.03);   // bumpers
-  for (const sx of [-1, 1]) {
-    B.add(new THREE.CylinderGeometry(0.19, 0.19, 0.1, 10).rotateX(Math.PI / 2), 0xfff6d8, mat4(sx * 0.6, 0.92, 1.97), 0.01);   // headlamps
-    B.add(new THREE.CylinderGeometry(0.13, 0.13, 0.1, 8).rotateX(Math.PI / 2), 0xd9503c, mat4(sx * 0.62, 0.92, -1.97), 0.01);  // tail lamps
-    for (const z of [1.25, -1.25]) B.box(bodyDark, 0.2, 0.34, 1.12, sx * 0.93, 0.98, z, 0, 0.03);                            // arches over the wheels
+const PAINTS = { green: 0x2f6b4f, silver: 0xc9ccd0, red: 0xb8322a, blue: 0x2c3f66 };
+const BODY = new THREE.MeshPhongMaterial({ color: PAINTS.green, flatShading: true, shininess: 70, specular: 0x4a4a4a });
+function buildCar(paintMat) {
+  // a low-poly grand tourer after the Aston Martin DB9: long bonnet, cab set well back, a fastback roof that
+  // runs down into a short ducktail, a wide grille and swept headlamps (no badges). Built from a side profile
+  // extruded across the car's width, with soft bevelled edges, in the same flat-shaded style as the rest.
+  const g = new THREE.Group();
+  const extrudeAcross = (shape, width, bev, curve) => {
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: width - 2 * bev, bevelEnabled: true, bevelThickness: bev, bevelSize: bev * 0.7, bevelSegments: 2, curveSegments: curve || 6 });
+    geo.rotateY(-Math.PI / 2); geo.translate((width - 2 * bev) / 2, 0, 0);   // profile x -> forward z, extrusion -> across
+    geo.computeVertexNormals(); return geo;
+  };
+  // lower body: nose, long bonnet, beltline, ducktail, with arches over the wheels (shape x = forward)
+  const WB = [1.42, -1.3], WR = 0.36;
+  const lower = new THREE.Shape();
+  lower.moveTo(2.28, 0.22); lower.lineTo(2.42, 0.42); lower.lineTo(2.38, 0.6); lower.lineTo(2.18, 0.72);
+  lower.lineTo(1.3, 0.83); lower.lineTo(0.6, 0.92); lower.lineTo(-1.6, 0.98); lower.lineTo(-2.2, 0.97);
+  lower.lineTo(-2.36, 0.86); lower.lineTo(-2.36, 0.52); lower.lineTo(-2.22, 0.22);
+  lower.lineTo(WB[1] - 0.47, 0.22); lower.absarc(WB[1], WR, 0.47, Math.PI, 0, true); lower.lineTo(WB[1] + 0.47, 0.22);
+  lower.lineTo(WB[0] - 0.47, 0.22); lower.absarc(WB[0], WR, 0.47, Math.PI, 0, true); lower.lineTo(WB[0] + 0.47, 0.22);
+  lower.closePath();
+  const body = new THREE.Mesh(extrudeAcross(lower, 1.9, 0.13), paintMat); body.castShadow = true; body.receiveShadow = true; g.add(body);
+  // the cabin: steep windscreen, short roof, long sloping rear window (painted; the glass goes on top)
+  const cab = new THREE.Shape();
+  cab.moveTo(0.62, 0.86); cab.lineTo(-0.28, 1.25); cab.lineTo(-0.95, 1.28); cab.lineTo(-1.95, 0.95); cab.lineTo(-1.95, 0.86); cab.closePath();
+  const cabin = new THREE.Mesh(extrudeAcross(cab, 1.5, 0.08, 2), paintMat); cabin.castShadow = true; g.add(cabin);
+  // glass, lamps, grille and trim, baked into one vertex-coloured mesh
+  const B = new Bake(5), glass = 0x45606c, chrome = 0xe6e2da, dark = 0x34383a;
+  const quad = (pts, color) => {   // a flat four-sided pane from four [x, y, z] corners
+    const geo = new THREE.BufferGeometry(), v = [...pts[0], ...pts[1], ...pts[2], ...pts[0], ...pts[2], ...pts[3]];
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(v, 3)); B.add(geo, color, mat4(), 0.02);
+  };
+  const lift = (z, y, nz, ny, d) => [z + nz * d, y + ny * d];
+  { // windscreen and rear window, a hair above the cabin's slopes
+    const ws = [[0.62, 0.86], [-0.28, 1.25]], wn = [0.4, 0.92];
+    const [z0, y0] = lift(0.52, 0.93, wn[0], wn[1], 0.05), [z1, y1] = lift(-0.22, 1.24, wn[0], wn[1], 0.05);
+    quad([[-0.62, y0, z0], [0.62, y0, z0], [0.56, y1, z1], [-0.56, y1, z1]], glass);
+    const rn = [-0.31, 0.95], [r0z, r0y] = lift(-1.02, 1.27, rn[0], rn[1], 0.05), [r1z, r1y] = lift(-1.78, 1.02, rn[0], rn[1], 0.05);
+    quad([[-0.56, r0y, r0z], [0.56, r0y, r0z], [0.64, r1y, r1z], [-0.64, r1y, r1z]], glass);
   }
-  const shell = new THREE.Mesh(new THREE.BufferGeometry(), DECO);
-  const d = B.done(); shell.geometry.setAttribute("position", new THREE.Float32BufferAttribute(d.p, 3)); shell.geometry.setAttribute("color", new THREE.Float32BufferAttribute(d.c, 3));
-  shell.castShadow = true; shell.receiveShadow = true; g.add(shell);
-  const wheels = [], tyreG = new THREE.CylinderGeometry(0.46, 0.46, 0.4, 12).rotateZ(Math.PI / 2), hubG = new THREE.CylinderGeometry(0.22, 0.22, 0.42, 8).rotateZ(Math.PI / 2);
-  const tyreM = new THREE.MeshPhongMaterial({ color: 0x4a4644, flatShading: true, shininess: 4 }), hubM = new THREE.MeshPhongMaterial({ color: 0xf2ead8, flatShading: true, shininess: 20 });
-  for (const [x, z] of [[0.98, 1.25], [-0.98, 1.25], [0.98, -1.25], [-0.98, -1.25]]) {
-    const w = new THREE.Group(); w.position.set(x, 0.46, z);
-    const t = new THREE.Mesh(tyreG, tyreM), h = new THREE.Mesh(hubG, hubM); t.castShadow = true; w.add(t, h);
-    g.add(w); wheels.push(w);
+  for (const sx of [-1, 1]) {
+    const x = sx * 0.79;
+    // side windows: the DB9's long, tapering daylight opening
+    const sw = new THREE.Shape(); sw.moveTo(0.42, 1.0); sw.lineTo(-0.22, 1.22); sw.lineTo(-0.95, 1.25); sw.lineTo(-1.62, 1.0); sw.closePath();
+    const sg = new THREE.ShapeGeometry(sw); sg.rotateY(-Math.PI / 2); B.add(sg, glass, mat4(x, 0, 0), 0.02);
+    // swept headlamps on the front corners, round tail lamps under the ducktail, the little side strake
+    B.add(new THREE.SphereGeometry(0.22, 7, 4).scale(1.1, 0.4, 1.5), 0xfff6dc, mat4(sx * 0.66, 0.79, 2.2, 0.12, sx * 0.35), 0.02);
+    B.add(new THREE.SphereGeometry(0.12, 7, 4).scale(1.7, 0.8, 0.5), 0xd9503c, mat4(sx * 0.6, 0.8, -2.46), 0.02);
+    B.box(chrome, 0.03, 0.05, 0.42, sx * 0.955, 0.66, 0.68, 0, 0.01);
+    B.box(chrome, 0.03, 0.035, 0.22, sx * 0.955, 0.59, 0.68, 0, 0.01);
+    // door mirrors
+    B.box(dark, 0.18, 0.1, 0.12, sx * 0.93, 1.0, 0.28, 0, 0.02);
+  }
+  // the wide grille: a dark trapezoid in a chrome frame, with a few horizontal slats
+  const gr = (w0, w1, y0, y1, z, color) => quad([[-w0, y0, z], [w0, y0, z], [w1, y1, z], [-w1, y1, z]], color);
+  gr(0.42, 0.5, 0.3, 0.56, 2.53, chrome); gr(0.37, 0.45, 0.33, 0.53, 2.535, dark);
+  for (let k = 0; k < 3; k++) { const y = 0.37 + k * 0.055; gr(0.38 + k * 0.012, 0.38 + k * 0.012 + 0.005, y, y + 0.012, 2.54, 0x8c8a86); }
+  // exhausts and a dark diffuser at the back
+  for (const sx of [-1, 1]) B.add(new THREE.CylinderGeometry(0.055, 0.055, 0.12, 8).rotateX(Math.PI / 2), chrome, mat4(sx * 0.52, 0.3, -2.45), 0.01);
+  B.box(dark, 1.3, 0.1, 0.12, 0, 0.27, -2.4, 0, 0.02);
+  const trim = new THREE.Mesh(new THREE.BufferGeometry(), DECO);
+  const d = B.done(); trim.geometry.setAttribute("position", new THREE.Float32BufferAttribute(d.p, 3)); trim.geometry.setAttribute("color", new THREE.Float32BufferAttribute(d.c, 3));
+  trim.castShadow = true; g.add(trim);
+  // low-profile tyres on five-spoke alloys
+  const wheels = [], tyreG = new THREE.CylinderGeometry(WR, WR, 0.3, 14).rotateZ(Math.PI / 2), rimG = new THREE.CylinderGeometry(0.25, 0.25, 0.31, 10).rotateZ(Math.PI / 2);
+  const spokeG = new THREE.BoxGeometry(0.32, 0.05, 0.42);
+  const tyreM = new THREE.MeshPhongMaterial({ color: 0x3c3a39, flatShading: true, shininess: 4 }), rimM = new THREE.MeshPhongMaterial({ color: 0xd9dbdd, flatShading: true, shininess: 60, specular: 0x666666 });
+  const spokeM = new THREE.MeshPhongMaterial({ color: 0xb9bcc0, flatShading: true, shininess: 40 });
+  for (const [x, z] of [[0.81, WB[0]], [-0.81, WB[0]], [0.81, WB[1]], [-0.81, WB[1]]]) {
+    const w = new THREE.Group(); w.position.set(x, WR, z);
+    const t = new THREE.Mesh(tyreG, tyreM), r = new THREE.Mesh(rimG, rimM); t.castShadow = true;
+    const spin = new THREE.Group(); spin.add(t, r);
+    for (let k = 0; k < 5; k++) { const sp = new THREE.Mesh(spokeG, spokeM); sp.scale.set(1, 1, 0.5); sp.rotation.x = (k / 5) * Math.PI * 2; spin.add(sp); }
+    w.add(spin); g.add(w); wheels.push(w);
   }
   g.userData.wheels = wheels;
-  scene.add(g); return g;
-})();
+  return g;
+}
+const carMesh = buildCar(BODY); scene.add(carMesh);
+let myPaint = "green";
+document.querySelectorAll("#paints button").forEach((b) => b.addEventListener("click", () => {
+  BODY.color.setHex(PAINTS[b.dataset.paint]); myPaint = b.dataset.paint; netAnnounce();
+  document.querySelectorAll("#paints button").forEach((x) => x.classList.toggle("on", x === b));
+}));
 
 // The whole car state in one small plain object, changed only in drive().
 // Multiplayer will later broadcast exactly this (Azure Web PubSub, or the Supabase project's realtime channels).
@@ -657,7 +727,7 @@ function startPos() {
 
 function heightAt(x, z) {
   const segs = segsNear(x, z), g = groundAt(segs, x, z);
-  return { h: g.d < 0.3 ? roadSurf(x, z) : g.h, d: g.d };
+  return { h: g.d < 0.3 ? roadSurf(g.px, g.pz) : g.h, d: g.d };
 }
 
 // arcade physics: engine and brakes along the car, grip across it, the steering sets the yaw rate
@@ -665,20 +735,20 @@ function drive(dt) {
   const fx = Math.sin(car.heading), fz = Math.cos(car.heading);
   let vf = car.vx * fx + car.vz * fz;
   const here = heightAt(car.x, car.z), onRoad = here.d < 0.4;
-  const vmax = onRoad ? 30 : 13, acc = onRoad ? 5.2 : 3.8;   // about 108 km/h on the road
+  const vmax = onRoad ? 95 : 30, acc = onRoad ? 7.2 : 4;   // DB9-ish: 0-100 km/h in ~4.5 s, about 290 km/h flat out
   const v0 = vf;
-  if (input.thr > 0) { if (vf < -0.5) vf += 15 * input.thr * dt; else vf += acc * input.thr * Math.max(0, 1 - vf / vmax) * dt; }
-  if (input.brk > 0) { if (vf > 0.5) vf -= 17 * input.brk * dt; else vf -= 4.5 * input.brk * Math.max(0, 1 + vf / 9) * dt; }
+  if (input.thr > 0) { if (vf < -0.5) vf += 15 * input.thr * dt; else vf += acc * input.thr * Math.max(0, 1 - (vf / vmax) ** 2) * dt; }
+  if (input.brk > 0) { if (vf > 0.5) vf -= 13 * input.brk * dt; else vf -= 4.5 * input.brk * Math.max(0, 1 + vf / 9) * dt; }
   if (input.hb) vf -= Math.sign(vf) * Math.min(Math.abs(vf), 5 * dt);
-  const drag = (onRoad ? 0.15 : 0.9) + 0.0009 * vf * vf + (onRoad ? 0 : 0.05 * Math.abs(vf));
+  const drag = (onRoad ? 0.15 : 0.9) + (onRoad ? 0.0003 : 0.0009) * vf * vf + (onRoad ? 0 : 0.05 * Math.abs(vf));
   vf -= Math.sign(vf) * Math.min(Math.abs(vf), drag * dt);
   vf -= 9.81 * Math.sin(car.pitch) * dt;                       // hills pull you back, or along
   car.vx += fx * (vf - v0); car.vz += fz * (vf - v0);
-  // steering: the wheel asks for a turn rate, never more than about 40 degrees a second, and less at speed
-  // (sideways pull capped near 0.65 g), and the car eases into it, so a turn rolls in instead of snapping
+  // steering: the wheel asks for a turn rate, never more than about 45 degrees a second, and less at speed
+  // (sideways pull capped near 0.95 g, sports-car grip), and the car eases into it, so turns roll in smoothly
   const vabs = Math.abs(vf), dirv = vf < 0 ? -1 : 1;
-  const maxYaw = Math.min(0.7, vabs / 5, 6.5 / Math.max(vabs, 1)) * (input.hb ? 1.5 : 1);
-  car.yaw += (input.steer * maxYaw * (vabs < 0.3 ? 0 : dirv) - car.yaw) * Math.min(1, dt * 2.6);
+  const maxYaw = Math.min(0.8, vabs / 5, 9.3 / Math.max(vabs, 1)) * (input.hb ? 1.5 : 1);
+  car.yaw += (input.steer * maxYaw * (vabs < 0.3 ? 0 : dirv) - car.yaw) * Math.min(1, dt * 3.4);
   car.heading += car.yaw * dt;
   car.steer = clamp(Math.atan((car.yaw * 2.65) / (dirv * Math.max(2, vabs))), -0.6, 0.6);   // front wheel angle, for show
   // grip: kill the sideways part of the velocity in the new heading (slowly on the handbrake, so it drifts)
@@ -734,7 +804,7 @@ function placeCamera(dt, snap) {
   const v = VIEWS[view];
   let px, py, pz, lx, ly, lz;
   if (v === "chase") {
-    const back = 10.5 + Math.min(4, Math.abs(car.speed) * 0.07);
+    const back = 9.5 + Math.min(5, Math.abs(car.speed) * 0.06);
     px = car.x - fx * back; pz = car.z - fz * back;
     py = Math.max(car.y + 4.2, heightAt(px, pz).h + 1.8);
     lx = car.x + fx * 5; ly = car.y + 1.2; lz = car.z + fz * 5;
@@ -749,12 +819,14 @@ function placeCamera(dt, snap) {
   camPos.lerp(_p.set(px, py, pz), k);
   camLook.lerp(_s.set(lx, ly, lz), snap ? 1 : 1 - Math.exp(-dt * 5));
   camera.position.copy(camPos); camera.lookAt(camLook);
+  const fov = 50 + Math.min(20, Math.max(0, Math.abs(car.speed) - 15) * 0.3);
+  if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * (snap ? 1 : Math.min(1, dt * 2)); camera.updateProjectionMatrix(); }
 }
 function updateCarMesh(dt) {
   carMesh.position.set(car.x, car.y, car.z);
   carMesh.rotation.set(-car.pitch, car.heading, car.roll, "YXZ");
-  const w = carMesh.userData.wheels, spin = (car.speed / 0.46) * dt;
-  w.forEach((wh, i) => { wh.children[0].rotation.x += spin; wh.children[1].rotation.x += spin; if (i < 2) wh.rotation.y = car.steer; });
+  const w = carMesh.userData.wheels, spin = (car.speed / 0.36) * dt;
+  w.forEach((wh, i) => { wh.children[0].rotation.x += spin; if (i < 2) wh.rotation.y = car.steer; });
   carMesh.visible = VIEWS[view] !== "bonnet";
 }
 
@@ -783,7 +855,7 @@ function placeClouds(t) {
 const REDUCE = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const keys = new Set(), touch = { l: false, r: false, gas: false, brk: false, hb: false };
 addEventListener("keydown", (e) => {
-  if (e.target.tagName === "INPUT") return;
+  if (e.target.tagName === "INPUT") return;   // typing a name does not drive
   const k = e.key.toLowerCase();
   if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) e.preventDefault();
   if (e.repeat) { keys.add(k); return; }
@@ -798,10 +870,10 @@ function readInput(dt) {
   const up = keys.has("w") || keys.has("arrowup") || touch.gas, down = keys.has("s") || keys.has("arrowdown") || touch.brk;
   const left = keys.has("a") || keys.has("arrowleft") || touch.l, right = keys.has("d") || keys.has("arrowright") || touch.r;
   // throttle eases in so a tap is gentle; steering eases too, faster back to centre
-  input.thr += ((up ? 1 : 0) - input.thr) * Math.min(1, dt * 3);
+  input.thr += ((up ? 1 : 0) - input.thr) * Math.min(1, dt * 4);
   input.brk = down ? 1 : 0;
   const target = (left ? 1 : 0) - (right ? 1 : 0);
-  input.steer += (target - input.steer) * Math.min(1, dt * (target ? 2.2 : 3.2));
+  input.steer += (target - input.steer) * Math.min(1, dt * (target ? 3 : 4));
   input.hb = keys.has(" ") || touch.hb;
 }
 for (const [id, k] of [["tLeft", "l"], ["tRight", "r"], ["tGas", "gas"], ["tBrake", "brk"], ["tHb", "hb"]]) {
@@ -868,7 +940,19 @@ function drawHud() {
     if (!isVillage(i, j)) continue;
     const [x, z] = node(i, j), q = mp(x, z); hc.beginPath(); hc.arc(q[0], q[1], 3.2, 0, Math.PI * 2); hc.fillStyle = "rgba(224,150,110,.95)"; hc.fill();
   }
+  for (const p of net.peers.values()) {
+    if (!p.s || Math.hypot(p.x - car.x, p.z - car.z) > range * 1.1) continue;
+    const q = mp(p.x, p.z); hc.beginPath(); hc.arc(q[0], q[1], 4, 0, Math.PI * 2);
+    hc.fillStyle = "#" + (PAINTS[p.paint] || PAINTS.silver).toString(16).padStart(6, "0"); hc.fill();
+    hc.lineWidth = 1.5; hc.strokeStyle = "rgba(255,255,255,.9)"; hc.stroke();
+  }
   hc.restore();
+  if (net.status === "online") {
+    const n = net.peers.size;
+    hc.textAlign = "center"; hc.font = "11px JetBrains Mono, monospace"; hc.fillStyle = "rgba(255,255,255,.85)"; hc.shadowBlur = 4;
+    hc.fillText(n ? `${n} other driver${n === 1 ? "" : "s"} online` : "online", mx, isT ? my + R + 16 : my - R - 8);
+    hc.shadowBlur = 0;
+  }
   hc.beginPath(); hc.moveTo(mx, my - 7); hc.lineTo(mx + 5, my + 5); hc.lineTo(mx, my + 2); hc.lineTo(mx - 5, my + 5); hc.closePath();
   hc.fillStyle = col; hc.fill();
   hc.beginPath(); hc.arc(mx, my, R, 0, Math.PI * 2); hc.strokeStyle = "rgba(255,255,255,.25)"; hc.lineWidth = 1; hc.stroke();
@@ -889,14 +973,132 @@ const camBtn = document.getElementById("camBtn");
 function cycleView() { view = (view + 1) % VIEWS.length; camBtn.textContent = VIEWS[view]; placeCamera(0, true); }
 camBtn.onclick = () => cycleView();
 document.getElementById("resetBtn").onclick = () => placeOnRoad(car.x, car.z);
-const seedInfo = document.getElementById("seedInfo");
-function showSeed() { seedInfo.textContent = `World #${SEED}. Every number is a different, endless country.`; }
-document.getElementById("seedBtn").onclick = () => {
-  SEED = 1 + Math.floor(Math.random() * 99999); N1 = makeNoise(SEED);
-  clearWorld(); startPos(); stream(car.x, car.z, false); placeCamera(0, true); car.dist = 0; showSeed();
-  try { history.replaceState(null, "", "?seed=" + SEED); } catch (e) {}
-};
 document.querySelectorAll(".panel button").forEach((b) => b.addEventListener("click", () => b.blur()));
+
+// ===================================================================
+//  multiplayer: everyone on this page drives in the same world, over a Supabase realtime channel
+// ===================================================================
+// Each driver broadcasts their car (position, heading, speed, paint, name) about six times a second while
+// moving and every two seconds while parked; presence says who is here and notices when someone leaves.
+// Other cars are ghosts (no collisions), smoothed and extrapolated between updates. Nothing is stored.
+// The channel is public: anything received is checked and clamped before it is used, names are drawn
+// as text on a canvas, never inserted as markup.
+const SUPABASE_URL = "https://wemzarbrguakuubrvnup.supabase.co";
+const SUPABASE_KEY = "sb_publishable_4SEdchJwygPY8b-BCyJxjw_eatXLJ68";   // the flight sim's public key; realtime broadcast only
+const cleanName = (v) => String(v == null ? "" : v).replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮]/g, "").trim().slice(0, 20);
+const net = { client: null, ch: null, id: Math.random().toString(36).slice(2, 10), name: "", status: "offline", peers: new Map(), sendT: 0, sent: "" };
+try { net.name = cleanName(localStorage.getItem("driveName")); } catch (e) {}
+if (!net.name) net.name = "Driver " + (100 + Math.floor(Math.random() * 900));
+const nameIn = document.getElementById("nameIn"), netInfo = document.getElementById("netInfo");
+nameIn.value = net.name;
+nameIn.addEventListener("change", () => {
+  net.name = cleanName(nameIn.value) || net.name; nameIn.value = net.name;
+  try { localStorage.setItem("driveName", net.name); } catch (e) {}
+  netAnnounce(); nameIn.blur();
+});
+nameIn.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") nameIn.blur(); });
+
+function netUi() {
+  if (net.status !== "online") { netInfo.textContent = net.status === "connecting" ? "Connecting…" : "Offline: you are driving alone."; return; }
+  const others = [...net.peers.values()].map((p) => p.name);
+  netInfo.textContent = others.length ? `Online with ${others.length}: ${others.join(", ")}.` : "Online. Nobody else is driving right now; share the link!";
+}
+function netAnnounce() {   // name or paint changed: tell everyone now
+  if (!net.ch || net.status !== "online") return;
+  net.ch.track({ name: net.name, paint: myPaint }).catch(() => {});
+  net.sent = ""; net.sendT = 99;
+}
+const num = (v, lim) => (typeof v === "number" && isFinite(v) && Math.abs(v) <= lim ? v : null);
+function labelSprite(text) {
+  const c = document.createElement("canvas"); c.width = 256; c.height = 64;
+  const g = c.getContext("2d"); g.font = "600 30px Public Sans, Arial, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+  const w = Math.min(248, g.measureText(text).width + 34);
+  g.fillStyle = "rgba(20,22,26,.62)"; g.beginPath(); g.roundRect ? g.roundRect(128 - w / 2, 8, w, 48, 24) : g.rect(128 - w / 2, 8, w, 48); g.fill();
+  g.fillStyle = "#fff"; g.fillText(text, 128, 33);
+  const tex = new THREE.CanvasTexture(c); tex.anisotropy = 4;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  sp.scale.set(4.4, 1.1, 1); return sp;
+}
+function peerOf(id) {
+  let p = net.peers.get(id);
+  if (p) return p;
+  const mat = new THREE.MeshPhongMaterial({ color: PAINTS.silver, flatShading: true, shininess: 70, specular: 0x4a4a4a });
+  const mesh = buildCar(mat); scene.add(mesh);
+  p = { id, name: "", paint: "", mat, mesh, label: null, s: null, t: 0, x: 0, y: 0, z: 0, h: 0, fresh: true };
+  net.peers.set(id, p); return p;
+}
+function setPeerLook(p, name, paint) {
+  name = cleanName(name) || "Driver";
+  if (name !== p.name) { p.name = name; if (p.label) { p.mesh.remove(p.label); p.label.material.map.dispose(); p.label.material.dispose(); } p.label = labelSprite(name); p.label.position.set(0, 2.5, 0); p.mesh.add(p.label); netUi(); }
+  if (PAINTS[paint] && paint !== p.paint) { p.paint = paint; p.mat.color.setHex(PAINTS[paint]); }
+}
+function dropPeer(id) {
+  const p = net.peers.get(id); if (!p) return;
+  scene.remove(p.mesh); if (p.label) { p.label.material.map.dispose(); p.label.material.dispose(); } p.mat.dispose();
+  p.mesh.traverse((o) => { if (o.geometry && o !== p.label) o.geometry.dispose(); });
+  net.peers.delete(id); netUi();
+}
+function onCar(m) {
+  if (!m || typeof m.id !== "string" || m.id.length > 16 || m.id === net.id) return;
+  const x = num(m.x, 1e7), z = num(m.z, 1e7), y = num(m.y, 1e4), h = num(m.h, 1e3), v = num(m.v, 200);
+  if (x === null || z === null || y === null || h === null || v === null) return;
+  const p = peerOf(m.id);
+  setPeerLook(p, m.n, m.p);
+  p.s = { x, y, z, h, v, pi: num(m.pi, 2) || 0, ro: num(m.ro, 2) || 0 }; p.t = performance.now();
+  if (p.fresh) { p.x = x; p.y = y; p.z = z; p.h = h; p.fresh = false; }
+}
+function onPresence() {
+  const st = net.ch.presenceState(), here = new Set();
+  for (const key in st) {
+    here.add(key);
+    const meta = st[key] && st[key][0];
+    if (key !== net.id && meta && net.peers.has(key)) setPeerLook(net.peers.get(key), meta.name, meta.paint);
+  }
+  for (const id of [...net.peers.keys()]) if (!here.has(id)) dropPeer(id);
+  netUi();
+}
+function netConnect() {
+  if (THUMB || typeof supabase === "undefined" || !supabase.createClient) { net.status = "offline"; netUi(); return; }
+  net.status = "connecting"; netUi();
+  try {
+    net.client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false, autoRefreshToken: false }, realtime: { params: { eventsPerSecond: 10 } } });
+    net.ch = net.client.channel("drive-world-" + SEED, { config: { broadcast: { self: false }, presence: { key: net.id } } });
+    net.ch.on("broadcast", { event: "car" }, (msg) => onCar(msg && msg.payload));
+    net.ch.on("presence", { event: "sync" }, onPresence);
+    net.ch.subscribe((status) => {
+      if (status === "SUBSCRIBED") { net.status = "online"; netAnnounce(); }
+      else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") net.status = "offline";
+      netUi();
+    });
+  } catch (e) { console.warn("multiplayer unavailable", e); net.status = "offline"; netUi(); }
+}
+function netTick(dt) {
+  const now = performance.now();
+  // other cars: glide towards where their last update says they are by now
+  const k = 1 - Math.exp(-dt * 8);
+  for (const p of [...net.peers.values()]) {
+    if (!p.s) continue;
+    if (now - p.t > 12000) { dropPeer(p.id); continue; }   // gone quiet: probably closed the tab
+    const age = Math.min(0.6, (now - p.t) / 1000), tx = p.s.x + Math.sin(p.s.h) * p.s.v * age, tz = p.s.z + Math.cos(p.s.h) * p.s.v * age;
+    if (Math.hypot(tx - p.x, tz - p.z) > 60) { p.x = tx; p.z = tz; p.h = p.s.h; }   // teleported (back to the road): snap
+    p.x += (tx - p.x) * k; p.z += (tz - p.z) * k; p.y += (p.s.y - p.y) * k;
+    p.h += Math.atan2(Math.sin(p.s.h - p.h), Math.cos(p.s.h - p.h)) * k;
+    p.mesh.position.set(p.x, p.y, p.z); p.mesh.rotation.set(-p.s.pi, p.h, p.s.ro, "YXZ");
+    p.mesh.userData.wheels.forEach((wh) => { wh.children[0].rotation.x += (p.s.v / 0.36) * dt; });
+    p.mesh.visible = Math.hypot(p.x - car.x, p.z - car.z) < 2500;
+  }
+  // my car: about six updates a second while moving, one every two seconds while parked, none while hidden
+  if (net.status !== "online" || document.hidden) return;
+  net.sendT += dt;
+  const moving = Math.abs(car.speed) > 0.3 || Math.abs(car.yaw) > 0.01;
+  if (net.sendT < (moving ? 0.16 : 2)) return;
+  const m = { id: net.id, n: net.name, p: myPaint, x: Math.round(car.x * 10) / 10, y: Math.round(car.y * 100) / 100, z: Math.round(car.z * 10) / 10,
+              h: Math.round(car.heading * 1000) / 1000, v: Math.round(car.speed * 10) / 10, pi: Math.round(car.pitch * 1000) / 1000, ro: Math.round(car.roll * 1000) / 1000 };
+  const key = JSON.stringify(m);
+  if (key === net.sent && net.sendT < 2) return;
+  net.sendT = 0; net.sent = key;
+  net.ch.send({ type: "broadcast", event: "car", payload: m }).catch(() => {});
+}
 
 // ===================================================================
 //  main loop
@@ -910,6 +1112,7 @@ function frame(t) {
     drive(dt / 2); drive(dt / 2);
     stream(car.x, car.z, false);
     placeCamera(dt, false);
+    netTick(dt);
   }
   updateCarMesh(THUMB ? 0 : dt);
   placeClouds(THUMB ? 0 : clock);
@@ -923,15 +1126,19 @@ function frame(t) {
 }
 
 resize();
-showSeed();
 startPos();
 stream(car.x, car.z, true);
 if (THUMB) {
   // a tidy, still first frame for the homepage: a little way along the road, chase camera
   for (let i = 0; i < 90; i++) { input.thr = 1; drive(1 / 60); }
   car.dist = 0; placeCamera(0, true); updateCarMesh(0);
+  // a three-quarter view from the front, so the picture shows off the car
+  const ang = car.heading + 0.62, fx = Math.sin(ang), fz = Math.cos(ang);
+  camera.position.set(car.x + fx * 8.5, car.y + 2.1, car.z + fz * 8.5); camera.lookAt(car.x - Math.sin(car.heading) * 0.8, car.y + 0.55, car.z - Math.cos(car.heading) * 0.8);
+  camera.fov = 42; camera.updateProjectionMatrix();
 } else placeCamera(0, true);
 requestAnimationFrame(frame);
+netConnect();
 </script>
 <script>/* links to other websites open in a new tab */ document.querySelectorAll("a[href]").forEach((a) => { if (/^https?:$/.test(a.protocol) && a.origin !== location.origin) { a.target = "_blank"; a.rel = "noopener noreferrer"; } });</script>
 </body>
