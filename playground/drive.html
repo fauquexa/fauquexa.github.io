@@ -38,6 +38,23 @@
   .tc #tGas { height: 96px; }
   .tc #tHb { width: 56px; height: 56px; font-size: 11px; letter-spacing: .04em; }
   body.touch #hud { bottom: 0; }
+  /* races: an invite at the top, results in the middle */
+  .race-card {
+    position: fixed; left: 50%; transform: translateX(-50%); z-index: 13; width: min(92vw, 380px);
+    background: var(--panel); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    border: 1px solid var(--rule); border-radius: 12px; padding: 14px 16px; text-align: center;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .35);
+  }
+  .race-card[hidden] { display: none; }
+  #raceInvite { top: max(14px, env(safe-area-inset-top)); }
+  #raceInvite p { margin: 0 0 10px; font-size: 13.5px; line-height: 1.45; }
+  #raceInvite .row { justify-content: center; }
+  #raceResults { top: 22%; }
+  #raceResults h2 { font-family: var(--serif); font-weight: 500; font-size: 22px; margin: 0 0 8px; }
+  #raceResults ol { text-align: left; margin: 0 auto; padding-left: 1.6em; max-width: 280px; font-size: 13.5px; line-height: 1.7; }
+  #raceResults ol li span { float: right; font-family: var(--code); font-size: 12.5px; color: var(--soft); }
+  #raceResults ol li.me { color: var(--accent); }
+  #raceResults .hint { margin: 10px 0 0; }
 </style>
 </head>
 <body>
@@ -47,6 +64,16 @@
 <button class="fab" id="openPanel" hidden>☰ Menu</button>
 <div class="tc left"><button id="tLeft" aria-label="Steer left">◀</button><button id="tRight" aria-label="Steer right">▶</button></div>
 <div class="tc right"><button id="tHb" aria-label="Handbrake">DRIFT</button><button id="tBrake" aria-label="Brake and reverse">▼</button><button id="tGas" aria-label="Accelerate">▲</button></div>
+
+<div class="race-card" id="raceInvite" role="dialog" aria-live="polite" hidden>
+  <p id="raceInviteText"></p>
+  <div class="row"><button id="raceJoin" class="on">join race (J)</button><button id="raceDecline">no thanks</button></div>
+</div>
+<div class="race-card" id="raceResults" role="dialog" aria-live="polite" hidden>
+  <h2>Race results</h2>
+  <ol id="raceList"></ol>
+  <p class="hint" id="raceResultsNote"></p>
+</div>
 
 <div class="panel" id="panel">
   <button class="close" id="closePanel" aria-label="Close settings" title="Close (H)">✕</button>
@@ -71,6 +98,14 @@
   <label>online</label>
   <input type="text" id="nameIn" maxlength="20" autocomplete="off" spellcheck="false" aria-label="Your name, shown above your car" placeholder="Your name">
   <p class="hint" id="netInfo" style="margin:8px 0 0">Connecting…</p>
+  <div id="raceBox" hidden>
+    <label>race</label>
+    <div class="row">
+      <button id="raceShort">sprint · 1.3 km</button>
+      <button id="raceLong">long · 3.3 km</button>
+    </div>
+    <p class="hint" id="raceHint" style="margin:8px 0 0">Races run along the road you are on, junction to junction. Everyone online gets an invite.</p>
+  </div>
 
   <div class="keys">
     <span><kbd>W</kbd> <kbd>↑</kbd></span><span>accelerate</span>
@@ -692,6 +727,10 @@ document.querySelectorAll("#paints button").forEach((b) => b.addEventListener("c
   BODY.color.setHex(PAINTS[b.dataset.paint]); myPaint = b.dataset.paint; netAnnounce();
   document.querySelectorAll("#paints button").forEach((x) => x.classList.toggle("on", x === b));
 }));
+// a random paint each time you drive in (the homepage picture stays green)
+{ const k = THUMB ? "green" : Object.keys(PAINTS)[Math.floor(Math.random() * Object.keys(PAINTS).length)];
+  BODY.color.setHex(PAINTS[k]); myPaint = k;
+  document.querySelectorAll("#paints button").forEach((x) => x.classList.toggle("on", x.dataset.paint === k)); }
 
 // The whole car state in one small plain object, changed only in drive().
 // Multiplayer will later broadcast exactly this (Azure Web PubSub, or the Supabase project's realtime channels).
@@ -863,6 +902,7 @@ addEventListener("keydown", (e) => {
   if (k === "c") cycleView();
   if (k === "r") placeOnRoad(car.x, car.z);
   if (k === "h") setPanel(panel.classList.contains("hidden"));
+  if (k === "j" && race && !race.me && !raceInvite.hidden) joinRace();
 });
 addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
 addEventListener("blur", () => keys.clear());
@@ -946,7 +986,17 @@ function drawHud() {
     hc.fillStyle = "#" + (PAINTS[p.paint] || PAINTS.silver).toString(16).padStart(6, "0"); hc.fill();
     hc.lineWidth = 1.5; hc.strokeStyle = "rgba(255,255,255,.9)"; hc.stroke();
   }
+  if (race && race.course) {   // the course in gold, the next gate as a ring
+    const c = race.course; hc.beginPath();
+    c.pts.forEach((pp, q) => { const v = mp(pp[0], pp[1]); q ? hc.lineTo(v[0], v[1]) : hc.moveTo(v[0], v[1]); });
+    hc.strokeStyle = "rgba(224,179,90,.95)"; hc.lineWidth = 3; hc.stroke();
+    if (race.me && race.myTime === null && race.next < c.nodes.length) {
+      const g = c.pts[c.nodes[race.next]], v = mp(g[0], g[1]);
+      hc.beginPath(); hc.arc(v[0], v[1], 6, 0, Math.PI * 2); hc.strokeStyle = "#fff"; hc.lineWidth = 2; hc.stroke();
+    }
+  }
   hc.restore();
+  if (race && race.me) drawRaceHud(isT);
   if (net.status === "online") {
     const n = net.peers.size;
     hc.textAlign = "center"; hc.font = "11px JetBrains Mono, monospace"; hc.fillStyle = "rgba(255,255,255,.85)"; hc.shadowBlur = 4;
@@ -956,6 +1006,33 @@ function drawHud() {
   hc.beginPath(); hc.moveTo(mx, my - 7); hc.lineTo(mx + 5, my + 5); hc.lineTo(mx, my + 2); hc.lineTo(mx - 5, my + 5); hc.closePath();
   hc.fillStyle = col; hc.fill();
   hc.beginPath(); hc.arc(mx, my, R, 0, Math.PI * 2); hc.strokeStyle = "rgba(255,255,255,.25)"; hc.lineWidth = 1; hc.stroke();
+}
+
+function drawRaceHud(isT) {
+  const now = performance.now(), toGo = race.startAt - now;
+  hc.textAlign = "center"; hc.shadowColor = "rgba(0,0,0,.55)"; hc.shadowBlur = 8;
+  if (race.state === "invite") {
+    const n = Math.ceil(toGo / 1000);
+    hc.fillStyle = n <= 3 ? "#e0b35a" : "#fff"; hc.font = `600 ${n <= 3 ? 96 : 40}px Public Sans, Arial`;
+    hc.fillText(n <= 3 ? String(n) : `Race starts in ${n}`, W / 2, H * 0.32);
+    hc.font = "13px JetBrains Mono, monospace"; hc.fillStyle = "rgba(255,255,255,.9)";
+    hc.fillText(`${race.racers.size} on the grid · ${(race.course.len / 1000).toFixed(1)} km`, W / 2, H * 0.32 + 34);
+  } else if (race.state === "running") {
+    if (now - race.startAt < 1200) { hc.fillStyle = "#e0b35a"; hc.font = "700 110px Public Sans, Arial"; hc.fillText("GO!", W / 2, H * 0.34); }
+    const c = race.course, mine = race.myTime === null ? courseAt(c, car.x, car.z) : c.len;
+    let pos = 1, n = 0;
+    for (const [id, r] of race.racers) {
+      if (r.out) continue; n++;
+      if (id === net.id) continue;
+      const p = net.peers.get(id), their = r.ms !== null ? c.len + 1e6 - r.ms : p && p.s ? courseAt(c, p.x, p.z) : 0;
+      if (their > (race.myTime !== null ? c.len + 1e6 - race.myTime : mine)) pos++;
+    }
+    const t = race.myTime !== null ? race.myTime : now - race.startAt;
+    const line = race.myTime !== null ? `Finished P${pos} of ${n} · ${fmtTime(t)}` : `P${pos} of ${n} · ${fmtTime(t)} · ${Math.max(0, (c.len - mine) / 1000).toFixed(2)} km to go · gate ${Math.min(race.next, c.nodes.length - 1)}/${c.nodes.length - 1}`;
+    hc.font = "600 15px JetBrains Mono, monospace"; hc.fillStyle = "#fff";
+    hc.fillText(line, W / 2, isT ? 64 : 42);
+  }
+  hc.shadowBlur = 0;
 }
 
 // ===================================================================
@@ -999,6 +1076,7 @@ nameIn.addEventListener("change", () => {
 nameIn.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") nameIn.blur(); });
 
 function netUi() {
+  if (typeof raceUi === "function") raceUi();
   if (net.status !== "online") { netInfo.textContent = net.status === "connecting" ? "Connecting…" : "Offline: you are driving alone."; return; }
   const others = [...net.peers.values()].map((p) => p.name);
   netInfo.textContent = others.length ? `Online with ${others.length}: ${others.join(", ")}.` : "Online. Nobody else is driving right now; share the link!";
@@ -1025,7 +1103,7 @@ function peerOf(id) {
   const mat = new THREE.MeshPhongMaterial({ color: PAINTS.silver, flatShading: true, shininess: 70, specular: 0x4a4a4a });
   const mesh = buildCar(mat); scene.add(mesh);
   p = { id, name: "", paint: "", mat, mesh, label: null, s: null, t: 0, x: 0, y: 0, z: 0, h: 0, fresh: true };
-  net.peers.set(id, p); return p;
+  net.peers.set(id, p); raceUi(); return p;
 }
 function setPeerLook(p, name, paint) {
   name = cleanName(name) || "Driver";
@@ -1036,7 +1114,7 @@ function dropPeer(id) {
   const p = net.peers.get(id); if (!p) return;
   scene.remove(p.mesh); if (p.label) { p.label.material.map.dispose(); p.label.material.dispose(); } p.mat.dispose();
   p.mesh.traverse((o) => { if (o.geometry && o !== p.label) o.geometry.dispose(); });
-  net.peers.delete(id); netUi();
+  net.peers.delete(id); netUi(); raceUi(); raceOnLeave(id);
 }
 function onCar(m) {
   if (!m || typeof m.id !== "string" || m.id.length > 16 || m.id === net.id) return;
@@ -1065,6 +1143,9 @@ function netConnect() {
     net.ch = net.client.channel("drive-world-" + SEED, { config: { broadcast: { self: false }, presence: { key: net.id } } });
     net.ch.on("broadcast", { event: "car" }, (msg) => onCar(msg && msg.payload));
     net.ch.on("presence", { event: "sync" }, onPresence);
+    net.ch.on("broadcast", { event: "race" }, (msg) => onRace(msg && msg.payload, false));
+    net.ch.on("broadcast", { event: "join" }, (msg) => onJoin(msg && msg.payload));
+    net.ch.on("broadcast", { event: "finish" }, (msg) => onFinish(msg && msg.payload));
     net.ch.subscribe((status) => {
       if (status === "SUBSCRIBED") { net.status = "online"; netAnnounce(); }
       else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") net.status = "offline";
@@ -1101,6 +1182,198 @@ function netTick(dt) {
 }
 
 // ===================================================================
+//  races: whoever starts one is the host; the course follows the host's road, junction to junction
+// ===================================================================
+// The invite carries only a start junction, the road's direction and the number of legs, so every driver
+// builds the same course from the shared seed. Joiners are put on a grid behind the start arch and held
+// until GO; every junction on the way is a checkpoint gate that has to be passed in order; times are kept
+// locally from each driver's own GO, so the network delay does not count.
+const RACE = { countdown: 20000, gate: 16, afterFirst: 120000 };
+let race = null;
+const raceBox = document.getElementById("raceBox"), raceHint = document.getElementById("raceHint");
+const raceInvite = document.getElementById("raceInvite"), raceInviteText = document.getElementById("raceInviteText");
+const raceResults = document.getElementById("raceResults"), raceList = document.getElementById("raceList"), raceResultsNote = document.getElementById("raceResultsNote");
+const fmtTime = (ms) => { const t = Math.max(0, ms) / 1000, m = Math.floor(t / 60); return `${m}:${(t - m * 60).toFixed(1).padStart(4, "0")}`; };
+
+// the course: k legs along road line `dir` from junction (i, j), going up (s = 1) or down (s = -1) the lattice
+function buildCourse(i, j, dir, sgn, k) {
+  const pts = [], nodes = [];
+  for (let n = 0; n < k; n++) {
+    const ci = i + (dir === 0 ? sgn * n : 0), cj = j + (dir === 1 ? sgn * n : 0);
+    const e = sgn > 0 ? getEdge(ci, cj, dir) : getEdge(dir === 0 ? ci - 1 : ci, dir === 1 ? cj - 1 : cj, dir);
+    if (!e) return null;
+    const p = sgn > 0 ? e.pts : e.pts.slice().reverse();
+    nodes.push(pts.length ? pts.length - 1 : 0);
+    for (let q = pts.length ? 1 : 0; q < p.length; q++) pts.push(p[q]);
+  }
+  nodes.push(pts.length - 1);
+  const cum = [0];
+  for (let q = 1; q < pts.length; q++) cum.push(cum[q - 1] + Math.hypot(pts[q][0] - pts[q - 1][0], pts[q][1] - pts[q - 1][1]));
+  return { pts, cum, len: cum[cum.length - 1], nodes };   // nodes: indices into pts of the junctions (start ... finish)
+}
+// how far along the course a point is (metres), by its nearest course point
+function courseAt(c, x, z) {
+  let best = 1e18, q = 0;
+  for (let k = 0; k < c.pts.length; k++) { const d = (c.pts[k][0] - x) ** 2 + (c.pts[k][1] - z) ** 2; if (d < best) { best = d; q = k; } }
+  return c.cum[q];
+}
+const courseDir = (c, q) => { const a = c.pts[Math.max(0, q - 1)], b = c.pts[Math.min(c.pts.length - 1, q + 1)]; return Math.atan2(b[0] - a[0], b[1] - a[1]); };
+
+// gates: two posts and a banner across the road (checkered at the start and the finish)
+function bannerTex(kind) {
+  const cv = document.createElement("canvas"); cv.width = 256; cv.height = 32; const g = cv.getContext("2d");
+  if (kind === "check") { for (let y = 0; y < 2; y++) for (let x = 0; x < 16; x++) { g.fillStyle = (x + y) % 2 ? "#26282c" : "#f7f3ea"; g.fillRect(x * 16, y * 16, 16, 16); } }
+  else { g.fillStyle = "#e0b35a"; g.fillRect(0, 0, 256, 32); g.fillStyle = "#fff8e8"; g.font = "bold 20px Public Sans, Arial"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("CHECKPOINT", 128, 17); }
+  const t = new THREE.CanvasTexture(cv); return t;
+}
+function buildGate(c, q, kind) {
+  const p = c.pts[q], h = courseDir(c, q), y = roadSurf(p[0], p[1]), half = 6.5, g = new THREE.Group();
+  const postM = new THREE.MeshPhongMaterial({ color: 0xf2ead8, flatShading: true });
+  for (const sx of [-1, 1]) { const post = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 5.2, 6), postM); post.position.set(sx * half, 2.6, 0); post.castShadow = true; g.add(post); }
+  const ban = new THREE.Mesh(new THREE.BoxGeometry(half * 2 + 0.4, 0.9, 0.12), new THREE.MeshBasicMaterial({ map: bannerTex(kind === "gate" ? "gate" : "check") }));
+  ban.position.set(0, 4.8, 0); g.add(ban);
+  g.position.set(p[0], y, p[1]); g.rotation.y = h; scene.add(g); return g;
+}
+function clearRaceScene() {
+  if (!race || !race.gates) return;
+  for (const g of race.gates) { scene.remove(g); g.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } }); }
+  race.gates = null;
+}
+
+// the start grid: two lanes behind the start arch
+function gridSlot(n) {
+  const c = race.course, h = courseDir(c, 0), back = 12 + 8 * Math.floor(n / 2), side = n % 2 ? -2.1 : 2.1;
+  const fx = Math.sin(h), fz = Math.cos(h), x = c.pts[0][0] - fx * back + Math.cos(h) * side, z = c.pts[0][1] - fz * back - Math.sin(h) * side;
+  return { x, z, h };
+}
+function toGrid() {
+  const order = [...race.racers.keys()].sort(), n = Math.max(0, order.indexOf(net.id)), g = gridSlot(n);
+  car.x = g.x; car.z = g.z; car.heading = g.h; car.vx = car.vz = 0; car.speed = 0; car.yaw = 0; car.steer = 0;
+  car.y = heightAt(car.x, car.z).h; stream(car.x, car.z, true); placeCamera(0, true);
+  race.grid = g; net.sendT = 99; net.sent = "";
+}
+
+function raceUi() {
+  const n = net.peers.size;
+  raceBox.hidden = !(net.status === "online" && n > 0);
+  const busy = race && race.state !== "over";
+  document.getElementById("raceShort").disabled = document.getElementById("raceLong").disabled = !!busy;
+  raceHint.textContent = busy ? "A race is on." : "Races run along the road you are on, junction to junction. Everyone online gets an invite.";
+}
+function startRace(legs) {
+  if (race && race.state !== "over") return;
+  // the road under the car, and which way along it we are going
+  let best = null;
+  for (const e of edgesIn(car.x - 300, car.z - 300, car.x + 300, car.z + 300, 0)) for (let k = 0; k < e.pts.length - 1; k++) {
+    const d = Math.hypot(e.pts[k][0] - car.x, e.pts[k][1] - car.z);
+    if (!best || d < best.d) best = { d, e, k };
+  }
+  if (!best) return;
+  const { e, k } = best, a = e.pts[k], b = e.pts[k + 1];
+  const fwd = Math.cos(Math.atan2(b[0] - a[0], b[1] - a[1]) - car.heading) >= 0, sgn = fwd ? 1 : -1;
+  const [i, j] = fwd ? e.ends[1] : e.ends[0];
+  const m = { rid: Date.now().toString(36) + net.id.slice(0, 4), host: net.id, n: net.name, i, j, dir: e.dir, s: sgn, k: legs, t: RACE.countdown };
+  onRace(m, true);
+  net.ch.send({ type: "broadcast", event: "race", payload: m }).catch(() => {});
+  joinRace();
+}
+function onRace(m, mine) {
+  if (!m || typeof m.rid !== "string" || m.rid.length > 24 || typeof m.host !== "string" || m.host.length > 16) return;
+  if (race && race.state !== "over" && race.rid !== m.rid) return;   // one race at a time
+  if (race && race.rid === m.rid) return;
+  const ok = (v, lim) => Number.isInteger(v) && Math.abs(v) <= lim;
+  if (!ok(m.i, 1e5) || !ok(m.j, 1e5) || (m.dir !== 0 && m.dir !== 1) || (m.s !== 1 && m.s !== -1) || !ok(m.k, 14) || m.k < 2 || !ok(m.t, 60000) || m.t < 3000) return;
+  const course = buildCourse(m.i, m.j, m.dir, m.s, m.k);
+  if (!course) return;
+  if (race) clearRaceScene();
+  race = { rid: m.rid, host: m.host, hostName: cleanName(m.n) || "Someone", course, startAt: performance.now() + m.t, state: "invite",
+           racers: new Map(), me: false, next: 1, myTime: null, firstFinish: null, gates: [], shownGo: false };
+  race.gates.push(buildGate(course, 0, "check"));
+  for (let q = 1; q < course.nodes.length - 1; q++) race.gates.push(buildGate(course, course.nodes[q], "gate"));
+  race.gates.push(buildGate(course, course.pts.length - 1, "check"));
+  raceResults.hidden = true;
+  if (!mine) {
+    raceInviteText.textContent = `${race.hostName} is starting a ${(course.len / 1000).toFixed(1)} km race. Join before the countdown ends.`;
+    raceInvite.hidden = false;
+  }
+  raceUi();
+}
+function joinRace() {
+  if (!race || race.me || performance.now() > race.startAt - 1500) return;
+  race.me = true; race.racers.set(net.id, { name: net.name, ms: null, out: false });
+  raceInvite.hidden = true;
+  net.ch.send({ type: "broadcast", event: "join", payload: { rid: race.rid, id: net.id, n: net.name } }).catch(() => {});
+  toGrid();
+}
+function onJoin(m) {
+  if (!race || !m || m.rid !== race.rid || typeof m.id !== "string" || m.id.length > 16) return;
+  if (!race.racers.has(m.id)) race.racers.set(m.id, { name: cleanName(m.n) || "Driver", ms: null, out: false });
+  if (race.me && race.state === "invite") toGrid();   // keep the grid order the same for everyone
+}
+function onFinish(m) {
+  if (!race || !m || m.rid !== race.rid || typeof m.id !== "string") return;
+  const r = race.racers.get(m.id), ms = typeof m.ms === "number" && isFinite(m.ms) && m.ms > 0 && m.ms < 3.6e6 ? m.ms : null;
+  if (!r || ms === null || r.ms !== null) return;
+  r.ms = ms; if (race.firstFinish === null) race.firstFinish = performance.now();
+  raceCheckOver();
+}
+function raceOnLeave(id) {
+  if (!race || !race.racers.has(id)) return;
+  const r = race.racers.get(id); if (r.ms === null) r.out = true;
+  raceCheckOver();
+}
+function raceCheckOver() {
+  if (!race || race.state === "over" || race.state === "invite") return;
+  const all = [...race.racers.values()].every((r) => r.ms !== null || r.out);
+  const late = race.firstFinish !== null && performance.now() - race.firstFinish > RACE.afterFirst;
+  if (all || late || performance.now() - race.startAt > 8 * 60000) showResults();
+}
+function showResults() {
+  race.state = "over";
+  const rows = [...race.racers.entries()].sort((a, b) => (a[1].ms ?? 1e12) - (b[1].ms ?? 1e12));
+  raceList.replaceChildren();
+  for (const [id, r] of rows) {
+    const li = document.createElement("li"), t = document.createElement("span");
+    li.textContent = id === net.id ? `${r.name} (you)` : r.name; t.textContent = r.ms !== null ? fmtTime(r.ms) : "did not finish";
+    li.appendChild(t); if (id === net.id) li.className = "me"; raceList.appendChild(li);
+  }
+  raceResultsNote.textContent = race.racers.size < 2 ? "Nobody else joined this one." : "Start another from the panel.";
+  raceResults.hidden = false;
+  setTimeout(() => { if (race && race.state === "over") { raceResults.hidden = true; clearRaceScene(); race = null; raceUi(); } }, 12000);
+  raceUi();
+}
+// every frame: countdown, holding the grid, checkpoints and the finish
+function raceTick() {
+  if (!race) return;
+  const now = performance.now();
+  if (race.state === "invite" && now >= race.startAt) {
+    raceInvite.hidden = true;
+    if (race.racers.size === 0 || !race.me) { race.state = race.racers.size ? "running" : "over"; if (race.state === "over") { clearRaceScene(); race = null; raceUi(); return; } }
+    else race.state = "running";
+  }
+  if (race.state === "running" && race.me && race.myTime === null) {
+    const c = race.course, tgt = c.pts[c.nodes[race.next]];
+    if (Math.hypot(car.x - tgt[0], car.z - tgt[1]) < RACE.gate) {
+      race.next++;
+      if (race.next >= c.nodes.length) {
+        race.myTime = now - race.startAt;
+        const r = race.racers.get(net.id); r.ms = race.myTime; if (race.firstFinish === null) race.firstFinish = now;
+        net.ch.send({ type: "broadcast", event: "finish", payload: { rid: race.rid, id: net.id, n: net.name, ms: race.myTime } }).catch(() => {});
+      }
+    }
+  }
+  raceCheckOver();
+}
+// held on the grid until GO
+const raceHeld = () => race && race.me && race.state === "invite" && race.grid;
+function holdOnGrid() { const g = race.grid; car.x = g.x; car.z = g.z; car.heading = g.h; car.vx = car.vz = 0; car.speed = 0; car.yaw = 0; car.y = heightAt(car.x, car.z).h; }
+
+document.getElementById("raceShort").onclick = () => startRace(4);
+document.getElementById("raceLong").onclick = () => startRace(10);
+document.getElementById("raceJoin").onclick = () => joinRace();
+document.getElementById("raceDecline").onclick = () => { raceInvite.hidden = true; };
+
+// ===================================================================
 //  main loop
 // ===================================================================
 let last = 0, clock = 0;
@@ -1109,7 +1382,8 @@ function frame(t) {
   if (!THUMB) {
     readInput(dt);
     // two half steps keep the steering stable at speed
-    drive(dt / 2); drive(dt / 2);
+    if (raceHeld()) holdOnGrid(); else { drive(dt / 2); drive(dt / 2); }
+    raceTick();
     stream(car.x, car.z, false);
     placeCamera(dt, false);
     netTick(dt);
