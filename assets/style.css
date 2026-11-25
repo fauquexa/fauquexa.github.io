@@ -133,8 +133,7 @@ h3 { font-family: var(--serif); font-weight: 600; font-size: 19px; line-height: 
    charge parity and the description of the hovered part on the right; mask-style colours (metal light,
    etched silicon dark, the junction's lower-gap leads in teal, the oxide in gold) */
 .squat { margin: 6px 0 26px; }
-.sq-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "stage trace" "info info"; gap: 14px; }
-.sq-stage { grid-area: stage; position: relative; align-self: start; width: 100%; border-radius: 6px; overflow: hidden; background: var(--bg); aspect-ratio: 1; }
+.sq-stage { position: relative; width: 73%; margin: 0 auto; border-radius: 6px; overflow: hidden; background: var(--bg); aspect-ratio: 1; }
 .sq-stage svg { display: block; width: 100%; height: 100%; }
 .sq-part { cursor: help; outline: none; }
 .sq-metal > :not([fill]), .sq-metalf { fill: var(--fig-metal); transition: fill .15s; }
@@ -171,18 +170,19 @@ h3 { font-family: var(--serif); font-weight: 600; font-size: 19px; line-height: 
 .sq-zoom button.on { background: var(--ink); color: var(--bg); }
 .sq-zoom button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .sq-hint { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); margin: 0; white-space: nowrap; font-family: var(--sans); font-size: 12px; color: var(--fig-metal); background: var(--fig-sub); padding: 3px 10px; border-radius: 99px; pointer-events: none; }
-.sq-side { display: contents; }
-.sq-side > .sq-panel:first-child { grid-area: trace; display: flex; flex-direction: column; min-width: 0; }
 .sq-panel { border: 1px solid var(--rule); border-radius: 6px; background: var(--tile); padding: 10px 12px; font-family: var(--sans); }
 .sq-head { font-size: 12.5px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
-.sq-trace { flex: 1; min-height: 110px; }
+.sq-tracebox { width: 73%; margin: 12px auto 0; }
+.sq-trace { height: 120px; }
 .sq-trace canvas { display: block; width: 100%; height: 100%; }
-.sq-step { font-size: 13px; line-height: 1.5; color: var(--ink-soft); margin: 6px 0 0; min-height: 4.5em; }
-.sq-info { grid-area: info; min-height: 7.2em; }
-.sq-info b { display: block; font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
-.sq-info p { font-size: 13.5px; line-height: 1.55; color: var(--ink-soft); margin: 0; }
 .squat figcaption { font-family: var(--sans); font-size: 14px; line-height: 1.55; color: var(--ink-soft); margin-top: 10px; max-width: 70ch; }
-@media (max-width: 860px) { .sq-grid { grid-template-columns: 1fr; grid-template-areas: "stage" "trace" "info"; } .sq-trace { flex: none; height: 110px; } }
+@media (max-width: 860px) { .sq-stage, .sq-tracebox { width: 100%; } }
+/* the description box that follows the cursor over the SQUAT */
+.sq-tip { position: fixed; left: 0; top: 0; z-index: 60; max-width: 300px; pointer-events: none; opacity: 0; transition: opacity .12s;
+  background: var(--tile); border: 1px solid var(--rule); border-radius: 6px; padding: 8px 11px; box-shadow: 0 6px 20px rgba(0, 0, 0, .35); font-family: var(--sans); }
+.sq-tip.on { opacity: 1; }
+.sq-tip b { display: block; font-size: 13.5px; font-weight: 600; color: var(--ink); margin-bottom: 3px; }
+.sq-tip span { display: block; font-size: 12.8px; line-height: 1.5; color: var(--ink-soft); }
 
 /* publications */
 .pubs { margin: 0; padding-left: 1.6em; }

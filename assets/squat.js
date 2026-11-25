@@ -1,7 +1,7 @@
 /* The SQUAT figure in Research: a 9 mm chip with three SQUATs on one feedline, which zooms smoothly into a
    single SQUAT and back. Everything is drawn in micrometres in one coordinate system; the view is the SVG viewBox.
    The SQUAT follows our W002 Al SQUATs (salemigroup/squat-design, "W002 November Al SQUATs"): pizza islands of
-   110 um with a 160 deg opening and a 17 um gap, six 5 um square flux holes per island on the staggered 40 um grid,
+   110 um with a 160 deg opening and a 17 um gap, six round 5 um flux holes per island on the staggered 40 um grid,
    a 330 um pocket 62 um beyond the islands with 20 um radii that opens onto the feedline 60 um from the island,
    10 / 5.8 um coplanar lines with 300 um pads and tapers, a charge line ending in a thorn recessed 20 um into the
    ground, and the W002 junction: a dome pad with a thick lead narrowing to a 150 nm thin lead on one island, a dome
@@ -17,7 +17,8 @@
   if (!fig) return;
   const NS = "http://www.w3.org/2000/svg";
   const svg = fig.querySelector("svg"), stage = fig.querySelector(".sq-stage");
-  const stepEl = fig.querySelector(".sq-step"), infoT = fig.querySelector(".sq-info-t"), infoD = fig.querySelector(".sq-info-d");
+  const tip = document.createElement("div"); tip.className = "sq-tip"; tip.setAttribute("role", "tooltip"); tip.innerHTML = "<b></b><span></span>";
+  document.body.appendChild(tip);
   const traceCv = fig.querySelector(".sq-trace canvas"), hint = fig.querySelector(".sq-hint");
   const btnChip = fig.querySelector('[data-view="chip"]'), btnSquat = fig.querySelector('[data-view="squat"]');
   const el = (name, attrs, parent) => { const e = document.createElementNS(NS, name); for (const k in attrs) e.setAttribute(k, attrs[k]); (parent || svg).appendChild(e); return e; };
@@ -49,7 +50,7 @@
     jjpads: ["Junction connection pads", "Dome-shaped pads where the junction layer, evaporated in a separate step, lands on the islands. A brief argon ion clean first removes the islands' native oxide, so the contact is a clean superconducting connection rather than a second, accidental junction. Quasiparticles from the islands enter the junction leads here."],
     pocket: ["Silicon substrate", "Bare silicon where the aluminium was etched away: a 330 µm pocket around the islands that opens onto the feedline. Energy deposited in the chip spreads through the silicon as phonons, quantised lattice vibrations, and can reach every SQUAT on the chip."],
     junction: ["Josephson junction (modified Dolan)", "From one island a lead narrows to a 150 nm thin lead; from the other an elliptical drop reaches into the gap. Evaporated from two angles past a 150 nm suspended resist bridge, the two overlap through about 1 nm of aluminium oxide. Cooper pairs tunnel through it coherently, which makes the circuit a qubit. The leads have a lower critical temperature, so a smaller gap, than the islands: quasiparticles that wander in lose energy and cannot climb back out. Trapped at the junction, they tunnel again and again, each time flipping the charge parity."],
-    holes: ["Flux-trapping holes", "Six 5 µm square holes per island on a staggered 40 µm grid, at least 10 µm from every edge. They pin magnetic vortices in place, so stray flux trapped in the film cannot wander around and add loss."],
+    holes: ["Flux-trapping holes", "Six round 5 µm holes per island on a staggered 40 µm grid, at least 10 µm from every edge. Any magnetic flux left over when the film turns superconducting gets caught here as a vortex. Pinned in a hole, the vortex cannot drift through the aluminium, where a moving vortex would dissipate energy and break Cooper pairs."],
   };
 
   const parts = [];
@@ -116,7 +117,7 @@
       el("path", { d: `M ${P(sx, ay)} L ${P(sx + R * Math.cos(a0), ay + R * Math.sin(a0))} A ${R} ${R} 0 0 1 ${P(sx + R * Math.cos(a1), ay + R * Math.sin(a1))} Z`, class: "sq-island" }, gI);
     }
     const gHoles = part("holes", "sub pop", k);
-    for (const [x, y] of HOLES) el("rect", { x: sx + x - HOLE / 2, y: y - HOLE / 2, width: HOLE, height: HOLE }, gHoles);
+    for (const [x, y] of HOLES) el("circle", { cx: sx + x, cy: y, r: HOLE / 2 }, gHoles);
     // the junction and its two connection pads
     const gJJ = part("junction", "jj pop", k);
     drawJunction(gJJ, sx, "sq-lead");
@@ -176,34 +177,50 @@
     focus = k; gAnim.setAttribute("transform", `translate(${SX[k]} 0)`);
     resetDetection();
   }
-  btnChip.addEventListener("click", () => zoomTo(VIEW_CHIP));
+  btnChip.addEventListener("click", () => { pinned = null; describe(null); zoomTo(VIEW_CHIP); });
   btnSquat.addEventListener("click", () => zoomTo(VIEW_SQUAT(focus)));
 
-  // ---------------------------------------------------------------- hover and tap: the description on the right
-  let pinned = null;
-  const DEFAULT = ["Explore the device", "Hover over or tap any part to see what it is and what it does. Use Chip and SQUAT to zoom between the whole chip and one qubit."];
-  function describe(name, k) {
-    let [t, d] = name ? INFO[name] : DEFAULT;
-    if (name && zoomedOut() && k !== undefined && !["ground", "feedline", "launch"].includes(name)) [t, d] = [`SQUAT ${+k + 1} of 3`, INFO.chip[1]];
-    infoT.textContent = t; infoD.textContent = d;
+  // ---------------------------------------------------------------- hover and tap: a description box at the cursor
+  // Only in the SQUAT view; zoomed out to the chip, parts neither light up nor explain themselves.
+  let pinned = null, lifted = false;
+  function placeTip(x, y) {
+    const w = tip.offsetWidth, h = tip.offsetHeight, m = 8;
+    let left = x + 16, top = y + 18;
+    if (left + w > innerWidth - m) left = Math.max(m, x - 16 - w);
+    if (top + h > innerHeight - m) top = Math.max(m, y - 18 - h);
+    tip.style.left = left + "px"; tip.style.top = top + "px";
+  }
+  function describe(name, k, at) {
+    if (zoomedOut()) name = null;
+    if (name) {
+      tip.firstChild.textContent = INFO[name][0]; tip.lastChild.textContent = INFO[name][1];
+      tip.classList.add("on");
+      if (at) placeTip(at[0], at[1]);
+    } else tip.classList.remove("on");
     const same = (n) => n.dataset.sq === undefined || n.dataset.sq === k, lifts = { islands: "holes", holes: "islands" };
     parts.forEach((n) => {
       n.classList.toggle("hl", !!name && n.dataset.part === name && same(n));
       n.classList.toggle("lift", !!name && n.dataset.part === lifts[name] && same(n));
     });
+    lifted = !!name && (name === "islands" || name === "holes") && +k === focus;
   }
+  const centreOf = (n) => { const r = n.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
   parts.forEach((n) => {
     const k = n.dataset.sq;
-    n.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse" && !pinned) describe(n.dataset.part, k); });
+    n.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse" && !pinned) describe(n.dataset.part, k, [e.clientX, e.clientY]); });
     n.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse" && !pinned) describe(null); });
-    n.addEventListener("focus", () => describe(n.dataset.part, k));
+    n.addEventListener("focus", () => describe(n.dataset.part, k, centreOf(n)));
+    n.addEventListener("blur", () => { if (!pinned) describe(null); });
     n.addEventListener("click", (e) => {
       e.stopPropagation();
       if (zoomedOut()) { if (k !== undefined) zoomK(+k); else zoomNearest(e); return; }
-      if (pinned === n) { pinned = null; describe(null); } else { pinned = n; describe(n.dataset.part, k); }
+      if (pinned === n) { pinned = null; describe(null); }
+      else { pinned = n; describe(n.dataset.part, k, e.clientX || e.clientY ? [e.clientX, e.clientY] : centreOf(n)); }
     });
     n.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); n.dispatchEvent(new MouseEvent("click")); } });
   });
+  svg.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse" && !pinned && tip.classList.contains("on")) placeTip(e.clientX, e.clientY); });
+  addEventListener("scroll", () => { if (tip.classList.contains("on")) { pinned = null; describe(null); } }, { passive: true });
   // zoomed out, a click anywhere on the chip zooms into the nearest SQUAT
   function zoomNearest(e) {
     const m = svg.getScreenCTM(); if (!m) return;
@@ -272,25 +289,32 @@
       const p = pairs.find((p) => !p.broken && p.side === side);
       if (p) { p.broken = true; p.a.style.opacity = 0; p.b.style.opacity = 0; p.mendAt = 9.6 + rnd(); }
       for (const s of [-1, 1]) {
-        const a = rnd() * TAU;
-        qps.push({ x, y, vx: Math.cos(a) * 28 * s, vy: Math.sin(a) * 28 * s, side, node: el("circle", { cx: x, cy: y, r: 2.2, class: "sq-qp" }, gQP), t: 0, life: 3 + rnd() * 1.8, reach: 0.35 + 1.2 * rnd() });
+        const a = rnd() * TAU, sure = i === 0 && s < 0;     // one quasiparticle of every deposit is sure to reach the junction
+        qps.push({ x, y, vx: Math.cos(a) * 28 * s, vy: Math.sin(a) * 28 * s, side, node: el("circle", { cx: x, cy: y, r: 2.2, class: "sq-qp" }, gQP), t: 0,
+                   life: sure ? 30 : 3 + rnd() * 1.8, reach: sure ? 3 : 0.35 + 1.2 * rnd() });
       }
     });
   }
-  function trap(q) {               // into the lower-gap lead: it stays at the junction and tunnels
-    q.node.remove();
-    const tq = { side: q.side, u: (rnd() - 0.5) * 2, v: q.side * (g + 1 + rnd() * 2.5), vu: 0, vv: (rnd() - 0.5) * 8, t: 0, life: 3.2 + rnd() * 2.2, hop: null, lastHop: 0,
+  // A quasiparticle in the lower-gap lead stays at the junction for a while and tunnels back and forth quickly: a
+  // burst of parity switches. A thermal one (dark count) shows up in a lead, tunnels once and is gone.
+  function trap(q, dark) {
+    if (q) q.node.remove();
+    const side = q ? q.side : (rnd() < 0.5 ? -1 : 1);
+    const tq = { side, u: 0, v: side * (g + 1 + rnd() * 2.5), vu: 0, vv: (rnd() - 0.5) * 8, t: 0, life: dark ? 0.7 : 1.4 + rnd() * 1.4, hop: null, lastHop: 0, dark,
                  node: el("circle", { r: 0.75, class: "sq-qp" }, gInsQP), dot: el("circle", { r: 2, class: "sq-qp" }, gQP) };
     trapped.push(tq);
   }
   function tunnel(tq) {
-    tq.hop = { t: 0, from: tq.v, to: tq.side < 0 ? JJ.bridge + 0.8 + rnd() * 4 : JJ.bridge - 0.8 - rnd() * 6 }; parity = -parity; flips++;
-    fx.push({ node: el("circle", { cx: 0, cy: JJ.bridge, r: 2, class: "sq-tunnel" }, gFx), t: 0, life: 0.5, grow: 7 });
+    tq.hop = { t: 0, from: tq.v, to: tq.side < 0 ? JJ.bridge + 0.8 + rnd() * 3 : JJ.bridge - 0.8 - rnd() * 4 }; parity = -parity; flips++;
+    if (!tq.dark && fx.filter((f) => f.kind === "tun").length > 3) return;      // keep the flashes readable in a burst
+    fx.push({ node: el("circle", { cx: 0, cy: JJ.bridge, r: 2, class: "sq-tunnel" }, gFx), t: 0, life: 0.4, grow: 7, kind: "tun" });
     fx.push({ node: el("circle", { cx: INS.x, cy: INS.y + JJ.bridge * INS.m, r: 3, class: "sq-tunnel" }, gIns), t: 0, life: 0.5, grow: 10 });
   }
 
+  const DARK = 0.3;                  // thermally activated quasiparticles: single switches per second, in the background
   function step(dt) {
     cycleT += dt;
+    if (rnd() < DARK * dt) trap(null, true);
     if (cycleT >= CYCLE) { cycleT -= CYCLE; ev = null; flips = 0; }
     if (!ev && cycleT >= 0.3) newEvent();
     if (ev && !ev.broke && cycleT >= (ev.photon ? 1.15 : 1.35)) breakPairs();
@@ -323,14 +347,15 @@
     for (const tq of trapped) {
       tq.t += dt;
       if (tq.hop) {
-        tq.hop.t += dt / 0.25; const k = Math.min(1, tq.hop.t); tq.v = tq.hop.from + (tq.hop.to - tq.hop.from) * k; tq.u = 0;
+        tq.hop.t += dt / 0.05; const k = Math.min(1, tq.hop.t); tq.v = tq.hop.from + (tq.hop.to - tq.hop.from) * k; tq.u = 0;
         if (k >= 1) { tq.hop = null; tq.side = -tq.side; tq.lastHop = tq.t; }
       } else {
         tq.vu += (rnd() - 0.5) * 60 * dt; tq.vv += (rnd() - 0.5) * 120 * dt; tq.vu *= 0.9; tq.vv *= 0.9;
         tq.v = tq.side < 0 ? Math.max(-g - 3, Math.min(JJ.bridge - 0.6, tq.v + tq.vv * dt)) : Math.max(JJ.bridge + 0.6, Math.min(g + 4, tq.v + tq.vv * dt));
         const room = Math.abs(tq.v) > g ? JJ.padA * 0.8 : tq.side < 0 ? (tq.v < JJ.thickEnd ? JJ.thick / 2 : 0.05) : JJ.dropW / 2 * Math.min(1, (tq.v - JJ.dropTip) / (g - JJ.dropTip));
         tq.u = Math.max(-room, Math.min(room, tq.u + tq.vu * dt));
-        if (tq.t > 0.5 && tq.t - tq.lastHop > 0.45 && tq.t < tq.life - 0.4 && rnd() < 1.6 * dt) tunnel(tq);
+        if (tq.dark) { if (!tq.lastHop && tq.t > 0.25) tunnel(tq); }
+        else if (tq.t > 0.15 && tq.t - tq.lastHop > 0.07 && tq.t < tq.life - 0.15 && rnd() < 9 * dt) tunnel(tq);
       }
       const fade = Math.min(1, tq.t / 0.2) * Math.max(0, Math.min(1, (tq.life - tq.t) / 0.4));
       tq.node.setAttribute("cx", tq.u); tq.node.setAttribute("cy", tq.v); tq.node.style.opacity = fade;
@@ -338,25 +363,10 @@
     }
     trapped = trapped.filter((tq) => { if (tq.t > tq.life) { tq.node.remove(); tq.dot.remove(); return false; } return true; });
     for (const p of pairs) if (p.broken && cycleT > p.mendAt) { p.broken = false; [p.x, p.y] = randomIn(p.side); p.a.style.opacity = ""; p.b.style.opacity = ""; }
-    // what is happening, in words
-    let s = "Waiting for an event. The qubit frequency sits still, at the level set by the islands' charge parity.";
-    if (ev) {
-      s = ev.txt;
-      if (ev.broke) s = `It breaks ${ev.npairs} Cooper pair${ev.npairs > 1 ? "s" : ""} into ${2 * ev.npairs} quasiparticles, which wander through the aluminium.`;
-      if (flips || trapped.length) s = `A quasiparticle is caught in the junction's lower-gap lead. Stuck there, it tunnels back and forth through the barrier, and every tunnelling flips the charge parity, shifting the qubit frequency by 2χ: ${flips} switch${flips === 1 ? "" : "es"} so far.`;
-      if (ev.broke && cycleT > 3 && !trapped.length && !qps.length) {
-        if (flips) s = `${flips} parity switch${flips === 1 ? "" : "es"} from ${fmtE(ev.E)}${ev.photon ? " of light" : " in the chip"}. The quasiparticles recombine into Cooper pairs and the qubit settles.`;
-        else {
-          s = `None of the quasiparticles reached the junction: they recombined into Cooper pairs first. The parity never changed, so this ${ev.photon ? "photon" : "hit"} goes unrecorded.`;
-          if (!ev.missed) { ev.missed = true; ev.mark[1] += " · missed"; }
-        }
-      }
-    }
-    if (stepEl.textContent !== s) stepEl.textContent = s;
   }
 
   // ---------------------------------------------------------------- live parity trace
-  const SPAN = 10, trace = [], marks = [];
+  const SPAN = 14, trace = [], marks = [];
   let tNow = 0;
   function sample(dt) { tNow += dt; trace.push([tNow, parity + (rnd() - 0.5) * 0.1]); while (trace.length && trace[0][0] < tNow - SPAN) trace.shift(); while (marks.length && marks[0][0] < tNow - SPAN) marks.shift(); }
   function drawTrace() {
@@ -385,7 +395,7 @@
   }
 
   // ---------------------------------------------------------------- run, always (only idling while off-screen)
-  let visible = true, last = 0, raf = 0;
+  let visible = true, last = 0, raf = 0, pairScale = 1;
   function frame(t) {
     raf = 0;
     const real = Math.min(0.5, (t - last) / 1000 || 0.016), dt = Math.min(0.05, real); last = t;
@@ -393,6 +403,9 @@
     viewUi();
     step(dt); sample(dt); drawTrace();
     pairs.forEach((p) => placePair(p, t / 1000));
+    pairScale += ((lifted ? 1.07 : 1) - pairScale) * Math.min(1, real * 12);
+    const sc = Math.abs(pairScale - 1) < 1e-4 ? "" : `scale(${pairScale.toFixed(4)})`;
+    gPairs.setAttribute("transform", sc); gQP.setAttribute("transform", sc);
     if (visible && !document.hidden) raf = requestAnimationFrame(frame);
   }
   const kick = () => { if (!raf && visible && !document.hidden) { last = performance.now(); raf = requestAnimationFrame(frame); } };
