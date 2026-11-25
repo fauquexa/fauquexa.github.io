@@ -784,11 +784,13 @@ function drive(dt) {
   vf -= Math.sign(vf) * Math.min(Math.abs(vf), drag * dt);
   vf -= 9.81 * Math.sin(car.pitch) * dt;                       // hills pull you back, or along
   car.vx += fx * (vf - v0); car.vz += fz * (vf - v0);
-  // steering: the wheel asks for a turn rate, never more than about 45 degrees a second, and less at speed
-  // (sideways pull capped near 0.95 g, sports-car grip), and the car eases into it, so turns roll in smoothly
-  const vabs = Math.abs(vf), dirv = vf < 0 ? -1 : 1;
-  const maxYaw = Math.min(0.8, vabs / 5, 9.3 / Math.max(vabs, 1)) * (input.hb ? 1.5 : 1);
-  car.yaw += (input.steer * maxYaw * (vabs < 0.3 ? 0 : dirv) - car.yaw) * Math.min(1, dt * 3.4);
+  // steering: the wheel asks for a turn rate, and the car eases into it, so turns roll in smoothly. At speed
+  // the turn is limited by grip: about 1.07 g of sideways pull, and about 1.4 g while braking (trail braking:
+  // the weight shifts onto the front wheels), when the car also settles into the turn faster.
+  const vabs = Math.abs(vf), dirv = vf < 0 ? -1 : 1, braking = input.brk > 0 && vf > 0.5;
+  const grip = (braking ? 13.5 : 10.5) * (onRoad ? 1 : 0.8);
+  const maxYaw = Math.min(braking ? 1.0 : 0.85, vabs / 5, grip / Math.max(vabs, 1)) * (input.hb ? 1.5 : 1);
+  car.yaw += (input.steer * maxYaw * (vabs < 0.3 ? 0 : dirv) - car.yaw) * Math.min(1, dt * (braking ? 5 : 3.6));
   car.heading += car.yaw * dt;
   car.steer = clamp(Math.atan((car.yaw * 2.65) / (dirv * Math.max(2, vabs))), -0.6, 0.6);   // front wheel angle, for show
   // grip: kill the sideways part of the velocity in the new heading (slowly on the handbrake, so it drifts)
