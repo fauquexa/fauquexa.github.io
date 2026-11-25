@@ -21,7 +21,6 @@ playground/cats.html           six cats at home
 playground/julia.html          Julia set of the day, with an endless dive
 playground/stereogram.html     stereogram generator
 playground/toolbox.html        quantum device toolbox: CPW, resonator fit, transmon, JJ, photon number, superconductors, nanofabricated lumped elements, dew point, units (incl. RF power), inch threads
-playground/corner.html         Claude's corner: Claude's own pick, currently a Physarum slime-mould network
 playground/maze3d.html         first-person maze screensaver (not linked from the homepage)
 ```
 
@@ -59,3 +58,25 @@ The flight sim's leaderboard lives in a free Supabase project (`flight-scores`).
 To remove a score, use the Supabase dashboard → SQL editor: `delete from public.scores where id = …;`
 
 When you change a file in `assets/`, bump the `?v=` tag on its links (all pages) so browsers fetch the new version.
+
+## Recommendations box
+
+The box at the end of "Games for lab breaks" writes into a `recommendations` table in the same Supabase
+project. Visitors can only add rows; nobody can read them back through the site. Create the table once in
+Supabase → SQL editor:
+
+```sql
+create table public.recommendations (
+  id bigint generated always as identity primary key,
+  created_at timestamptz not null default now(),
+  name text check (char_length(name) <= 40),
+  message text not null check (char_length(message) between 1 and 1000),
+  page text check (char_length(page) <= 40)
+);
+alter table public.recommendations enable row level security;
+create policy "visitors can send recommendations" on public.recommendations
+  for insert to anon with check (true);
+```
+
+To read them: Supabase dashboard → Table editor → `recommendations` (or `select * from recommendations
+order by created_at desc;` in the SQL editor). To delete one: `delete from public.recommendations where id = …;`

@@ -158,6 +158,21 @@ footer { font-size: 14px; color: var(--ink-faint); border-top: 1px solid var(--r
 .pets img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; background: #0b0e12; }
 .pets b { display: block; font-family: var(--sans); font-size: 15.5px; font-weight: 600; padding: 11px 13px 0; }
 .pets span { display: block; font-size: 15.5px; line-height: 1.5; color: var(--ink-soft); padding: 3px 13px 14px; }
+.pets.duo-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pets.duo-cards img { aspect-ratio: 16 / 9; }
+/* the recommendation box at the end of the games */
+.recommend { margin-top: 18px; padding: 14px 16px; border: 1px solid var(--rule); border-radius: 6px; background: var(--tile); display: grid; gap: 8px; }
+.recommend label { font-family: var(--sans); font-size: 14.5px; font-weight: 500; }
+.recommend textarea, .recommend input { font: inherit; font-family: var(--sans); font-size: 14.5px; color: var(--ink); background: var(--bg); border: 1px solid var(--rule); border-radius: 5px; padding: 8px 10px; width: 100%; }
+.recommend textarea { resize: vertical; min-height: 70px; line-height: 1.45; }
+.recommend textarea:focus-visible, .recommend input:focus-visible, .recommend button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.rec-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.rec-row input { flex: 1 1 180px; width: auto; }
+.rec-row button { font-family: var(--sans); font-size: 14px; font-weight: 600; color: var(--bg); background: var(--ink); border: 0; border-radius: 5px; padding: 8px 18px; cursor: pointer; }
+.rec-row button:disabled { opacity: .55; cursor: default; }
+.rec-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.rec-status { font-family: var(--sans); font-size: 13.5px; color: var(--ink-soft); margin: 0; min-height: 1.2em; }
+.rec-status.bad { color: #b8452a; }
 
 /* ---------- playground ---------- */
 /* the sticky side columns scroll if they must, but without a visible scrollbar */
@@ -176,6 +191,10 @@ footer { font-size: 14px; color: var(--ink-faint); border-top: 1px solid var(--r
 /* the Menagerie tile: three pets side by side in one picture */
 .tile .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; aspect-ratio: 16 / 9; background: var(--tile); padding: 0; margin: 0; }
 .tile .trio img { aspect-ratio: auto; height: 100%; min-height: 0; }
+.tile .duo { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px; aspect-ratio: 16 / 9; background: var(--tile); }
+.tile .duo img { aspect-ratio: auto; height: 100%; min-height: 0; }
+.tile .duo img:nth-child(1) { object-position: 47% 50%; }   /* the plane */
+.tile .duo img:nth-child(2) { object-position: 43% 50%; }   /* the car */
 .tile .trio img:nth-child(2) { object-position: 67% 50%; }   /* Heinrich sits right of centre in the screenshot */
 .tile .trio img:nth-child(3) { object-position: 73% 50%; }   /* and so does the cat */
 
@@ -218,7 +237,7 @@ footer { font-size: 14px; color: var(--ink-faint); border-top: 1px solid var(--r
   .main { order: 2; padding: 40px 16px 48px; }
   .entries > li { grid-template-columns: 1fr; gap: 2px; }
   .playlist > li { grid-template-columns: 110px 1fr; gap: 14px; }
-  .pets { grid-template-columns: 1fr; gap: 12px; }
+  .pets, .pets.duo-cards { grid-template-columns: 1fr; gap: 12px; }
   .pets a { display: grid; grid-template-columns: 120px 1fr; }
   .pets img { grid-row: span 2; height: 100%; aspect-ratio: auto; }
   .pets b { padding-top: 9px; }

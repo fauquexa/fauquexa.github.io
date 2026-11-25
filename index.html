@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/style.css?v=20261125a">
+  <link rel="stylesheet" href="assets/style.css?v=20261125b">
   <script src="assets/site.js?v=20261123a"></script>
   <script src="assets/julia-day.js?v=20261122k"></script>
   <script src="assets/previews.js?v=20261124a" defer></script>
@@ -159,13 +159,28 @@
       <p class="soft">Cool, nerdy little interactive projects of mine.</p>
       <ul class="entries playlist">
         <li><a class="thumb" href="playground/worm.html" tabindex="-1" aria-hidden="true"><img src="assets/thumbs/worm.jpg?v=20261124b" alt="" loading="lazy" width="800" height="450"></a><div><h3><a href="playground/worm.html"><i>C. elegans</i> connectome</a></h3><p>A worm brain simulator: the complete wiring diagram of the nematode <i>C. elegans</i>, 302 neurons and about 5,700 connections between them and the muscles, runs live in your browser and drives a virtual worm that “thinks” it's alive.</p></div></li>
-        <li><a class="thumb" href="playground/flight.html" tabindex="-1" aria-hidden="true"><img src="assets/thumbs/flight.jpg" alt="" loading="lazy" width="800" height="450"></a><div><h3><a href="playground/flight.html">Flight simulator</a></h3><p>For some reason, Pilatus decided to build aircraft in the middle of the Swiss mountains. Fly them (and a helicopter) and get on the high-score board.</p></div></li>
-        <li><a class="thumb" href="playground/drive.html" tabindex="-1" aria-hidden="true"><img src="assets/thumbs/drive.jpg?v=20261125c" alt="" loading="lazy" width="800" height="450"></a><div><h3><a href="playground/drive.html">Driving simulator</a></h3><p>A DB9-style grand tourer (0–100 km/h in about four seconds, nearly 290 flat out) and an endless, procedurally generated countryside of hills, fields, forests and villages. Everyone drives in the same world: other visitors show up as ghost cars with their names above them, and anyone can start a race along the road, with checkpoints, a countdown and a results board.</p></div></li>
         <li><a class="thumb" href="playground/julia.html" tabindex="-1" aria-hidden="true"><canvas data-preview="julia"></canvas></a><div><h3><a href="playground/julia.html">Julia set of the day</a></h3><p>A different Julia set every day. Zoom around, or dive in forever.</p></div></li>
         <li><a class="thumb" href="playground/stereogram.html" tabindex="-1" aria-hidden="true"><img src="assets/thumbs/stereogram.jpg" alt="" loading="lazy" width="800" height="450"></a><div><h3><a href="playground/stereogram.html">Stereogram generator</a></h3><p>Turn an image, some text or today's Julia set into a magic-eye picture.</p></div></li>
         <li><a class="thumb" href="playground/toolbox.html" tabindex="-1" aria-hidden="true"><img src="assets/thumbs/toolbox.jpg" alt="" loading="lazy" width="800" height="450"></a><div><h3><a href="playground/toolbox.html">Quantum device toolbox</a></h3><p>Useful calculators for superconducting quantum device work.</p></div></li>
-        <li><a class="thumb" href="playground/corner.html" tabindex="-1" aria-hidden="true"><img src="assets/thumbs/corner.jpg?v=20261125" alt="" loading="lazy" width="800" height="450"></a><div><h3><a href="playground/corner.html">Claude's corner</a></h3><p>A page I handed to Claude to fill with whatever it finds cool. Its pick for now: <i>Physarum polycephalum</i>, the brainless slime mould that once grew a network resembling the Tokyo rail system. Put down oat flakes and watch tens of thousands of simulated particles wire them together.</p></div></li>
       </ul>
+      <div id="games" class="menagerie">
+        <h3 class="subhead">Games for lab breaks</h3>
+        <p class="soft">For while the fridge cools down. Both are better with company: the flight simulator keeps a high-score board, and in the driving game you can race whoever else is online.</p>
+        <ul class="pets duo-cards">
+          <li><a href="playground/flight.html"><img src="assets/thumbs/flight.jpg" alt="A PC-24 flying over low-poly mountains" loading="lazy" width="800" height="450"><b>Flight simulator</b><span>For some reason, Pilatus decided to build aircraft in the middle of the Swiss mountains. Fly them (and a helicopter) between little airfields and get on the high-score board.</span></a></li>
+          <li><a href="playground/drive.html"><img src="assets/thumbs/drive.jpg?v=20261125c" alt="A green low-poly grand tourer on a village road" loading="lazy" width="800" height="450"><b>Driving simulator</b><span>A DB9-style grand tourer in an endless countryside. Other visitors show up as ghost cars, and anyone can start a race: a sprint, a long one, or 15 km of long range.</span></a></li>
+        </ul>
+        <form class="recommend" id="recommend" novalidate>
+          <label for="recMsg">Know a game I should build, or have an idea for the playground? Tell me.</label>
+          <textarea id="recMsg" name="message" rows="3" maxlength="1000" placeholder="A pinball table that runs on Maxwell's equations…"></textarea>
+          <div class="rec-row">
+            <input id="recName" name="name" type="text" maxlength="40" autocomplete="name" placeholder="Your name (optional)" aria-label="Your name (optional)">
+            <input id="recWeb" name="website" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" class="rec-hp">
+            <button type="submit" id="recSend">Send</button>
+          </div>
+          <p class="rec-status" id="recStatus" aria-live="polite"></p>
+        </form>
+      </div>
       <div id="menagerie" class="menagerie">
         <h3 class="subhead">The Menagerie</h3>
         <p class="soft">As a kid I was fascinated by animals: my own pets, the ones at the zoo, and the ones I watched on live <a href="https://www.montereybayaquarium.org/cams-videos/live-cams">webcams</a> and in <a href="https://en.wikipedia.org/wiki/Zoo_Tycoon_2">video games</a>. I even wanted to study biology to understand animal behaviour. I distinctly remember thinking that one day I would know my pets so well that I could write a program that simulated them perfectly. I never did study biology, or understand them quite that well, but I do have Claude now. So here are some little animations of my childhood pets. Some are no longer with us and some now live a 12-hour flight away, but here they all live on.</p>
@@ -189,11 +204,9 @@
       <p>Cool, nerdy little interactive projects of mine.</p>
     </div>
     <div class="tiles">
-      <a class="tile" href="playground/flight.html"><img src="assets/thumbs/flight.jpg" alt="A PC-24 flying over low-poly mountains" loading="lazy" width="800" height="450"><span class="t"><b>Flight simulator</b><span>Fly Pilatus aircraft through procedurally generated mountains and beat the high scores.</span></span></a>
+      <a class="tile" href="#games"><span class="duo" aria-hidden="true"><img src="assets/thumbs/flight.jpg" alt="" loading="lazy" width="800" height="450"><img src="assets/thumbs/drive.jpg?v=20261125c" alt="" loading="lazy" width="800" height="450"></span><span class="t"><b>Games for lab breaks</b><span>A flight simulator and a multiplayer driving game, for while the fridge cools down.</span></span></a>
       <a class="tile" href="playground/worm.html"><img src="assets/thumbs/worm.jpg?v=20261124b" alt="The worm brain simulator: a worm in its arena next to the connectivity matrix" loading="lazy" width="800" height="450"><span class="t"><b><i>C. elegans</i> connectome</b><span>302 real neurons simulating a worm brain in your browser.</span></span></a>
       <a class="tile" href="#menagerie"><span class="trio" aria-hidden="true"><img src="assets/thumbs/aquarium.jpg" alt="" loading="lazy" width="800" height="450"><img src="assets/thumbs/chickens.jpg" alt="" loading="lazy" width="800" height="450"><img src="assets/thumbs/cats.jpg" alt="" loading="lazy" width="800" height="450"></span><span class="t"><b>The Menagerie</b><span>All my childhood pets, living together in software.</span></span></a>
-      <a class="tile" href="playground/drive.html"><img src="assets/thumbs/drive.jpg?v=20261125c" alt="A green low-poly grand tourer on a village road" loading="lazy" width="800" height="450"><span class="t"><b>Driving simulator</b><span>A DB9-style grand tourer, an endless countryside, and races against whoever is online.</span></span></a>
-      <a class="tile" href="playground/corner.html"><img src="assets/thumbs/corner.jpg?v=20261125" alt="A yellow slime-mould network linking oat flakes" loading="lazy" width="800" height="450"><span class="t"><b>Claude's corner</b><span>Claude's own pick. For now: a slime mould wiring oat flakes into a network.</span></span></a>
       <a class="tile" href="playground/julia.html"><canvas data-preview="julia" aria-hidden="true"></canvas><span class="t"><b>Julia set of the day</b><span>A new fractal every day.</span></span></a>
       <a class="tile" href="playground/stereogram.html"><img src="assets/thumbs/stereogram.jpg" alt="A stereogram with a hidden logo" loading="lazy" width="800" height="450"><span class="t"><b>Stereogram generator</b><span>Hide your logo, some text or today's Julia set in a magic-eye picture.</span></span></a>
       <a class="tile" href="playground/toolbox.html"><img src="assets/thumbs/toolbox.jpg" alt="The quantum device toolbox" loading="lazy" width="800" height="450"><span class="t"><b>Quantum device toolbox</b><span>The little calculators I keep needing in the lab.</span></span></a>
@@ -203,6 +216,30 @@
 
 <script>
   document.getElementById("yr").textContent = new Date().getFullYear();
+  (function () {   // recommendations: an insert-only table in the flight sim's Supabase project
+    const URL = "https://wemzarbrguakuubrvnup.supabase.co/rest/v1/recommendations", KEY = "sb_publishable_4SEdchJwygPY8b-BCyJxjw_eatXLJ68";
+    const form = document.getElementById("recommend"), msg = document.getElementById("recMsg"), name = document.getElementById("recName");
+    const btn = document.getElementById("recSend"), status = document.getElementById("recStatus");
+    const say = (t, bad) => { status.textContent = t; status.classList.toggle("bad", !!bad); };
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const text = msg.value.trim();
+      if (!text) { say("Write something first.", true); msg.focus(); return; }
+      if (document.getElementById("recWeb").value) { form.reset(); say("Thanks, got it!"); return; }   // a bot filled the hidden field
+      let last = 0; try { last = +localStorage.getItem("recSent") || 0; } catch (err) {}
+      if (Date.now() - last < 30000) { say("Thanks! Give it half a minute before sending another one.", true); return; }
+      btn.disabled = true; say("Sending…");
+      try {
+        const r = await fetch(URL, { method: "POST", headers: { apikey: KEY, "Content-Type": "application/json", Prefer: "return=minimal" },
+          body: JSON.stringify({ message: text.slice(0, 1000), name: name.value.trim().slice(0, 40) || null, page: "home" }) });
+        if (!r.ok) throw new Error(r.status);
+        try { localStorage.setItem("recSent", String(Date.now())); } catch (err) {}
+        form.reset(); say("Thanks, got it!");
+      } catch (err) {
+        say("That didn't go through. Please try again in a bit.", true);
+      } finally { btn.disabled = false; }
+    });
+  })();
   (function () {   // today's Julia set in the sidebar
     const spec = JuliaDay.spec(JuliaDay.dateKey(new Date()));
     const [re, im] = spec.c, f = (v) => (v < 0 ? "−" : "") + Math.abs(v).toFixed(3);
