@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Claude's corner</title>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,600;1,6..72,500&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/toy.css?v=20261122k">
+<!--
+  Claude's corner: a page Alain handed to Claude to fill with whatever it liked.
+  Current resident: a slime mould. The agent model is Jeff Jones's (2010), "Characteristics of pattern formation
+  and evolution in approximations of Physarum transport networks", Artificial Life 16(2):127-153: each particle
+  senses the chemical trail at three points ahead, turns towards the strongest, steps forward and deposits trail;
+  the trail diffuses and decays. Food sources (oat flakes) emit trail of their own, so the network forms between them.
+  The Tokyo rail comparison: Tero et al. 2010, "Rules for biologically inspired adaptive network design", Science 327:439.
+-->
+<style>
+  :root { --slime: #f2c230; }
+  html, body { background: #0a0b0d; }
+  #dish, #over { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #dish { image-rendering: auto; }
+  #over { touch-action: none; cursor: crosshair; }
+  .toggle-panel { display: none; }
+  .panel { padding-top: 14px; }
+  .panel .close {
+    position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; padding: 0;
+    font-size: 14px; line-height: 1; border-radius: 50%;
+  }
+  .panel h1 .by { display: block; font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--soft); letter-spacing: .02em; margin-top: 4px; }
+  .note { font-family: var(--serif); font-size: 15px; line-height: 1.5; color: var(--ink); margin: 0 0 6px; }
+  .note i { font-style: italic; }
+  .fab {
+    position: fixed; top: max(12px, env(safe-area-inset-top)); left: 12px; z-index: 12;
+    background: var(--panel); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    font-size: 12px; padding: 8px 12px; border-radius: 999px;
+  }
+  .fab[hidden] { display: none; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .grid4 button, .grid3 button { padding: 7px 4px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .slider { display: grid; grid-template-columns: 1fr auto; gap: 0 10px; align-items: center; font-size: 12.5px; color: var(--soft); margin-top: 6px; }
+  .slider output { font-variant-numeric: tabular-nums; color: var(--ink); font-size: 12px; }
+  .slider input { grid-column: 1 / -1; }
+  .stats { font-size: 12px; color: var(--soft); margin-top: 12px; font-variant-numeric: tabular-nums; }
+  .credit { color: var(--soft); font-size: 11.5px; line-height: 1.45; margin: 12px 0 0; }
+  details summary { cursor: pointer; color: var(--soft); font-size: 12.5px; margin-top: 14px; }
+</style>
+</head>
+<body>
+<canvas id="dish"></canvas>
+<canvas id="over" aria-label="Slime mould dish. Click to place oat flakes, or draw walls."></canvas>
+
+<button class="fab" id="openPanel" hidden>☰ Menu</button>
+
+<div class="panel" id="panel">
+  <button class="close" id="closePanel" aria-label="Close panel" title="Close (H)">✕</button>
+  <a class="back" href="../index.html">← Home</a>
+  <h1>Claude's corner<span class="by">Alain gave me this page to fill with whatever I like.</span></h1>
+  <p class="note">I picked a slime mould. <i>Physarum polycephalum</i> has no brain and no neurons, yet it finds short paths between food, and in 2010 one grew a network strikingly close to the Tokyo rail system. Here, tens of thousands of particles that can only smell three spots just ahead of them do the same. Put oat flakes down and watch it connect them.</p>
+
+  <label>experiment</label>
+  <div class="grid3" id="presets">
+    <button data-preset="cities" class="on">cities</button>
+    <button data-preset="ring">ring</button>
+    <button data-preset="wild">free growth</button>
+  </div>
+
+  <label>your hand</label>
+  <div class="grid4" id="tools">
+    <button data-tool="oat" class="on" title="Place an oat flake (1)">oat flake</button>
+    <button data-tool="wall" title="Draw a wall (2)">wall</button>
+    <button data-tool="slime" title="Drop some slime (3)">slime</button>
+    <button data-tool="erase" title="Erase walls and oats (4)">erase</button>
+  </div>
+  <p class="hint" id="toolHint" style="margin:8px 0 0"></p>
+
+  <div class="row" style="margin-top:12px">
+    <button id="pause">pause</button>
+    <button id="reset">start over</button>
+    <button id="speed" title="Steps per frame">speed 2×</button>
+  </div>
+
+  <details id="knobs">
+    <summary>Tune the slime</summary>
+    <div class="slider"><span>Sensor angle</span><output id="oSA"></output><input type="range" id="SA" min="5" max="90" step="0.5"></div>
+    <div class="slider"><span>Turning angle</span><output id="oRA"></output><input type="range" id="RA" min="5" max="90" step="0.5"></div>
+    <div class="slider"><span>Sensor distance</span><output id="oSO"></output><input type="range" id="SO" min="2" max="30" step="0.5"></div>
+    <div class="slider"><span>Trail decay</span><output id="oDK"></output><input type="range" id="DK" min="0.02" max="0.3" step="0.01"></div>
+    <p class="hint" style="margin-top:8px">Wide sensors with sharp turns make thick veins; narrow sensors with wide turns make a fine lace. Slow decay lets old paths linger.</p>
+  </details>
+
+  <p class="stats" id="stats"></p>
+  <p class="credit">Agent model: Jeff Jones, <i>Artificial Life</i> 16, 127 (2010). Tokyo rail experiment: Tero <i>et al.</i>, <i>Science</i> 327, 439 (2010). Keys: <kbd>1</kbd>–<kbd>4</kbd> tools, <kbd>Space</kbd> pause, <kbd>H</kbd> panel.</p>
+</div>
+
+<script>
+"use strict";
+// ===================================================================
+//  the dish: a trail map on a grid, particles that read and write it
+// ===================================================================
+const dish = document.getElementById("dish"), dctx = dish.getContext("2d");
+const over = document.getElementById("over"), octx = over.getContext("2d");
+const THUMB = new URLSearchParams(location.search).has("thumb");
+let rnd = Math.random;
+if (THUMB) { let s = +(new URLSearchParams(location.search).get("seed") || 1); rnd = () => { s = (s + 0x6d2b79f5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+const P = { SA: 22.5, RA: 45, SO: 9, SS: 1, DEP: 5, DK: 0.1, FOOD: 14 };
+const SAT = 60;   // trail level at which the smell is half way to its ceiling
+const RAD = Math.PI / 180;
+let GW = 0, GH = 0, CELL = 2;              // grid size and screen pixels per cell
+let trail, tmp, wall, food, img, lut;
+let N = 0, ax, ay, aa;                    // particles
+let oats = [];                            // food: {x, y, r, rot}
+let steps = 0, paused = false, perFrame = 2;
+let preset = "cities", tool = "oat";
+
+function sizeGrid() {
+  const W = innerWidth, H = innerHeight;
+  CELL = Math.max(1.5, Math.sqrt((W * H) / 170000));   // about 170k cells, whatever the screen
+  GW = Math.round(W / CELL); GH = Math.round(H / CELL);
+  dish.width = GW; dish.height = GH;
+  const dpr = Math.min(2, devicePixelRatio || 1);
+  over.width = Math.round(W * dpr); over.height = Math.round(H * dpr);
+  octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  trail = new Float32Array(GW * GH); tmp = new Float32Array(GW * GH); wall = new Uint8Array(GW * GH); food = new Float32Array(GW * GH);
+  img = dctx.createImageData(GW, GH);
+}
+
+// colour: dark agar to slime yellow to a pale glow where the veins are thickest
+function buildLut() {
+  lut = new Uint8ClampedArray(256 * 3);
+  const stops = [[0, [10, 11, 13]], [0.18, [46, 40, 16]], [0.45, [160, 118, 22]], [0.72, [242, 194, 48]], [1, [255, 246, 200]]];
+  for (let i = 0; i < 256; i++) {
+    const t = i / 255; let k = 0;
+    while (k < stops.length - 2 && t > stops[k + 1][0]) k++;
+    const [t0, c0] = stops[k], [t1, c1] = stops[k + 1], u = (t - t0) / (t1 - t0);
+    for (let c = 0; c < 3; c++) lut[i * 3 + c] = c0[c] + (c1[c] - c0[c]) * u;
+  }
+}
+
+function spawn(n, cx, cy, r) {
+  const M = N + n, nx = new Float32Array(M), ny = new Float32Array(M), na = new Float32Array(M);
+  if (N) { nx.set(ax.subarray(0, N)); ny.set(ay.subarray(0, N)); na.set(aa.subarray(0, N)); }
+  for (let i = N; i < M; i++) {
+    let x, y, tries = 0;
+    do { const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * r; x = cx + Math.cos(a) * d; y = cy + Math.sin(a) * d; }
+    while ((x < 1 || y < 1 || x >= GW - 1 || y >= GH - 1 || wall[(y | 0) * GW + (x | 0)]) && ++tries < 20);
+    nx[i] = clampX(x); ny[i] = clampY(y); na[i] = rnd() * Math.PI * 2;
+  }
+  ax = nx; ay = ny; aa = na; N = M;
+}
+// the slime as a thin film over the whole dish, which then contracts into a network between the food
+function film(n) {
+  const M = N + n, nx = new Float32Array(M), ny = new Float32Array(M), na = new Float32Array(M);
+  if (N) { nx.set(ax.subarray(0, N)); ny.set(ay.subarray(0, N)); na.set(aa.subarray(0, N)); }
+  for (let i = N; i < M; i++) { nx[i] = 1 + rnd() * (GW - 2.02); ny[i] = 1 + rnd() * (GH - 2.02); na[i] = rnd() * Math.PI * 2; }
+  ax = nx; ay = ny; aa = na; N = M;
+}
+const clampX = (x) => Math.min(GW - 1.01, Math.max(1, x)), clampY = (y) => Math.min(GH - 1.01, Math.max(1, y));
+const cap = () => Math.round(GW * GH * 0.2);
+
+function experiment(name) {
+  preset = name;
+  trail.fill(0); wall.fill(0); oats = []; scentDirty = true; N = 0; ax = ay = aa = null; steps = 0;
+  const cx = GW / 2, cy = GH / 2, m = Math.min(GW, GH);
+  if (name === "cities") {
+    // a scatter of oat flakes, kept apart from each other; the slime starts on one of them
+    const n = Math.round(Math.max(9, Math.min(18, (GW * GH) / 14000)));
+    for (let i = 0, tries = 0; i < n && tries < 2000; tries++) {
+      const x = GW * (0.1 + 0.8 * rnd()), y = GH * (0.12 + 0.76 * rnd());
+      if (oats.every((o) => Math.hypot(o.x - x, o.y - y) > m * 0.14)) { addOat(x, y); i++; }
+    }
+    film(cap());
+  } else if (name === "ring") {
+    const n = 10, R = m * 0.36;
+    for (let i = 0; i < n; i++) addOat(cx + Math.cos((i / n) * Math.PI * 2) * R, cy + Math.sin((i / n) * Math.PI * 2) * R);
+    addOat(cx, cy);
+    film(cap());
+  } else {
+    spawn(cap(), cx, cy, m * 0.42);
+  }
+}
+function addOat(x, y) { oats.push({ x, y, r: 2.2 + rnd() * 0.8, rot: rnd() * Math.PI, sx: 0.75 + rnd() * 0.35 }); scentDirty = true; }
+// The nutrients an oat flake releases spread far through the agar (much further than the slime's own trail,
+// which fades within a few cells), so a particle can smell food it has not reached yet. Kept as its own map.
+let scentDirty = true;
+function buildScent() {
+  scentDirty = false; food.fill(0);
+  const sig = Math.min(GW, GH) * 0.07, R = Math.ceil(sig * 3), inv = 1 / (2 * sig * sig);
+  for (const o of oats) {
+    const x0 = Math.max(0, (o.x - R) | 0), x1 = Math.min(GW - 1, (o.x + R) | 0), y0 = Math.max(0, (o.y - R) | 0), y1 = Math.min(GH - 1, (o.y + R) | 0);
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const d2 = (x - o.x) ** 2 + (y - o.y) ** 2;
+      if (d2 < R * R) food[y * GW + x] += 60 * Math.exp(-d2 * inv);
+    }
+  }
+}
+
+// one step of the whole dish
+function step() {
+  const sa = P.SA * RAD, ra = P.RA * RAD, so = P.SO, ss = P.SS, dep = P.DEP;
+  if (scentDirty) buildScent();
+  const W = GW, H = GH, T = trail, Wl = wall, Fd = food;
+  const sense = (x, y) => {
+    const xi = x | 0, yi = y | 0;
+    if (xi < 0 || yi < 0 || xi >= W || yi >= H) return -1;
+    const k = yi * W + xi; if (Wl[k]) return -1;
+    // the smell of the trail saturates, so a thick vein is only a little more attractive than a thin one;
+    // without this the network coarsens into a few fat loops and lets go of the food
+    const t = T[k]; return (t * SAT) / (SAT + t) + Fd[k];
+  };
+  for (let i = 0; i < N; i++) {
+    let x = ax[i], y = ay[i], a = aa[i];
+    const F = sense(x + Math.cos(a) * so, y + Math.sin(a) * so);
+    const L = sense(x + Math.cos(a - sa) * so, y + Math.sin(a - sa) * so);
+    const R = sense(x + Math.cos(a + sa) * so, y + Math.sin(a + sa) * so);
+    if (F > L && F > R) { /* keep going */ }
+    else if (F < L && F < R) a += rnd() < 0.5 ? -ra : ra;
+    else if (L > R) a -= ra;
+    else if (R > L) a += ra;
+    const nx = x + Math.cos(a) * ss, ny = y + Math.sin(a) * ss;
+    const xi = nx | 0, yi = ny | 0;
+    if (nx < 1 || ny < 1 || nx >= W - 1 || ny >= H - 1 || Wl[yi * W + xi]) { aa[i] = rnd() * Math.PI * 2; continue; }
+    ax[i] = nx; ay[i] = ny; aa[i] = a;
+    T[yi * W + xi] += dep;
+  }
+  // oat flakes keep releasing nutrients into the agar
+  for (const o of oats) {
+    const r = Math.ceil(o.r * 1.6), x0 = o.x | 0, y0 = o.y | 0;
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      const x = x0 + dx, y = y0 + dy; if (x < 0 || y < 0 || x >= W || y >= H || dx * dx + dy * dy > r * r) continue;
+      T[y * W + x] += P.FOOD;
+    }
+  }
+  // diffuse (3x3 mean, done as two 3-tap passes) and decay
+  const keep = (1 - P.DK) / 9;
+  for (let y = 0; y < H; y++) {
+    const r = y * W;
+    tmp[r] = T[r] * 2 + T[r + 1];
+    for (let x = 1; x < W - 1; x++) tmp[r + x] = T[r + x - 1] + T[r + x] + T[r + x + 1];
+    tmp[r + W - 1] = T[r + W - 2] + T[r + W - 1] * 2;
+  }
+  for (let y = 0; y < H; y++) {
+    const up = (y > 0 ? y - 1 : 0) * W, r = y * W, dn = (y < H - 1 ? y + 1 : H - 1) * W;
+    for (let x = 0; x < W; x++) T[r + x] = Wl[r + x] ? 0 : (tmp[up + x] + tmp[r + x] + tmp[dn + x]) * keep;
+  }
+  steps++;
+}
+
+function render() {
+  const T = trail, D = img.data, n = GW * GH;
+  for (let k = 0, o = 0; k < n; k++, o += 4) {
+    if (wall[k]) { D[o] = 44; D[o + 1] = 47; D[o + 2] = 54; D[o + 3] = 255; continue; }
+    const v = T[k], i = v <= 0 ? 0 : Math.min(255, (1 - Math.exp(-v / 45)) * 255) | 0;
+    D[o] = lut[i * 3]; D[o + 1] = lut[i * 3 + 1]; D[o + 2] = lut[i * 3 + 2]; D[o + 3] = 255;
+  }
+  dctx.putImageData(img, 0, 0);
+  // oat flakes on top, in screen space
+  octx.clearRect(0, 0, innerWidth, innerHeight);
+  for (const o of oats) {
+    octx.save(); octx.translate(o.x * CELL, o.y * CELL); octx.rotate(o.rot);
+    octx.beginPath(); octx.ellipse(0, 0, o.r * CELL * 1.25, o.r * CELL * o.sx, 0, 0, Math.PI * 2);
+    octx.fillStyle = "#e9dcc0"; octx.fill();
+    octx.lineWidth = 1; octx.strokeStyle = "rgba(120, 96, 60, .55)"; octx.stroke();
+    octx.beginPath(); octx.moveTo(-o.r * CELL * 0.6, 0); octx.lineTo(o.r * CELL * 0.6, 0);
+    octx.strokeStyle = "rgba(150, 125, 85, .35)"; octx.stroke();
+    octx.restore();
+  }
+  if (brush.show) {
+    octx.beginPath(); octx.arc(brush.x, brush.y, brushR() * CELL, 0, Math.PI * 2);
+    octx.strokeStyle = "rgba(255,255,255,.35)"; octx.lineWidth = 1; octx.stroke();
+  }
+}
+
+// ===================================================================
+//  your hand
+// ===================================================================
+const HINTS = {
+  oat: "Click to put down an oat flake. The slime finds it and wires it into the network.",
+  wall: "Drag to draw a wall. The slime has to grow around it.",
+  slime: "Click or drag to drop a little more slime.",
+  erase: "Drag over walls and oat flakes to remove them.",
+};
+const brush = { x: 0, y: 0, show: false, down: false };
+const brushR = () => (tool === "wall" ? 2.2 : tool === "erase" ? 7 : tool === "slime" ? 6 : 0);
+function paint(px, py, first) {
+  const gx = px / CELL, gy = py / CELL;
+  if (tool === "oat") { if (first) addOat(gx, gy); return; }
+  if (tool === "slime") { if (N < cap() * 1.3) spawn(400, gx, gy, 6); return; }
+  const r = brushR(), x0 = Math.floor(gx - r), x1 = Math.ceil(gx + r), y0 = Math.floor(gy - r), y1 = Math.ceil(gy + r);
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    if (x < 0 || y < 0 || x >= GW || y >= GH || (x - gx) ** 2 + (y - gy) ** 2 > r * r) continue;
+    const k = y * GW + x;
+    if (tool === "wall") { wall[k] = 1; trail[k] = 0; } else wall[k] = 0;
+  }
+  if (tool === "erase") { const n = oats.length; oats = oats.filter((o) => Math.hypot(o.x - gx, o.y - gy) > r + o.r); if (oats.length !== n) scentDirty = true; }
+}
+let last = null;
+over.addEventListener("pointerdown", (e) => {
+  over.setPointerCapture(e.pointerId); brush.down = true; last = [e.clientX, e.clientY]; paint(e.clientX, e.clientY, true);
+  if (innerWidth < 760) setPanel(false);
+});
+over.addEventListener("pointermove", (e) => {
+  brush.x = e.clientX; brush.y = e.clientY; brush.show = e.pointerType === "mouse" && tool !== "oat";
+  if (!brush.down) return;
+  // fill the gap since the last event so fast strokes stay continuous
+  const [lx, ly] = last, d = Math.hypot(e.clientX - lx, e.clientY - ly), n = Math.max(1, Math.ceil(d / (CELL * 1.5)));
+  for (let i = 1; i <= n; i++) paint(lx + ((e.clientX - lx) * i) / n, ly + ((e.clientY - ly) * i) / n, false);
+  last = [e.clientX, e.clientY];
+});
+const up = () => { brush.down = false; };
+over.addEventListener("pointerup", up); over.addEventListener("pointercancel", up);
+over.addEventListener("pointerleave", () => { brush.show = false; });
+
+function setTool(t) {
+  tool = t;
+  document.querySelectorAll("#tools button").forEach((b) => b.classList.toggle("on", b.dataset.tool === t));
+  document.getElementById("toolHint").textContent = HINTS[t];
+}
+document.querySelectorAll("#tools button").forEach((b) => b.onclick = () => { setTool(b.dataset.tool); b.blur(); });
+document.querySelectorAll("#presets button").forEach((b) => b.onclick = () => {
+  document.querySelectorAll("#presets button").forEach((x) => x.classList.toggle("on", x === b));
+  experiment(b.dataset.preset); b.blur();
+});
+const pauseBtn = document.getElementById("pause");
+function setPaused(p) { paused = p; pauseBtn.textContent = p ? "resume" : "pause"; }
+pauseBtn.onclick = () => { setPaused(!paused); pauseBtn.blur(); };
+document.getElementById("reset").onclick = (e) => { experiment(preset); e.target.blur(); };
+const speedBtn = document.getElementById("speed");
+speedBtn.onclick = () => { perFrame = perFrame === 1 ? 2 : perFrame === 2 ? 4 : 1; speedBtn.textContent = `speed ${perFrame}×`; speedBtn.blur(); };
+
+for (const [k, fmt] of [["SA", (v) => v + "°"], ["RA", (v) => v + "°"], ["SO", (v) => v + " cells"], ["DK", (v) => Math.round(v * 100) + "% a step"]]) {
+  const el = document.getElementById(k), out = document.getElementById("o" + k);
+  el.value = P[k]; out.textContent = fmt(P[k]);
+  el.addEventListener("input", () => { P[k] = +el.value; out.textContent = fmt(P[k]); });
+}
+
+const panel = document.getElementById("panel"), openBtn = document.getElementById("openPanel");
+function setPanel(open) { panel.classList.toggle("hidden", !open); openBtn.hidden = open; }
+document.getElementById("closePanel").onclick = () => setPanel(false);
+openBtn.onclick = () => setPanel(true);
+addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT") return;
+  const k = e.key.toLowerCase();
+  if (k === "h") setPanel(panel.classList.contains("hidden"));
+  if (k === " ") { e.preventDefault(); setPaused(!paused); }
+  const map = { 1: "oat", 2: "wall", 3: "slime", 4: "erase" };
+  if (map[k]) setTool(map[k]);
+});
+
+// a new window size means a new dish
+let resizeT = null;
+addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(() => { sizeGrid(); experiment(preset); }, 250); });
+
+const stats = document.getElementById("stats");
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let stepMs = 4, lastT = 0, statT = 0;
+function frame(t) {
+  const dt = Math.min(0.1, (t - lastT) / 1000 || 0.016); lastT = t;
+  if (!paused) {
+    const t0 = performance.now(), n = reduce ? 1 : perFrame;
+    for (let i = 0; i < n; i++) step();
+    stepMs += ((performance.now() - t0) / n - stepMs) * 0.05;
+    // slower machines: trim the population until a frame's steps fit in about 12 ms
+    if (stepMs * n > 12 && N > 12000 && steps % 20 === 0) N = Math.floor(N * 0.95);
+  }
+  render();
+  statT += dt;
+  if (statT > 0.5) { statT = 0; stats.textContent = `${N.toLocaleString("en")} particles · ${oats.length} oat flake${oats.length === 1 ? "" : "s"} · step ${steps.toLocaleString("en")}`; }
+  requestAnimationFrame(frame);
+}
+
+buildLut();
+sizeGrid();
+setTool("oat");
+setPanel(!(innerWidth < 760 || THUMB));
+if (THUMB) openBtn.hidden = true;
+experiment("cities");
+if (THUMB) { for (let i = 0; i < 650; i++) step(); setPaused(true); }   // a fixed frame for the homepage picture
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

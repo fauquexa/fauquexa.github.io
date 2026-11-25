@@ -13,6 +13,7 @@ assets/ambient.js              calm generated music + mute button (cats, fish, c
 assets/thumbs/                 screenshots used as playground thumbnails (worm.jpg: headless capture of worm.html?thumb&theme=dark at 1600x900, scale 2, right 1000x562 px cropped)
 assets/salemi-mouse.svg        Salemi group logo (stereogram default)
 playground/flight.html         flight sim: Pilatus aircraft + helicopter, fuel, airports, high scores (Supabase)
+playground/drive.html          driving sim: endless seeded low-poly countryside and roads (multiplayer planned)
 playground/worm.html           C. elegans connectome: worm brain simulator, with the activity map and a connectivity (weight) matrix
 playground/aquarium.html       perch in a mangrove creek
 playground/chickens.html       back-garden chickens
@@ -20,6 +21,7 @@ playground/cats.html           six cats at home
 playground/julia.html          Julia set of the day, with an endless dive
 playground/stereogram.html     stereogram generator
 playground/toolbox.html        quantum device toolbox: CPW, resonator fit, transmon, JJ, photon number, superconductors, nanofabricated lumped elements, dew point, units (incl. RF power), inch threads
+playground/corner.html         Claude's corner: Claude's own pick, currently a Physarum slime-mould network
 playground/maze3d.html         first-person maze screensaver (not linked from the homepage)
 ```
 
