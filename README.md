@@ -76,7 +76,15 @@ create table public.recommendations (
 alter table public.recommendations enable row level security;
 create policy "visitors can send recommendations" on public.recommendations
   for insert to anon with check (true);
+grant insert on public.recommendations to anon;   -- this project does not grant new tables to anon by default
 ```
+
+**Email on each new recommendation** (set up 25 Nov 2026): a trigger calls Resend through `pg_net`. The Resend
+account belongs to the Berkeley address (Resend's test sender only delivers to the account's own address). The
+API key lives in the Supabase vault as `resend_api_key`; the function skips the email if the key is missing.
+Function `public.email_new_recommendation()`, trigger `recommendation_email`. To see whether emails went out:
+`select status_code, content, created from net._http_response order by created desc;`. To stop the emails:
+`drop trigger recommendation_email on public.recommendations;`.
 
 To read them: Supabase dashboard → Table editor → `recommendations` (or `select * from recommendations
 order by created_at desc;` in the SQL editor). To delete one: `delete from public.recommendations where id = …;`
