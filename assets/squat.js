@@ -1,14 +1,17 @@
-/* The SQUAT figure in Research: a 9 mm chip with three pizza SQUATs on one feedline, which zooms smoothly
-   into a single SQUAT and back. Everything is drawn in micrometres in one coordinate system; the view is the
-   SVG viewBox. Pizza islands as on our wafers (radius 90 um, 100 deg opening, 15 um junction gap, four flux
-   holes per island at 0.62 R), a charge line ending in a tip above the top island, and a modified-Dolan
-   junction whose lower-gap leads trap quasiparticles (shown magnified in an inset).
+/* The SQUAT figure in Research: a 9 mm chip with three SQUATs on one feedline, which zooms smoothly into a
+   single SQUAT and back. Everything is drawn in micrometres in one coordinate system; the view is the SVG viewBox.
+   The SQUAT follows our W002 Al SQUATs (salemigroup/squat-design, "W002 November Al SQUATs"): pizza islands of
+   110 um with a 160 deg opening and a 17 um gap, six 5 um square flux holes per island on the staggered 40 um grid,
+   a 330 um pocket 62 um beyond the islands with 20 um radii that opens onto the feedline 60 um from the island,
+   10 / 5.8 um coplanar lines with 300 um pads and tapers, a charge line ending in a thorn recessed 20 um into the
+   ground, and the W002 junction: a dome pad with a thick lead narrowing to a 150 nm thin lead on one island, a dome
+   pad with an elliptical drop on the other, overlapping across the Dolan bridge (drawn magnified in an inset).
 
-   A detection runs on a loop: each time either a particle hits the silicon (phonons) or a THz photon is
-   absorbed by the islands, Cooper pairs break in proportion to the energy, the quasiparticles wander, get
-   trapped in the junction leads and tunnel back and forth, and every tunnelling flips the charge parity, which
-   the live trace on the right shows as the qubit frequency jumping by 2 chi. Hover or tap a part for what it
-   is; the description appears in the panel on the right. The numbers are illustrative, not a simulation. */
+   A detection runs on a loop: each time either a particle hits the silicon (phonons) or a THz photon is absorbed
+   by the islands, Cooper pairs break in proportion to the energy, the quasiparticles wander, and those that reach
+   the junction get trapped in its lower-gap leads and tunnel back and forth; every tunnelling flips the charge
+   parity, which the live trace shows as the qubit frequency jumping by 2 chi. Quasiparticles that recombine before
+   reaching the junction leave no trace. Hover or tap a part for what it is. Illustrative, not a simulation. */
 (function () {
   const fig = document.getElementById("squatFig");
   if (!fig) return;
@@ -21,25 +24,32 @@
 
   // ---------------------------------------------------------------- geometry (um, y down)
   const CHIP = 4500, SX = [-2400, 0, 2400];                     // chip half-size, SQUAT centres along the line
-  const R = 90, OPEN = 100, g = 7.5;                            // pizza radius, opening angle, half junction gap
-  const LINE_Y = 166, LW = 6, LG = 6;                           // feedline: centre conductor top edge, width, gaps
-  const POCKET = { x: -120, y: -150, w: 240, h: LINE_Y - LG + 150 };
-  const CL = { w: 4, gap: 4, tipY: -110 };                      // charge line: centre, gaps, tip position
-  const PAD_Y = -4150;                                          // charge-line bond pads
+  const R = 110, OPEN = 160, g = 8.5;                           // pizza radius, opening angle, half junction gap (W002)
   const half = (OPEN / 2) * Math.PI / 180;
+  const CPW = { s: 10, w: 5.806 };                              // centre width and gaps of the feedline and charge lines
+  const LINE_Y = R + g + 60, LW = CPW.s, LG = CPW.w;            // feedline centre conductor 60 um beyond the island
+  const BITE = { half: 165, top: -(R + g + 62), r: 20 };        // pocket: half-width, top edge, corner and feedline radii
+  const THORN = { tip: BITE.top - 20, len: 60, r: 1 };          // charge-line tip: recessed 20 um, 60 um taper, 1 um radius
+  const LAUNCH = { edge: 4430, gapEnd: 100, pad: 300, taper: 300, padHalf: 100, gapHalf: 216.12 };   // W002 launches
+  const LINE_START = LAUNCH.edge - LAUNCH.gapEnd - LAUNCH.pad - LAUNCH.taper;                     // |coordinate| where a launch has tapered to the line
+  const HOLE = 5, HOLES = [[20, 43.6], [60, 63.6], [20, 83.6]].flatMap(([x, y]) => [[-x, y], [x, y], [-x, -y], [x, -y]]);
+  // the W002 junction, in um around the junction centre: dome pads on both island edges, a thick lead (top) narrowing
+  // to the thin lead, an elliptical drop (bottom) reaching up into the gap; they overlap at the Dolan bridge
+  const JJ = { padA: 3.25, padB: 4.6, thick: 1.2, thickEnd: -0.5, thin: 0.15, dropW: 3, dropTip: 3.4, bridge: 4.0 };
+  const PAD_C = g + 3;                                           // where quasiparticles from an island enter its lead
 
   const INFO = {
     chip: ["A three-SQUAT chip", "Three SQUATs share one feedline across a 9 mm silicon chip. Each sits at its own frequency, so one line reads them all, and a particle hit anywhere on the chip sends phonons to every one of them. Click a SQUAT to zoom in."],
     ground: ["Ground plane", "The aluminium film covering most of the chip, held at ground. It shields the qubits and gives the microwaves a return path."],
-    launch: ["Launch pad", "Where the feedline meets the outside world: a wire bond connects it to the coaxial cables of the fridge. The line tapers from the wide pad down to the narrow on-chip waveguide."],
-    bondpad: ["Charge-line pad", "A bond pad for one SQUAT's charge line. A small voltage here reaches that SQUAT's island."],
-    feedline: ["Feedline", "A coplanar waveguide carrying the microwave readout tone. The SQUATs couple to it directly, with no readout resonator, each at its own frequency, so many can share one line."],
-    chargeLine: ["Charge line", "A thin coplanar line that ends in a sharp tip a few micrometres from the top island. A voltage on it sets the island's offset charge; the tip keeps the coupling tiny, so the line doesn't drain energy from the qubit."],
-    pocket: ["Silicon substrate", "Bare silicon where the aluminium was etched away. Energy deposited in the chip spreads through it as phonons, quantised lattice vibrations, and can reach every SQUAT on the chip."],
-    islandTop: ["Superconducting island", "One of the qubit's two aluminium islands, a 90 µm pizza slice. Below about 1.2 K its electrons bind into Cooper pairs, which flow without resistance. A phonon or photon carrying more than twice the superconducting gap (about 0.36 meV) can break a pair into two quasiparticles."],
-    islandBottom: ["Superconducting island and antenna", "The second island. Together the two slices form the qubit, a tiny nonlinear LC circuit, and also an antenna: THz photons of the right frequency are absorbed directly in the islands, where they break Cooper pairs."],
-    junction: ["Josephson junction (modified Dolan)", "Two thin leads overlap through about 1 nm of aluminium oxide, made with a suspended resist bridge and two angled evaporations. Cooper pairs tunnel through it coherently, which makes the circuit a qubit. The leads have a lower critical temperature, so a smaller gap, than the islands: quasiparticles that wander in lose energy and cannot climb back out. Trapped at the junction, they tunnel again and again, each time flipping the charge parity."],
-    holes: ["Flux-trapping holes", "Small holes in the islands that pin magnetic vortices in place, so stray flux trapped in the film cannot wander around and add loss."],
+    launch: ["Launch pad", "Where the feedline meets the outside world: a wire bond connects the 200 µm pad to the coaxial cables of the fridge, and a 300 µm taper brings the line down to the 10 µm on-chip waveguide."],
+    bondpad: ["Charge-line launch", "The same launch as the feedline's: a wire-bond pad that tapers down to the on-chip charge line. A small voltage applied here reaches that SQUAT's island."],
+    feedline: ["Feedline", "A coplanar waveguide (a 10 µm centre strip between 5.8 µm gaps) carrying the microwave readout tone. The SQUATs couple to it directly, with no readout resonator, each at its own frequency, so many can share one line."],
+    chargeLine: ["Charge line", "A coplanar line like the feedline that ends in a thorn: a 60 µm taper to a 1 µm-radius tip, recessed 20 µm into the ground plane, about 80 µm from the island. A voltage on it sets the island's offset charge; keeping the tip back keeps the coupling tiny, so the line doesn't drain energy from the qubit."],
+    islands: ["Superconducting islands", "The qubit's two aluminium islands, 110 µm pizza slices with a 160° opening, 17 µm apart. Below about 1.2 K their electrons bind into Cooper pairs, which flow without resistance. Together the slices form the qubit, a tiny nonlinear LC circuit, and also an antenna: THz photons are absorbed directly in them. A phonon or photon carrying more than twice the superconducting gap (about 0.36 meV) breaks a pair into two quasiparticles."],
+    jjpads: ["Junction connection pads", "Dome-shaped pads where the junction layer, evaporated in a separate step, lands on the islands. A brief argon ion clean first removes the islands' native oxide, so the contact is a clean superconducting connection rather than a second, accidental junction. Quasiparticles from the islands enter the junction leads here."],
+    pocket: ["Silicon substrate", "Bare silicon where the aluminium was etched away: a 330 µm pocket around the islands that opens onto the feedline. Energy deposited in the chip spreads through the silicon as phonons, quantised lattice vibrations, and can reach every SQUAT on the chip."],
+    junction: ["Josephson junction (modified Dolan)", "From one island a lead narrows to a 150 nm thin lead; from the other an elliptical drop reaches into the gap. Evaporated from two angles past a 150 nm suspended resist bridge, the two overlap through about 1 nm of aluminium oxide. Cooper pairs tunnel through it coherently, which makes the circuit a qubit. The leads have a lower critical temperature, so a smaller gap, than the islands: quasiparticles that wander in lose energy and cannot climb back out. Trapped at the junction, they tunnel again and again, each time flipping the charge parity."],
+    holes: ["Flux-trapping holes", "Six 5 µm square holes per island on a staggered 40 µm grid, at least 10 µm from every edge. They pin magnetic vortices in place, so stray flux trapped in the film cannot wander around and add loss."],
   };
 
   const parts = [];
@@ -54,87 +64,94 @@
   const gGround = part("ground", "metal");
   el("rect", { x: -CHIP, y: -CHIP, width: 2 * CHIP, height: 2 * CHIP, rx: 20 }, gGround);
 
-  // feedline with launch pads at both edges (substrate band first, then the centre conductor on top)
-  const gLine = part("feedline", "line");
-  const yc = LINE_Y + LW / 2;
-  el("rect", { x: -3800, y: LINE_Y - LG, width: 7600, height: LW + 2 * LG, class: "sq-subf" }, gLine);
-  el("rect", { x: -3800, y: LINE_Y, width: 7600, height: LW, class: "sq-metalf" }, gLine);
-  el("rect", { x: -3800, y: LINE_Y - LG - 10, width: 7600, height: LW + 2 * LG + 20, fill: "transparent" }, gLine);
-  for (const s of [-1, 1]) {
-    const gL = part("launch", "line pop");
-    const xe = s * 4100, xt = s * 3800, xo = s * 4430;
-    el("path", { d: `M ${P(xt, yc - LW / 2 - LG)} L ${P(xe, yc - 225)} L ${P(xo, yc - 225)} L ${P(xo, yc + 225)} L ${P(xe, yc + 225)} L ${P(xt, yc + LW / 2 + LG)} Z`, class: "sq-subf" }, gL);
-    el("path", { d: `M ${P(xt, yc - LW / 2)} L ${P(xe, yc - 150)} L ${P(s * 4380, yc - 150)} L ${P(s * 4380, yc + 150)} L ${P(xe, yc + 150)} L ${P(xt, yc + LW / 2)} Z`, class: "sq-metalf" }, gL);
+  // a W002 launch: wire-bond pad, then a linear taper down to the coplanar line, with its gap envelope.
+  // u runs along the line from the chip edge inwards (u = 0 at the outer end of the gap), v across it.
+  function launch(gr, toXY) {
+    const E = 0, pe = LAUNCH.gapEnd, ps = pe + LAUNCH.pad, ts = ps + LAUNCH.taper, gh = LAUNCH.gapHalf, mh = LAUNCH.padHalf;
+    const sub = [[E, -gh], [ps, -gh], [ts, -(CPW.s / 2 + CPW.w)], [ts, CPW.s / 2 + CPW.w], [ps, gh], [E, gh]];
+    const met = [[pe, -mh], [ps, -mh], [ts, -CPW.s / 2], [ts, CPW.s / 2], [ps, mh], [pe, mh]];
+    for (const [pts, cls] of [[sub, "sq-subf"], [met, "sq-metalf"]]) el("path", { d: "M " + pts.map(([u, v]) => P(...toXY(u, v))).join(" L ") + " Z", class: cls }, gr);
   }
 
-  // per SQUAT: pocket, charge line with its pad, two pizza islands, holes, junction
+  // feedline: coplanar waveguide with a launch at both chip edges
+  const gLine = part("feedline", "line");
+  const yc = LINE_Y + LW / 2;
+  el("rect", { x: -LINE_START, y: LINE_Y - LG, width: 2 * LINE_START, height: LW + 2 * LG, class: "sq-subf" }, gLine);
+  el("rect", { x: -LINE_START - 1, y: LINE_Y, width: 2 * LINE_START + 2, height: LW, class: "sq-metalf" }, gLine);
+  el("rect", { x: -LINE_START, y: LINE_Y - LG - 10, width: 2 * LINE_START, height: LW + 2 * LG + 20, fill: "transparent" }, gLine);
+  for (const s of [-1, 1]) launch(part("launch", "line pop"), (u, v) => [s * (LAUNCH.edge - u), yc + v]);
+
+  // per SQUAT: charge line with its launch, pocket, two pizza islands, holes, junction
+  function drawJunction(gr, x0, cls) {   // the junction metal (leads, drop, bridge overlap), shared by the inset
+    const c = (x) => x0 + x;
+    el("rect", { x: c(-JJ.thick / 2), y: -g, width: JJ.thick, height: g + JJ.thickEnd, class: cls }, gr);                  // thick lead
+    el("rect", { x: c(-JJ.thin / 2), y: JJ.thickEnd - 0.1, width: JJ.thin, height: JJ.bridge + 0.6 - JJ.thickEnd, class: cls }, gr);   // thin lead
+    const w = JJ.dropW / 2;                                                                                      // the drop
+    el("path", { d: `M ${P(c(-w), g + 0.3)} L ${P(c(-w), g)} C ${P(c(-w), g - 2.6)} ${P(c(-0.45), JJ.dropTip + 0.2)} ${P(c(0), JJ.dropTip)} C ${P(c(0.45), JJ.dropTip + 0.2)} ${P(c(w), g - 2.6)} ${P(c(w), g)} L ${P(c(w), g + 0.3)} Z`, class: cls }, gr);
+    el("rect", { x: c(-0.35), y: JJ.bridge - 0.35, width: 0.7, height: 0.7, rx: 0.15, class: "sq-barrier" }, gr);    // the overlap
+  }
+  function drawPad(gr, x0, s, cls) {     // a dome pad on an island edge (s = -1 top island, +1 bottom)
+    const a = JJ.padA, b = JJ.padB + (s > 0 ? 0.9 : 0);
+    el("path", { d: `M ${P(x0 - a, s * (g - 0.3))} L ${P(x0 - a, s * g)} A ${a} ${b} 0 0 ${s < 0 ? 1 : 0} ${P(x0 + a, s * g)} L ${P(x0 + a, s * (g - 0.3))} Z`, class: cls }, gr);
+  }
   const squats = SX.map((sx, k) => {
     const o = {};
-    // charge-line pad and the line down to the pocket
-    const gPad = part("bondpad", "line pop", k);
-    el("rect", { x: sx - 225, y: PAD_Y - 225, width: 450, height: 450, rx: 10, class: "sq-subf" }, gPad);
-    el("rect", { x: sx - 125, y: PAD_Y - 125, width: 250, height: 250, rx: 6, class: "sq-metalf" }, gPad);
-    const gCL = part("chargeLine", "line", k);
-    const yTop = PAD_Y + 225, yTaper = yTop + 300, cw = CL.w / 2, cg = CL.w / 2 + CL.gap;
-    el("path", { d: `M ${P(sx - 225, yTop)} L ${P(sx - cg, yTaper)} L ${P(sx - cg, POCKET.y)} L ${P(sx + cg, POCKET.y)} L ${P(sx + cg, yTaper)} L ${P(sx + 225, yTop)} Z`, class: "sq-subf" }, gCL);
-    el("path", { d: `M ${P(sx - 125, yTop - 10)} L ${P(sx - cw, yTaper)} L ${P(sx - cw, CL.tipY - 12)} L ${P(sx, CL.tipY)} L ${P(sx + cw, CL.tipY - 12)} L ${P(sx + cw, yTaper)} L ${P(sx + 125, yTop - 10)} Z`, class: "sq-metalf" }, gCL);
-    el("rect", { x: sx - 14, y: yTaper, width: 28, height: CL.tipY - yTaper + 6, fill: "transparent" }, gCL);
-    // the pocket, opening onto the feedline's upper gap
+    // charge-line launch at the chip edge, the line down to the pocket, and the thorn recessed into the ground
+    launch(part("bondpad", "line pop", k), (u, v) => [sx + v, -(LAUNCH.edge - u)]);
+    const gCL = part("chargeLine", "line", k), cw = CPW.s / 2, cg = CPW.s / 2 + CPW.w, base = THORN.tip - THORN.len;
+    el("rect", { x: sx - cg, y: -LINE_START - 1, width: 2 * cg, height: BITE.top + LINE_START + 2, class: "sq-subf" }, gCL);
+    el("path", { d: `M ${P(sx - cw, -LINE_START - 1)} L ${P(sx - cw, base - 8)} Q ${P(sx - cw, base)} ${P(sx - cw + 0.5, base + 7)} L ${P(sx - THORN.r, THORN.tip - THORN.r)} A ${THORN.r} ${THORN.r} 0 0 0 ${P(sx + THORN.r, THORN.tip - THORN.r)} L ${P(sx + cw - 0.5, base + 7)} Q ${P(sx + cw, base)} ${P(sx + cw, base - 8)} L ${P(sx + cw, -LINE_START - 1)} Z`, class: "sq-metalf" }, gCL);
+    el("rect", { x: sx - 16, y: -LINE_START, width: 32, height: BITE.top + LINE_START, fill: "transparent" }, gCL);
+    // the pocket ("bite"): rounded corners at the top, opening onto the feedline's gap with outward fillets, and
+    // filleted where the charge line's gap opens into it
     const gPocket = part("pocket", "sub", k);
-    el("rect", { x: sx + POCKET.x, y: POCKET.y, width: POCKET.w, height: POCKET.h + 2, rx: 12 }, gPocket);
-    // charge line inside the pocket again on top (the pocket covers its gaps)
-    const gCL2 = part("chargeLine", "line", k);
-    el("path", { d: `M ${P(sx - cw, POCKET.y - 1)} L ${P(sx - cw, CL.tipY - 12)} L ${P(sx, CL.tipY)} L ${P(sx + cw, CL.tipY - 12)} L ${P(sx + cw, POCKET.y - 1)} Z`, class: "sq-metalf" }, gCL2);
-    el("rect", { x: sx - 12, y: POCKET.y, width: 24, height: CL.tipY - POCKET.y + 6, fill: "transparent" }, gCL2);
+    const x0 = sx - BITE.half, x1 = sx + BITE.half, yT = BITE.top, yB = LINE_Y - LG, r = BITE.r;
+    el("path", { d: `M ${P(x0 - r, yB + 1)} L ${P(x0 - r, yB)} A ${r} ${r} 0 0 0 ${P(x0, yB - r)} L ${P(x0, yT + r)} A ${r} ${r} 0 0 1 ${P(x0 + r, yT)} L ${P(x1 - r, yT)} A ${r} ${r} 0 0 1 ${P(x1, yT + r)} L ${P(x1, yB - r)} A ${r} ${r} 0 0 0 ${P(x1 + r, yB)} L ${P(x1 + r, yB + 1)} Z` }, gPocket);
+    el("path", { d: `M ${P(sx - cg, yT - r)} A ${r} ${r} 0 0 1 ${P(sx - cg - r, yT)} L ${P(sx - cg, yT + 0.5)} Z M ${P(sx + cg, yT - r)} A ${r} ${r} 0 0 0 ${P(sx + cg + r, yT)} L ${P(sx + cg, yT + 0.5)} Z` }, gPocket);
     o.rings = el("g", { class: "sq-rings", "pointer-events": "none" });
-    // pizza islands
-    for (const [name, side] of [["islandTop", -1], ["islandBottom", 1]]) {
-      const gI = part(name, "metal pop", k), ay = side * g, dir = side * Math.PI / 2;
-      const a0 = dir - half, a1 = dir + half;
+    // the two pizza islands: one part, they pop up together (their holes lift with them)
+    const gI = part("islands", "metal pop", k);
+    for (const side of [-1, 1]) {
+      const ay = side * g, dir = side * Math.PI / 2, a0 = dir - half, a1 = dir + half;
       el("path", { d: `M ${P(sx, ay)} L ${P(sx + R * Math.cos(a0), ay + R * Math.sin(a0))} A ${R} ${R} 0 0 1 ${P(sx + R * Math.cos(a1), ay + R * Math.sin(a1))} Z`, class: "sq-island" }, gI);
     }
     const gHoles = part("holes", "sub pop", k);
-    for (const side of [-1, 1]) for (const f of [-0.75, -0.3, 0.3, 0.75]) {
-      const a = side * Math.PI / 2 + f * half;
-      el("circle", { cx: sx + 0.62 * R * Math.cos(a), cy: 0.62 * R * Math.sin(a), r: 2.6 }, gHoles);
-    }
-    // the junction: lower-gap leads from both apexes, overlapping at the centre
+    for (const [x, y] of HOLES) el("rect", { x: sx + x - HOLE / 2, y: y - HOLE / 2, width: HOLE, height: HOLE }, gHoles);
+    // the junction and its two connection pads
     const gJJ = part("junction", "jj pop", k);
-    el("rect", { x: sx - 0.9, y: -g - 0.4, width: 1.8, height: g + 1.4, class: "sq-lead" }, gJJ);
-    el("rect", { x: sx - 0.5, y: -1, width: 1.0, height: g + 1.4, class: "sq-lead" }, gJJ);
-    el("rect", { x: sx - 1.1, y: -1.1, width: 2.2, height: 2.2, rx: 0.4, class: "sq-barrier" }, gJJ);
-    el("circle", { cx: sx, cy: 0, r: 11, fill: "transparent" }, gJJ);
+    drawJunction(gJJ, sx, "sq-lead");
+    el("rect", { x: sx - 5, y: -g, width: 10, height: 2 * g, fill: "transparent" }, gJJ);
+    for (const s of [-1, 1]) drawPad(part("jjpads", "pads pop", k), sx, s, "sq-padj");
     o.sx = sx; return o;
   });
 
   // thin lines that keep the feedline and charge lines visible when zoomed out to the whole chip
   const gOver = el("g", { class: "sq-over", "pointer-events": "none" });
-  el("line", { x1: -3800, y1: yc, x2: 3800, y2: yc }, gOver);
-  for (const sx of SX) el("line", { x1: sx, y1: PAD_Y + 225, x2: sx, y2: POCKET.y }, gOver);
-  for (const sx of SX) el("circle", { cx: sx, cy: 0, r: 360, class: "sq-mark" }, gOver);      // where the SQUATs are
+  el("line", { x1: -LINE_START, y1: yc, x2: LINE_START, y2: yc }, gOver);
+  for (const sx of SX) el("line", { x1: sx, y1: -LINE_START, x2: sx, y2: BITE.top }, gOver);
 
   // animation layers, and the magnified junction, follow the SQUAT in focus
   const gAnim = el("g", { class: "sq-anim", "pointer-events": "none" });
   const gPairs = el("g", { class: "sq-pairs" }, gAnim), gQP = el("g", { class: "sq-qps" }, gAnim), gFx = el("g", { class: "sq-fx" }, gAnim);
-  // the inset: the junction ten times larger, leads in the lower-gap colour, the oxide overlap in gold
-  const INS = { x: 86, y: -40, r: 30, m: 10 };
+  // the inset: the whole junction three times larger, with the island edges for context
+  const INS = { x: 178, y: -122, r: 42, m: 3 };
   const gIns = el("g", { class: "sq-inset", "pointer-events": "none" }, gAnim);
-  el("line", { x1: 2, y1: -2, x2: INS.x - INS.r * 0.85, y2: INS.y + INS.r * 0.5, class: "sq-ins-guide" }, gIns);
+  el("line", { x1: 2, y1: -2, x2: INS.x - INS.r * 0.72, y2: INS.y + INS.r * 0.7, class: "sq-ins-guide" }, gIns);
   el("defs", {}, gIns).innerHTML = `<clipPath id="sqInsClip"><circle cx="${INS.x}" cy="${INS.y}" r="${INS.r}"/></clipPath>`;
   const gInsIn = el("g", { "clip-path": "url(#sqInsClip)" }, gIns);
   el("circle", { cx: INS.x, cy: INS.y, r: INS.r, class: "sq-ins-bg" }, gInsIn);
-  const ix = (u) => INS.x + u * INS.m / 10, iy = (v) => INS.y + v * INS.m / 10;   // inset units: 0.1 um
-  el("rect", { x: ix(-3), y: iy(-40), width: 6 * INS.m / 10, height: 42 * INS.m / 10, class: "sq-lead" }, gInsIn);   // top lead
-  el("rect", { x: ix(-1.4), y: iy(-2.5), width: 2.8 * INS.m / 10, height: 43 * INS.m / 10, class: "sq-lead" }, gInsIn);   // bottom lead's finger
-  el("rect", { x: ix(-3), y: iy(12), width: 6 * INS.m / 10, height: 30 * INS.m / 10, class: "sq-lead" }, gInsIn);
-  el("rect", { x: ix(-1.6), y: iy(-2.6), width: 3.2 * INS.m / 10, height: 5 * INS.m / 10, rx: 0.3, class: "sq-barrier" }, gInsIn);
-  const gInsQP = el("g", {}, gInsIn);
+  const gInsJ = el("g", { transform: `translate(${INS.x} ${INS.y}) scale(${INS.m})` }, gInsIn);
+  const tn = Math.tan(Math.PI / 2 - half), W = 16;
+  for (const s of [-1, 1]) el("path", { d: `M ${P(-W, s * (g + W * tn))} L ${P(0, s * g)} L ${P(W, s * (g + W * tn))} L ${P(W, s * 20)} L ${P(-W, s * 20)} Z`, class: "sq-ins-island" }, gInsJ);
+  for (const s of [-1, 1]) drawPad(gInsJ, 0, s, "sq-lead");
+  drawJunction(gInsJ, 0, "sq-lead");
+  const gInsQP = el("g", {}, gInsJ);
   el("circle", { cx: INS.x, cy: INS.y, r: INS.r, class: "sq-ins-ring" }, gIns);
-  const insLabel = el("text", { x: INS.x, y: INS.y + INS.r + 8, class: "sq-ins-label" }, gIns); insLabel.textContent = "mDolan junction ×10";
+  const insLabel = el("text", { x: INS.x, y: INS.y + INS.r + 8, class: "sq-ins-label" }, gIns); insLabel.textContent = "Junction ×3";
 
   // ---------------------------------------------------------------- the view: chip <-> one SQUAT, smoothly
-  let focus = 1, view = [-200, -208, 400, 400], anim = null;
-  const VIEW_SQUAT = (k) => [SX[k] - 200, -208, 400, 400], VIEW_CHIP = [-4700, -4700, 9400, 9400];
+  let focus = 1, view = [-235, -255, 470, 470], anim = null;
+  const VIEW_SQUAT = (k) => [SX[k] - 235, -255, 470, 470], VIEW_CHIP = [-4700, -4700, 9400, 9400];
   const setView = (v) => { view = v; svg.setAttribute("viewBox", v.map((n) => n.toFixed(2)).join(" ")); };
   function zoomTo(target, dur) {
     const from = view.slice(), w0 = from[2], w1 = target[2];
@@ -150,7 +167,7 @@
   function viewUi() {
     const w = view[2], o = Math.max(0, Math.min(1, (Math.log(w) - Math.log(1200)) / (Math.log(5000) - Math.log(1200))));
     gOver.style.opacity = o;
-    gIns.style.opacity = Math.max(0, Math.min(1, (900 - w) / 400));
+    gIns.style.opacity = Math.max(0, Math.min(1, (1100 - w) / 450));
     hint.hidden = !zoomedOut() || anim !== null;
     btnChip.classList.toggle("on", w > 2000); btnSquat.classList.toggle("on", w <= 2000);
     btnChip.setAttribute("aria-pressed", String(w > 2000)); btnSquat.setAttribute("aria-pressed", String(w <= 2000));
@@ -169,7 +186,11 @@
     let [t, d] = name ? INFO[name] : DEFAULT;
     if (name && zoomedOut() && k !== undefined && !["ground", "feedline", "launch"].includes(name)) [t, d] = [`SQUAT ${+k + 1} of 3`, INFO.chip[1]];
     infoT.textContent = t; infoD.textContent = d;
-    parts.forEach((n) => n.classList.toggle("hl", !!name && n.dataset.part === name && (n.dataset.sq === undefined || n.dataset.sq === k)));
+    const same = (n) => n.dataset.sq === undefined || n.dataset.sq === k, lifts = { islands: "holes", holes: "islands" };
+    parts.forEach((n) => {
+      n.classList.toggle("hl", !!name && n.dataset.part === name && same(n));
+      n.classList.toggle("lift", !!name && n.dataset.part === lifts[name] && same(n));
+    });
   }
   parts.forEach((n) => {
     const k = n.dataset.sq;
@@ -197,7 +218,7 @@
   // ---------------------------------------------------------------- the detection
   const rnd = Math.random, TAU = Math.PI * 2;
   const inIsland = (x, y, side) => { const dy = y - side * g, d = Math.hypot(x, dy); if (d > R - 3 || d < 3) return false; const a = Math.atan2(dy, x) - side * Math.PI / 2; return Math.abs(Math.atan2(Math.sin(a), Math.cos(a))) < half - 0.05; };
-  const randomIn = (side) => { for (;;) { const d = 10 + rnd() * (R - 16), a = side * Math.PI / 2 + (rnd() * 2 - 1) * (half - 0.1); const x = d * Math.cos(a), y = side * g + d * Math.sin(a); if (inIsland(x, y, side)) return [x, y]; } };
+  const randomIn = (side) => { for (;;) { const d = 34 + rnd() * (R - 40), a = side * Math.PI / 2 + (rnd() * 2 - 1) * (half - 0.1); const x = d * Math.cos(a), y = side * g + d * Math.sin(a); if (inIsland(x, y, side)) return [x, y]; } };
   const pairs = [];
   for (let i = 0; i < 20; i++) {
     const side = i % 2 ? 1 : -1, [x, y] = randomIn(side);
@@ -206,7 +227,7 @@
   const placePair = (p, t) => { const ox = Math.cos(p.ph + t * 1.3) * 1.8, oy = Math.sin(p.ph + t * 1.3) * 1.8; p.a.setAttribute("cx", p.x + ox); p.a.setAttribute("cy", p.y + oy); p.b.setAttribute("cx", p.x - ox); p.b.setAttribute("cy", p.y - oy); };
 
   let qps = [], trapped = [], rings = [], fx = [], parity = 1, ev = null, cycleT = 0, flips = 0;
-  const CYCLE = 9.5;
+  const CYCLE = 11.5;
   const fmtE = (meV) => (meV >= 1000 ? (meV / 1000).toFixed(2) + " eV" : meV >= 100 ? Math.round(meV) + " meV" : meV.toFixed(1) + " meV");
   function resetDetection() {
     qps.forEach((q) => q.node.remove()); trapped.forEach((q) => { q.node.remove(); q.dot.remove(); });
@@ -228,13 +249,13 @@
     } else {
       E = Math.exp(Math.log(20) + rnd() * (Math.log(2000) - Math.log(20))); npairs = Math.min(10, Math.max(1, Math.round(0.01 * E / 0.6)));
       label = `phonons ${fmtE(E)}`; txt = `A particle passes through the chip and leaves ${fmtE(E)} in the silicon. It spreads out as phonons.`;
-      do { x = (rnd() * 2 - 1) * 110; y = -140 + rnd() * 280; } while (Math.hypot(x, y) < R + 15);
+      do { x = (rnd() * 2 - 1) * 200; y = -190 + rnd() * 360; } while (Math.hypot(x, y) < R + 25);
       rings.push({ x, y, t: 0 }, { x, y, t: -0.22 }, { x, y, t: -0.44 });
-      fx.push({ node: el("line", { x1: x - 60, y1: y - 110, x2: x + 60, y2: y + 110, class: "sq-track" }, gFx), t: 0, life: 0.9 });
+      fx.push({ node: el("line", { x1: x - 70, y1: y - 130, x2: x + 70, y2: y + 130, class: "sq-track" }, gFx), t: 0, life: 0.9 });
       fx.push({ node: el("circle", { cx: x, cy: y, r: 2.5, class: "sq-hit" }, gFx), t: 0, life: 1.0, grow: 8 });
     }
-    ev = { photon, E, label, txt, npairs, x, y, side, broke: false, at: tNow };
-    marks.push([tNow, label]);
+    ev = { photon, E, label, txt, npairs, x, y, side, broke: false, at: tNow, mark: [tNow, label] };
+    marks.push(ev.mark);
   }
   function wavePath(x, y) {        // a short wiggle coming in from the upper left
     const x0 = x - 120, y0 = y - 70, n = 40; let d = `M ${P(x0, y0)}`;
@@ -249,23 +270,23 @@
     fx.push({ node: el("circle", { cx: ev.x, cy: ev.y, r: 3, class: "sq-hit" }, gFx), t: 0, life: 0.8, grow: 6 });
     spots.forEach(([x, y, side], i) => {
       const p = pairs.find((p) => !p.broken && p.side === side);
-      if (p) { p.broken = true; p.a.style.opacity = 0; p.b.style.opacity = 0; p.mendAt = 7.8 + rnd(); }
+      if (p) { p.broken = true; p.a.style.opacity = 0; p.b.style.opacity = 0; p.mendAt = 9.6 + rnd(); }
       for (const s of [-1, 1]) {
         const a = rnd() * TAU;
-        qps.push({ x, y, vx: Math.cos(a) * 28 * s, vy: Math.sin(a) * 28 * s, side, node: el("circle", { cx: x, cy: y, r: 2.2, class: "sq-qp" }, gQP), t: 0, life: 3.4 + rnd() * 1.4 });
+        qps.push({ x, y, vx: Math.cos(a) * 28 * s, vy: Math.sin(a) * 28 * s, side, node: el("circle", { cx: x, cy: y, r: 2.2, class: "sq-qp" }, gQP), t: 0, life: 3 + rnd() * 1.8, reach: 0.35 + 1.2 * rnd() });
       }
     });
   }
   function trap(q) {               // into the lower-gap lead: it stays at the junction and tunnels
     q.node.remove();
-    const tq = { side: q.side, u: (rnd() - 0.5) * 3, v: q.side * (10 + rnd() * 20), vu: (rnd() - 0.5) * 30, vv: (rnd() - 0.5) * 40, t: 0, life: 1.6 + rnd() * 1.8, hop: null,
-                 node: el("circle", { r: 2.1, class: "sq-qp" }, gInsQP), dot: el("circle", { r: 1.6, class: "sq-qp" }, gQP) };
+    const tq = { side: q.side, u: (rnd() - 0.5) * 2, v: q.side * (g + 1 + rnd() * 2.5), vu: 0, vv: (rnd() - 0.5) * 8, t: 0, life: 3.2 + rnd() * 2.2, hop: null, lastHop: 0,
+                 node: el("circle", { r: 0.75, class: "sq-qp" }, gInsQP), dot: el("circle", { r: 2, class: "sq-qp" }, gQP) };
     trapped.push(tq);
   }
   function tunnel(tq) {
-    tq.hop = { t: 0, from: tq.v, to: -tq.side * (4 + rnd() * 6) }; parity = -parity; flips++;
-    fx.push({ node: el("circle", { cx: 0, cy: 0, r: 2, class: "sq-tunnel" }, gFx), t: 0, life: 0.5, grow: 7 });
-    fx.push({ node: el("circle", { cx: INS.x, cy: INS.y, r: 3, class: "sq-tunnel" }, gIns), t: 0, life: 0.5, grow: 10 });
+    tq.hop = { t: 0, from: tq.v, to: tq.side < 0 ? JJ.bridge + 0.8 + rnd() * 4 : JJ.bridge - 0.8 - rnd() * 6 }; parity = -parity; flips++;
+    fx.push({ node: el("circle", { cx: 0, cy: JJ.bridge, r: 2, class: "sq-tunnel" }, gFx), t: 0, life: 0.5, grow: 7 });
+    fx.push({ node: el("circle", { cx: INS.x, cy: INS.y + JJ.bridge * INS.m, r: 3, class: "sq-tunnel" }, gIns), t: 0, life: 0.5, grow: 10 });
   }
 
   function step(dt) {
@@ -284,31 +305,36 @@
     // free quasiparticles diffuse through the island (sped up), drifting a little towards the junction
     for (const q of qps) {
       q.t += dt;
-      const ax = -q.x * 1.2, ay = (q.side * (g + 4) - q.y) * 0.9;
+      const ax = -q.x * 1.2 * q.reach, ay = (q.side * PAD_C - q.y) * 0.9 * q.reach;
       q.vx += (ax + (rnd() - 0.5) * 900) * dt; q.vy += (ay + (rnd() - 0.5) * 900) * dt; q.vx *= 0.94; q.vy *= 0.94;
       let nx = q.x + q.vx * dt, ny = q.y + q.vy * dt;
       if (!inIsland(nx, ny, q.side)) { q.vx = -q.vx; q.vy = -q.vy; nx = q.x; ny = q.y; }
       q.x = nx; q.y = ny;
-      if (Math.hypot(q.x, q.y - q.side * g) < 9 && q.t > 0.4) { q.done = true; trap(q); continue; }
+      if (Math.hypot(q.x, q.y - q.side * PAD_C) < 13 && q.t > 0.4) { q.done = true; trap(q); continue; }
       q.node.setAttribute("cx", q.x); q.node.setAttribute("cy", q.y);
       q.node.style.opacity = Math.min(1, q.t / 0.3) * Math.max(0, Math.min(1, (q.life - q.t) / 0.6));
     }
-    qps = qps.filter((q) => { if (q.done) return false; if (q.t > q.life) { q.node.remove(); return false; } return true; });
+    qps = qps.filter((q) => {
+      if (q.done) return false;
+      if (q.t > q.life) { q.node.remove(); fx.push({ node: el("circle", { cx: q.x, cy: q.y, r: 1.5, class: "sq-recomb" }, gFx), t: 0, life: 0.6, grow: 4 }); return false; }
+      return true;
+    });
     // trapped ones jiggle in their lead and tunnel at a steady rate until they recombine
     for (const tq of trapped) {
       tq.t += dt;
       if (tq.hop) {
-        tq.hop.t += dt / 0.2; const k = Math.min(1, tq.hop.t); tq.v = tq.hop.from + (tq.hop.to - tq.hop.from) * k; tq.u = 0;
-        if (k >= 1) { tq.hop = null; tq.side = -tq.side; }
+        tq.hop.t += dt / 0.25; const k = Math.min(1, tq.hop.t); tq.v = tq.hop.from + (tq.hop.to - tq.hop.from) * k; tq.u = 0;
+        if (k >= 1) { tq.hop = null; tq.side = -tq.side; tq.lastHop = tq.t; }
       } else {
-        tq.vu += (rnd() - 0.5) * 400 * dt; tq.vv += (rnd() - 0.5) * 500 * dt; tq.vu *= 0.9; tq.vv *= 0.9;
-        tq.u = Math.max(-2.2, Math.min(2.2, tq.u + tq.vu * dt));
-        tq.v = tq.side < 0 ? Math.max(-36, Math.min(-3, tq.v + tq.vv * dt)) : Math.max(3, Math.min(36, tq.v + tq.vv * dt));
-        if (tq.t > 0.25 && tq.t < tq.life - 0.3 && rnd() < 1.1 * dt) tunnel(tq);
+        tq.vu += (rnd() - 0.5) * 60 * dt; tq.vv += (rnd() - 0.5) * 120 * dt; tq.vu *= 0.9; tq.vv *= 0.9;
+        tq.v = tq.side < 0 ? Math.max(-g - 3, Math.min(JJ.bridge - 0.6, tq.v + tq.vv * dt)) : Math.max(JJ.bridge + 0.6, Math.min(g + 4, tq.v + tq.vv * dt));
+        const room = Math.abs(tq.v) > g ? JJ.padA * 0.8 : tq.side < 0 ? (tq.v < JJ.thickEnd ? JJ.thick / 2 : 0.05) : JJ.dropW / 2 * Math.min(1, (tq.v - JJ.dropTip) / (g - JJ.dropTip));
+        tq.u = Math.max(-room, Math.min(room, tq.u + tq.vu * dt));
+        if (tq.t > 0.5 && tq.t - tq.lastHop > 0.45 && tq.t < tq.life - 0.4 && rnd() < 1.6 * dt) tunnel(tq);
       }
       const fade = Math.min(1, tq.t / 0.2) * Math.max(0, Math.min(1, (tq.life - tq.t) / 0.4));
-      tq.node.setAttribute("cx", ix(tq.u)); tq.node.setAttribute("cy", iy(tq.v)); tq.node.style.opacity = fade;
-      tq.dot.setAttribute("cx", tq.u * 0.25); tq.dot.setAttribute("cy", tq.v * 0.2); tq.dot.style.opacity = fade;
+      tq.node.setAttribute("cx", tq.u); tq.node.setAttribute("cy", tq.v); tq.node.style.opacity = fade;
+      tq.dot.setAttribute("cx", tq.u); tq.dot.setAttribute("cy", tq.v); tq.dot.style.opacity = fade;
     }
     trapped = trapped.filter((tq) => { if (tq.t > tq.life) { tq.node.remove(); tq.dot.remove(); return false; } return true; });
     for (const p of pairs) if (p.broken && cycleT > p.mendAt) { p.broken = false; [p.x, p.y] = randomIn(p.side); p.a.style.opacity = ""; p.b.style.opacity = ""; }
@@ -317,8 +343,14 @@
     if (ev) {
       s = ev.txt;
       if (ev.broke) s = `It breaks ${ev.npairs} Cooper pair${ev.npairs > 1 ? "s" : ""} into ${2 * ev.npairs} quasiparticles, which wander through the aluminium.`;
-      if (flips || trapped.length) s = `Quasiparticles trapped in the junction's lower-gap leads tunnel back and forth. Each tunnelling flips the charge parity and shifts the qubit frequency by 2χ: ${flips} switch${flips === 1 ? "" : "es"} so far.`;
-      if (cycleT > 7.6 && !trapped.length && !qps.length) s = `${flips} parity switch${flips === 1 ? "" : "es"} from ${fmtE(ev.E)}${ev.photon ? " of light" : " in the chip"}. The quasiparticles recombine into Cooper pairs and the qubit settles.`;
+      if (flips || trapped.length) s = `A quasiparticle is caught in the junction's lower-gap lead. Stuck there, it tunnels back and forth through the barrier, and every tunnelling flips the charge parity, shifting the qubit frequency by 2χ: ${flips} switch${flips === 1 ? "" : "es"} so far.`;
+      if (ev.broke && cycleT > 3 && !trapped.length && !qps.length) {
+        if (flips) s = `${flips} parity switch${flips === 1 ? "" : "es"} from ${fmtE(ev.E)}${ev.photon ? " of light" : " in the chip"}. The quasiparticles recombine into Cooper pairs and the qubit settles.`;
+        else {
+          s = `None of the quasiparticles reached the junction: they recombined into Cooper pairs first. The parity never changed, so this ${ev.photon ? "photon" : "hit"} goes unrecorded.`;
+          if (!ev.missed) { ev.missed = true; ev.mark[1] += " · missed"; }
+        }
+      }
     }
     if (stepEl.textContent !== s) stepEl.textContent = s;
   }
