@@ -18,6 +18,8 @@
   --fig-sub: #1f2b3d;
   --fig-metal-hi: #f2f4f7;
   --fig-sub-hi: #2f4566;
+  --fig-lead: #6fb0c4;
+  --fig-lead-hi: #9fd3e3;
 
   --serif: "Newsreader", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
   --sans: "Public Sans", "Helvetica Neue", Arial, system-ui, sans-serif;
@@ -37,6 +39,8 @@
   --fig-sub: #0e1520;
   --fig-metal-hi: #d3d8de;
   --fig-sub-hi: #1b2a3f;
+  --fig-lead: #5d9cb0;
+  --fig-lead-hi: #8cc4d6;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -54,6 +58,8 @@
     --fig-sub: #0e1520;
     --fig-metal-hi: #d3d8de;
     --fig-sub-hi: #1b2a3f;
+    --fig-lead: #5d9cb0;
+    --fig-lead-hi: #8cc4d6;
   }
 }
 
@@ -123,41 +129,54 @@ h3 { font-family: var(--serif); font-weight: 600; font-size: 19px; line-height: 
 .entries p { margin: 0; font-size: 17.5px; }
 .entries .where { display: block; color: var(--ink-soft); font-size: 17px; }
 
-/* the SQUAT figure in Research: a mask-style drawing (metal light, etched silicon dark) you can hover,
-   with a quiet animation of a detection and the qubit frequency read out below (assets/squat.js) */
-.squat { margin: 6px 0 26px; max-width: 640px; }
-.sq-stage { position: relative; }
-.sq-stage svg { display: block; width: 100%; height: auto; border-radius: 6px; overflow: hidden; }
+/* the SQUAT figure in Research (assets/squat.js): a chip that zooms into one SQUAT on the left, the live
+   charge parity and the description of the hovered part on the right; mask-style colours (metal light,
+   etched silicon dark, the junction's lower-gap leads in teal, the oxide in gold) */
+.squat { margin: 6px 0 26px; }
+.sq-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: stretch; }
+.sq-stage { position: relative; align-self: start; width: 100%; border-radius: 6px; overflow: hidden; background: var(--bg); aspect-ratio: 1; }
+.sq-stage svg { display: block; width: 100%; height: 100%; }
 .sq-part { cursor: help; outline: none; }
-.sq-metal > :not([fill]), .sq-line > .sq-metal { fill: var(--fig-metal); transition: fill .15s; }
-.sq-sub > :not([fill]), .sq-line > .sq-sub { fill: var(--fig-sub); transition: fill .15s; }
-.sq-metal > .sq-brim { fill: none; stroke: var(--fig-metal); stroke-linejoin: round; stroke-linecap: round; transition: stroke .15s; }
-.sq-jj .sq-lead { fill: var(--fig-metal); }
-.sq-jj .sq-barrier { fill: var(--gold); }
-.sq-metal.hl > :not([fill]), .sq-line.hl > .sq-metal { fill: var(--fig-metal-hi); }
-.sq-metal.hl > .sq-brim { fill: none; stroke: var(--fig-metal-hi); }
-.sq-sub.hl > :not([fill]), .sq-line.hl > .sq-sub { fill: var(--fig-sub-hi); }
-.sq-jj.hl .sq-barrier { fill: var(--accent); }
+.sq-metal > :not([fill]), .sq-metalf { fill: var(--fig-metal); transition: fill .15s; }
+.sq-sub > :not([fill]), .sq-subf { fill: var(--fig-sub); transition: fill .15s; }
+.sq-lead { fill: var(--fig-lead); }
+.sq-barrier { fill: var(--gold); }
+.sq-metal.hl > :not([fill]), .sq-part.hl .sq-metalf { fill: var(--fig-metal-hi); }
+.sq-sub.hl > :not([fill]), .sq-part.hl .sq-subf { fill: var(--fig-sub-hi); }
+.sq-jj.hl .sq-lead { fill: var(--fig-lead-hi); }
+.pop { transform-box: fill-box; transform-origin: center; transition: transform .2s ease, filter .2s ease; }
+.pop.hl { transform: scale(1.07); filter: drop-shadow(0 3px 5px rgba(0, 0, 0, .45)); }
+.sq-jj.pop.hl { transform: scale(1.6); }
+.sq-over line { stroke: var(--fig-sub); stroke-width: 1.3; vector-effect: non-scaling-stroke; }
+.sq-over .sq-mark { fill: none; stroke: var(--gold); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .sq-pairs circle { fill: var(--fig-sub); opacity: .3; }
-.sq-qp { fill: var(--gold); stroke: var(--fig-sub); stroke-width: .6; }
-.sq-ring { fill: none; stroke: var(--gold); stroke-width: 1.3; }
-.sq-track { stroke: var(--gold); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.sq-qp { fill: var(--gold); stroke: var(--fig-sub); stroke-width: .5; }
+.sq-ring { fill: none; stroke: var(--gold); stroke-width: 1.2; }
+.sq-track { stroke: var(--gold); stroke-width: 1.4; stroke-dasharray: 4 3; }
+.sq-photon { fill: none; stroke: var(--accent); stroke-width: 1.4; stroke-linecap: round; stroke-dasharray: 60 200; }
 .sq-hit { fill: var(--gold); }
-.sq-tunnel { fill: none; stroke: var(--gold); stroke-width: 1.2; }
-.sq-tip {
-  position: absolute; z-index: 3; max-width: 270px; padding: 9px 11px; pointer-events: none;
-  background: var(--tile); color: var(--ink); border: 1px solid var(--rule); border-radius: 6px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, .18); font-family: var(--sans); font-size: 13px; line-height: 1.45;
-}
-.sq-tip b { display: block; font-size: 13.5px; font-weight: 600; margin-bottom: 2px; }
-.sq-readout { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 10px; font-family: var(--sans); font-size: 12.5px; color: var(--ink-faint); }
-.sq-play { white-space: nowrap; font: inherit; font-size: 12.5px; color: var(--ink-soft); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
-.sq-play:hover { color: var(--ink); }
-.sq-play:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.sq-trace { height: 64px; margin-top: 4px; border: 1px solid var(--rule); border-radius: 6px; background: var(--tile); }
+.sq-tunnel { fill: none; stroke: var(--gold); stroke-width: 1; }
+.sq-ins-bg { fill: var(--fig-sub); }
+.sq-ins-ring { fill: none; stroke: var(--gold); stroke-width: .8; }
+.sq-ins-guide { stroke: var(--gold); stroke-width: .5; stroke-dasharray: 2 2; }
+.sq-ins-label { font-family: var(--sans); font-size: 6.5px; fill: var(--fig-metal); text-anchor: middle; }
+.sq-zoom { position: absolute; top: 8px; left: 8px; display: inline-flex; border-radius: 6px; overflow: hidden; border: 1px solid var(--rule); background: var(--tile); }
+.sq-zoom button { font-family: var(--sans); font-size: 12.5px; font-weight: 500; color: var(--ink-soft); background: none; border: 0; padding: 5px 11px; cursor: pointer; }
+.sq-zoom button + button { border-left: 1px solid var(--rule); }
+.sq-zoom button.on { background: var(--ink); color: var(--bg); }
+.sq-zoom button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.sq-hint { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); margin: 0; white-space: nowrap; font-family: var(--sans); font-size: 12px; color: var(--fig-metal); background: var(--fig-sub); padding: 3px 10px; border-radius: 99px; pointer-events: none; }
+.sq-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.sq-panel { border: 1px solid var(--rule); border-radius: 6px; background: var(--tile); padding: 10px 12px; font-family: var(--sans); }
+.sq-head { font-size: 12.5px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.sq-trace { height: 110px; }
 .sq-trace canvas { display: block; width: 100%; height: 100%; }
-.sq-step { font-family: var(--sans); font-size: 14px; line-height: 1.5; color: var(--ink); margin: 10px 0 0; min-height: 3em; }
-.squat figcaption { font-family: var(--sans); font-size: 14px; line-height: 1.55; color: var(--ink-soft); margin-top: 6px; max-width: 62ch; }
+.sq-step { font-size: 13px; line-height: 1.5; color: var(--ink-soft); margin: 6px 0 0; min-height: 4.5em; }
+.sq-info { flex: 1; }
+.sq-info b { display: block; font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.sq-info p { font-size: 13.5px; line-height: 1.55; color: var(--ink-soft); margin: 0; }
+.squat figcaption { font-family: var(--sans); font-size: 14px; line-height: 1.55; color: var(--ink-soft); margin-top: 10px; max-width: 70ch; }
+@media (max-width: 860px) { .sq-grid { grid-template-columns: 1fr; } }
 
 /* publications */
 .pubs { margin: 0; padding-left: 1.6em; }
