@@ -103,6 +103,7 @@
     <div class="row">
       <button id="raceShort">sprint · 1.3 km</button>
       <button id="raceLong">long · 3.3 km</button>
+      <button id="raceRange">long range · 15 km</button>
     </div>
     <p class="hint" id="raceHint" style="margin:8px 0 0">Races run along the road you are on, junction to junction. Everyone online gets an invite.</p>
   </div>
@@ -1220,11 +1221,13 @@ function courseAt(c, x, z) {
 const courseDir = (c, q) => { const a = c.pts[Math.max(0, q - 1)], b = c.pts[Math.min(c.pts.length - 1, q + 1)]; return Math.atan2(b[0] - a[0], b[1] - a[1]); };
 
 // gates: two posts and a banner across the road (checkered at the start and the finish)
+const bannerCache = {};
 function bannerTex(kind) {
+  if (bannerCache[kind]) return bannerCache[kind];
   const cv = document.createElement("canvas"); cv.width = 256; cv.height = 32; const g = cv.getContext("2d");
   if (kind === "check") { for (let y = 0; y < 2; y++) for (let x = 0; x < 16; x++) { g.fillStyle = (x + y) % 2 ? "#26282c" : "#f7f3ea"; g.fillRect(x * 16, y * 16, 16, 16); } }
   else { g.fillStyle = "#e0b35a"; g.fillRect(0, 0, 256, 32); g.fillStyle = "#fff8e8"; g.font = "bold 20px Public Sans, Arial"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("CHECKPOINT", 128, 17); }
-  const t = new THREE.CanvasTexture(cv); return t;
+  const t = new THREE.CanvasTexture(cv); bannerCache[kind] = t; return t;
 }
 function buildGate(c, q, kind) {
   const p = c.pts[q], h = courseDir(c, q), y = roadSurf(p[0], p[1]), half = 6.5, g = new THREE.Group();
@@ -1236,7 +1239,7 @@ function buildGate(c, q, kind) {
 }
 function clearRaceScene() {
   if (!race || !race.gates) return;
-  for (const g of race.gates) { scene.remove(g); g.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } }); }
+  for (const g of race.gates) { scene.remove(g); g.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); }   // banner textures are shared and kept
   race.gates = null;
 }
 
@@ -1257,7 +1260,7 @@ function raceUi() {
   const n = net.peers.size;
   raceBox.hidden = !(net.status === "online" && n > 0);
   const busy = race && race.state !== "over";
-  document.getElementById("raceShort").disabled = document.getElementById("raceLong").disabled = !!busy;
+  document.getElementById("raceShort").disabled = document.getElementById("raceLong").disabled = document.getElementById("raceRange").disabled = !!busy;
   raceHint.textContent = busy ? "A race is on." : "Races run along the road you are on, junction to junction. Everyone online gets an invite.";
 }
 function startRace(legs) {
@@ -1282,7 +1285,7 @@ function onRace(m, mine) {
   if (race && race.state !== "over" && race.rid !== m.rid) return;   // one race at a time
   if (race && race.rid === m.rid) return;
   const ok = (v, lim) => Number.isInteger(v) && Math.abs(v) <= lim;
-  if (!ok(m.i, 1e5) || !ok(m.j, 1e5) || (m.dir !== 0 && m.dir !== 1) || (m.s !== 1 && m.s !== -1) || !ok(m.k, 14) || m.k < 2 || !ok(m.t, 60000) || m.t < 3000) return;
+  if (!ok(m.i, 1e5) || !ok(m.j, 1e5) || (m.dir !== 0 && m.dir !== 1) || (m.s !== 1 && m.s !== -1) || !ok(m.k, 60) || m.k < 2 || !ok(m.t, 60000) || m.t < 3000) return;
   const course = buildCourse(m.i, m.j, m.dir, m.s, m.k);
   if (!course) return;
   if (race) clearRaceScene();
@@ -1325,8 +1328,9 @@ function raceOnLeave(id) {
 function raceCheckOver() {
   if (!race || race.state === "over" || race.state === "invite") return;
   const all = [...race.racers.values()].every((r) => r.ms !== null || r.out);
-  const late = race.firstFinish !== null && performance.now() - race.firstFinish > RACE.afterFirst;
-  if (all || late || performance.now() - race.startAt > 8 * 60000) showResults();
+  const best = Math.min(...[...race.racers.values()].map((r) => (r.ms === null ? Infinity : r.ms)));
+  const late = race.firstFinish !== null && performance.now() - race.firstFinish > Math.max(RACE.afterFirst, 0.4 * best);
+  if (all || late || performance.now() - race.startAt > 20 * 60000) showResults();
 }
 function showResults() {
   race.state = "over";
@@ -1370,6 +1374,7 @@ function holdOnGrid() { const g = race.grid; car.x = g.x; car.z = g.z; car.headi
 
 document.getElementById("raceShort").onclick = () => startRace(4);
 document.getElementById("raceLong").onclick = () => startRace(10);
+document.getElementById("raceRange").onclick = () => startRace(45);   // about 15 km: ~3:50 driven perfectly, ~5 min for a person
 document.getElementById("raceJoin").onclick = () => joinRace();
 document.getElementById("raceDecline").onclick = () => { raceInvite.hidden = true; };
 
