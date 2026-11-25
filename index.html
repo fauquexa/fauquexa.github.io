@@ -9,10 +9,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/style.css?v=20261125b">
+  <link rel="stylesheet" href="assets/style.css?v=20261125d">
   <script src="assets/site.js?v=20261123a"></script>
   <script src="assets/julia-day.js?v=20261122k"></script>
   <script src="assets/previews.js?v=20261124a" defer></script>
+  <script src="assets/squat.js?v=20261125c" defer></script>
 </head>
 <body>
 <div class="layout">
@@ -62,34 +63,15 @@
     <section id="research">
       <h2>Research</h2>
       <p><em>Superconducting Quasiparticle Amplifying Transmons</em> (SQUATs) are transmon-based sensors and my main research focus.</p>
-      <figure class="squat">
-        <svg viewBox="0 0 520 340" role="img" aria-labelledby="squat-t">
-          <title id="squat-t">Drawing of a pizza SQUAT: two pie-slice superconducting islands meeting at a Josephson junction, in a pocket that opens onto the feedline, with a charge line from above</title>
-          <rect class="m" x="0" y="0" width="300" height="340" rx="6"/>
-          <rect class="s" x="0" y="306" width="300" height="5"/>
-          <rect class="s" x="0" y="323" width="300" height="5"/>
-          <path class="s" d="M62 306 V62 Q62 52 72 52 H145 V0 H155 V52 H228 Q238 52 238 62 V306 Z"/>
-          <rect class="m" x="148.8" y="0" width="2.4" height="40"/>
-          <path class="m" d="M150 176 L74.8 110.1 A100 100 0 0 1 225.2 110.1 Z"/>
-          <path class="m" d="M150 182 L74.8 247.9 A100 100 0 0 0 225.2 247.9 Z"/>
-          <rect class="j" x="148.6" y="175" width="2.8" height="8"/>
-          <g class="lead">
-            <path d="M156 22 H314"/>
-            <path d="M200 128 L314 112"/>
-            <path d="M200 232 L314 112"/>
-            <path d="M154 179 H314"/>
-            <path d="M286 317 H314"/>
-            <circle cx="156" cy="22" r="2.5"/><circle cx="200" cy="128" r="2.5"/><circle cx="200" cy="232" r="2.5"/><circle cx="154" cy="179" r="2.5"/><circle cx="286" cy="317" r="2.5"/>
-          </g>
-          <g class="lbl">
-            <text x="322" y="27">Charge line</text>
-            <text x="322" y="109">Pizza-slice islands:</text>
-            <text x="322" y="127">the absorbers</text>
-            <text x="322" y="184">Josephson junction</text>
-            <text x="322" y="322">Feedline (readout)</text>
-          </g>
-        </svg>
-        <figcaption>A pizza SQUAT, drawn from one of our masks. Two pie-slice islands meet at a single Josephson junction, and the qubit sits right on the feedline, with no readout resonator. The islands are the absorbers: a THz photon or a phonon breaks Cooper pairs in them, and each quasiparticle that tunnels across the junction flips the qubit's charge parity, shifting its frequency by 2χ on the feedline. The size of the slices sets which THz frequencies they catch.</figcaption>
+      <figure class="squat" id="squatFig">
+        <div class="sq-stage">
+          <svg viewBox="-292 -184 584 380" role="group" aria-labelledby="squat-t"><title id="squat-t">Interactive drawing of a bowler-hat SQUAT from the W005D wafer: two superconducting islands with interdigitated brims and a Josephson junction between them, in a pocket next to the feedline</title></svg>
+          <div class="sq-tip" role="tooltip" hidden></div>
+        </div>
+        <div class="sq-readout"><span>Qubit frequency, as read out on the feedline</span><button type="button" class="sq-play">Pause animation</button></div>
+        <div class="sq-trace"><canvas aria-hidden="true"></canvas></div>
+        <p class="sq-step"></p>
+        <figcaption>One SQUAT from our W005D wafer, drawn from its mask: two aluminium islands, 90 µm half-discs with interdigitated “brims”, joined by a single Josephson junction and coupled straight to the feedline. Hover over or tap any part to see what it does. The animation follows one detection, from a particle hit to the burst of parity switches we read out.</figcaption>
       </figure>
       <p>My work on SQUATs covers the full cycle: I design them with machine-learning algorithms I develop, simulate them, fabricate them in the <a href="https://foundry.lbl.gov/expertise-instrumentation/#nanofabrication-facility-instrumentation">Molecular Foundry nanofabrication facility</a> at Lawrence Berkeley National Laboratory, and measure them in dilution refrigerators at millikelvin temperatures. On my own initiative I set up collaborations with NVIDIA and MIT, and I work with researchers at Stanford, WashU, Caltech and UW–Madison through DARPA QuSeN.</p>
       <p>My main projects are the <a href="https://arxiv.org/abs/2111.12103">BREAD</a> axion dark-matter search and reactor-neutrino detection for nuclear non-proliferation monitoring within the <a href="https://www.darpa.mil/research/programs/qusen">DARPA QuSeN program</a>. I investigate new materials for <a href="https://arxiv.org/abs/2510.25203">low-T<sub>c</sub> Josephson junctions</a>, develop new kinds of <a href="https://arxiv.org/abs/2103.06803">superconducting qubit antennas</a> and design high-density multiplexing schemes for superconducting qubits.</p>
