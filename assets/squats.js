@@ -1,6 +1,6 @@
-/* The interactive figures on squats.html: a galaxy rotation curve with an adjustable dark-matter halo, an energy
-   ladder, a quasiparticle energy diagram (animated), transmon levels solved live from the Hamiltonian, the
-   resonator-free parity readout with a simulated detection, and a finite-element simulation of a SQUAT (mesh and
+/* The interactive figures on squats.html: a galaxy rotation curve with an adjustable dark-matter halo, a
+   quasiparticle energy diagram (animated), transmon levels solved live from the Hamiltonian, the
+   resonator-free parity readout (the even and odd dips), and a finite-element simulation of a SQUAT (mesh and
    field energy, loaded from assets/squat-sim.json). Everything is drawn here, in SVG or canvas. */
 (function () {
   const NS = "http://www.w3.org/2000/svg";
@@ -66,31 +66,6 @@
       read.style.color = chi < 1.6 ? "var(--gold)" : "";
     }
     slider.addEventListener("input", update); update();
-  })();
-
-  // ================================================================ 2. energy ladder
-  (function () {
-    const fig = $("#ladderFig"); if (!fig) return;
-    const svg = $("svg", fig), W = 640, L = 24, R = 24, E0 = -6, E1 = 10;
-    const X = (e) => L + ((Math.log10(e) - E0) / (E1 - E0)) * (W - L - R), AY = 112;
-    const bands = [["colliders", 1e9, 1e10, 0], ["time-projection chambers", 1e3, 1e6, 1], ["transition-edge sensors", 1, 1e3, 0], ["SQUATs", 1e-3, 1, 1]];
-    bands.forEach(([name, a, b, row]) => {
-      const y = row ? 54 : 22, sq = name === "SQUATs";
-      el("rect", { x: X(a), y, width: Math.max(2, X(b) - X(a)), height: 22, rx: 4, fill: sq ? "var(--gold)" : "var(--rule)", opacity: sq ? 0.9 : 1 }, svg);
-      const t = el("text", { x: (X(a) + X(b)) / 2, y: y + 15, "text-anchor": "middle", class: "svgtext ink" }, svg); t.textContent = name;
-      if (sq) { t.setAttribute("fill", "var(--bg)"); t.style.fill = "var(--bg)"; t.style.fontWeight = 600; }
-      if (name === "colliders") t.setAttribute("x", X(a) - 8), t.setAttribute("text-anchor", "end");
-    });
-    el("line", { x1: L, x2: W - R, y1: AY, y2: AY, stroke: "var(--ink-faint)" }, svg);
-    for (let e = E0; e <= E1; e++) el("line", { x1: X(10 ** e), x2: X(10 ** e), y1: AY - 3, y2: AY + 3, stroke: "var(--ink-faint)" }, svg);
-    for (const [e, lab] of [[-6, "µeV"], [-3, "meV"], [0, "eV"], [3, "keV"], [6, "MeV"], [9, "GeV"]]) el("text", { x: X(10 ** e), y: AY - 8, "text-anchor": "middle", class: "svgtext ink" }, svg).textContent = lab;
-    const marks = [[4.3e-6, "thermal energy", "at 50 mK", 0], [3.7e-4, "break a Cooper", "pair in Al (2Δ)", 1], [4.1e-3, "1 THz", "photon", 0], [0.025, "thermal energy", "at room temperature", 2], [1.12, "silicon", "band gap", 0], [2.3, "green", "light", 1]];
-    marks.forEach(([e, , , row]) => { const x = X(e); el("line", { x1: x, x2: x, y1: AY, y2: 134 + row * 34 - 4, stroke: "var(--accent)", "stroke-dasharray": "2 2" }, svg); el("circle", { cx: x, cy: AY, r: 3.2, fill: "var(--accent)" }, svg); });
-    marks.forEach(([e, a, b, row]) => {
-      const x = X(e), y = 134 + row * 34;
-      el("text", { x, y: y + 6, "text-anchor": "middle", class: "svgtext ink halo" }, svg).textContent = a;
-      el("text", { x, y: y + 20, "text-anchor": "middle", class: "svgtext halo" }, svg).textContent = b;
-    });
   })();
 
   // ================================================================ 3. quasiparticle energy diagram
@@ -246,73 +221,34 @@
     new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
   })();
 
-  // ================================================================ 5. readout and a simulated detection
+  // ================================================================ 5. readout: the even and odd parity dips
   (function () {
     const fig = $("#readFig"); if (!fig) return;
-    const [cvS, cvT] = fig.querySelectorAll("canvas"), [sNg, sE] = fig.querySelectorAll("input"), [oNg, oE] = fig.querySelectorAll("output"), btn = $("button", fig);
-    const CHI = 4.7, FW = 2.6, DEPTH = 0.86;      // MHz: half the published 2chi0 of ~9.5 MHz, a few-MHz linewidth
+    const cv = $("canvas", fig), sNg = $("input", fig), oNg = $("output", fig), read = $(".readout", fig);
+    const CHI = 4.75, FW = 2.6, DEPTH = 0.86;      // MHz: half the measured 2chi0 of 9.5 MHz, a few-MHz linewidth
     const s21 = (f, fq) => { const x = 2 * (f - fq) / FW, den = 1 + x * x; return [1 - DEPTH / den, DEPTH * x / den]; };   // 1 - A/(1+ix)
-    let parity = 1, tSim = 0, flips = [], trace = [], ev = null, idle = 0;
-    const SPAN = 20, SPEED = 4, DT = 0.004;        // ms shown, ms per second, ms per step
-    const BG = 0.02;                               // background switching, per ms (20 Hz)
-    const Emev = () => 10 ** +sE.value;
-    function rate(t) { if (!ev) return BG; const u = t - ev.t0; if (u < 0) return BG; return BG + ev.peak * (1 - Math.exp(-u / 0.25)) * Math.exp(-u / 1.6); }
-    function deposit() { ev = { t0: tSim + 0.4, peak: 1.3 * Emev() }; idle = 0; }       // peak rate: ~1.3 kHz per meV
-    btn.addEventListener("click", deposit);
-    function labels() { oNg.textContent = (+sNg.value).toFixed(2); const e = Emev(); oE.textContent = (e < 10 ? e.toFixed(1) : e.toFixed(0)) + " meV"; }
-    sNg.addEventListener("input", () => { labels(); drawS(); }); sE.addEventListener("input", labels); labels();
-    function drawS() {
-      const { c, w, h } = sizeCanvas(cvS), L = 30, R = 8, T = 8, B = 28, F = 16;
+    function draw() {
+      const { c, w, h } = sizeCanvas(cv), L = 34, R = 10, T = 10, B = 30, F = 16, ng = +sNg.value;
       const X = (f) => L + ((f + F) / (2 * F)) * (w - L - R), Y = (v) => T + (1 - v) * (h - T - B);
-      const ch = CHI * Math.cos(Math.PI * sNg.value);
-      c.font = "10.5px " + css("--sans"); c.fillStyle = css("--ink-faint"); c.strokeStyle = css("--rule"); c.textAlign = "center";
+      const ch = CHI * Math.cos(Math.PI * ng);
+      c.font = "11px " + css("--sans"); c.fillStyle = css("--ink-faint"); c.strokeStyle = css("--rule"); c.lineWidth = 1; c.textAlign = "center";
       c.beginPath(); c.moveTo(L, h - B); c.lineTo(w - R, h - B); c.stroke();
-      for (const f of [-15, -10, -5, 0, 5, 10, 15]) c.fillText(f, X(f), h - B + 13);
-      c.fillText("f − f₀ (MHz)", (L + w - R) / 2, h - 2); c.textAlign = "right"; c.fillText("1", L - 5, Y(1) + 4); c.fillText("0", L - 5, Y(0) + 4);
-      c.save(); c.translate(9, (T + h - B) / 2); c.rotate(-Math.PI / 2); c.textAlign = "center"; c.fillText("|S21|", 0, 0); c.restore();
+      for (const f of [-15, -10, -5, 0, 5, 10, 15]) c.fillText(f, X(f), h - B + 14);
+      c.fillText("detuning from the qubit frequency (MHz)", (L + w - R) / 2, h - 2);
+      c.textAlign = "right"; c.fillText("1", L - 6, Y(1) + 4); c.fillText("0", L - 6, Y(0) + 4);
+      c.save(); c.translate(11, (T + h - B) / 2); c.rotate(-Math.PI / 2); c.textAlign = "center"; c.fillText("|S21|", 0, 0); c.restore();
       for (const [p, col] of [[-1, css("--accent")], [1, css("--gold")]]) {
-        const fq = p * ch; c.strokeStyle = col; c.globalAlpha = p === parity ? 1 : 0.35; c.lineWidth = p === parity ? 2.2 : 1.4;
-        c.beginPath(); for (let i = 0; i <= 200; i++) { const f = -F + (2 * F * i) / 200, [re, im] = s21(f, fq); const y = Y(Math.hypot(re, im)); i ? c.lineTo(X(f), y) : c.moveTo(X(f), y); } c.stroke();
+        c.strokeStyle = col; c.lineWidth = 2;
+        c.beginPath(); for (let i = 0; i <= 240; i++) { const f = -F + (2 * F * i) / 240, [re, im] = s21(f, p * ch); const y = Y(Math.hypot(re, im)); i ? c.lineTo(X(f), y) : c.moveTo(X(f), y); } c.stroke();
       }
-      c.globalAlpha = 1; c.strokeStyle = css("--ink"); c.setLineDash([3, 3]); c.lineWidth = 1; c.beginPath(); c.moveTo(X(0), T); c.lineTo(X(0), h - B); c.stroke(); c.setLineDash([]);
-      c.textAlign = "left"; c.fillStyle = css("--ink-soft"); c.fillText("tone", X(0) + 4, T + 10);
+      c.strokeStyle = css("--ink-soft"); c.setLineDash([3, 3]); c.lineWidth = 1; c.beginPath(); c.moveTo(X(0), T); c.lineTo(X(0), h - B); c.stroke(); c.setLineDash([]);
+      oNg.textContent = ng.toFixed(2);
+      read.innerHTML = `2χ = ${Math.abs(2 * ch).toFixed(1)} MHz`;
     }
-    function phaseOf(p) { const ch = CHI * Math.cos(Math.PI * sNg.value), [re, im] = s21(0, p * ch); return Math.atan2(im, re); }
-    function drawT() {
-      const { c, w, h } = sizeCanvas(cvT), L = 34, R = 8, T = 8, mid = h * 0.52, B = 28;
-      const X = (t) => L + (1 - (tSim - t) / SPAN) * (w - L - R);
-      const pmax = Math.max(0.05, Math.abs(phaseOf(1))) * 1.25 + 0.1;
-      const Yp = (v) => T + (mid - T - 6) / 2 * (1 - v / pmax);
-      c.font = "10.5px " + css("--sans"); c.fillStyle = css("--ink-faint"); c.textAlign = "right";
-      c.fillText("phase", L - 4, T + 10);
-      c.strokeStyle = css("--gold"); c.lineWidth = 1.2; c.beginPath();
-      trace.forEach(([t, v], i) => { const x = X(t), y = Yp(v); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.stroke();
-      // switching rate in 0.5 ms bins (kHz)
-      const BIN = 0.5, n = Math.round(SPAN / BIN), bins = new Array(n).fill(0), t0 = Math.floor((tSim - SPAN) / BIN) * BIN;
-      for (const t of flips) { const i = Math.floor((t - t0) / BIN); if (i >= 0 && i < n) bins[i]++; }
-      const peak = Math.max(4, ...bins.map((b) => b / BIN)), top = mid + 6, bot = h - B;
-      c.fillText("rate", L - 4, top + 10); c.fillText(peak.toFixed(0) + " kHz", w - R, top + 10);
-      c.strokeStyle = css("--rule"); c.beginPath(); c.moveTo(L, bot + 0.5); c.lineTo(w - R, bot + 0.5); c.stroke();
-      c.fillStyle = css("--accent");
-      bins.forEach((b, i) => { if (!b) return; const xa = Math.max(L, X(t0 + i * BIN)), xb = X(t0 + (i + 1) * BIN), y = bot - (b / BIN / peak) * (bot - top - 14); if (xb > L) c.fillRect(xa + 0.5, y, Math.max(1, xb - xa - 1), bot - y); });
-      c.fillStyle = css("--ink-faint"); c.textAlign = "center";
-      for (let k = 0; k <= 4; k++) { const t = tSim - SPAN + (k * SPAN) / 4; c.fillText(((k * SPAN) / 4 - SPAN).toFixed(0) + " ms", X(t), h - B + 13); }
-      c.fillText("time (simulated)", (L + w - R) / 2, h - 2);
-    }
-    whileVisible(fig, (dt) => {
-      const steps = Math.round((dt * SPEED) / DT);
-      for (let i = 0; i < steps; i++) {
-        tSim += DT;
-        if (Math.random() < rate(tSim) * DT) { parity = -parity; flips.push(tSim); }
-        if (i % 2 === 0) trace.push([tSim, phaseOf(parity) + (Math.random() - 0.5) * 0.06]);
-      }
-      while (trace.length && trace[0][0] < tSim - SPAN) trace.shift();
-      while (flips.length && flips[0] < tSim - SPAN - 1) flips.shift();
-      if (ev && tSim - ev.t0 > 12) ev = null;
-      idle += dt; if (idle > 9) deposit();                 // keep it alive if nobody presses the button
-      drawS(); drawT();
-    });
-    drawS(); drawT();
+    sNg.addEventListener("input", draw); addEventListener("resize", draw);
+    new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    if (document.fonts) document.fonts.ready.then(draw);
+    draw();
   })();
 
   // ================================================================ 6. the finite-element simulation

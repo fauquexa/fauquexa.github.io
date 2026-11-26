@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/style.css?v=20261127a">
   <script src="assets/site.js?v=20261123a"></script>
-  <script src="assets/squats.js?v=20261127b" defer></script>
+  <script src="assets/squats.js?v=20261127d" defer></script>
   <style>
     .page { max-width: 760px; margin: 0 auto; padding: 28px 22px 64px; }
     .topbar { display: flex; justify-content: space-between; align-items: center; font-family: var(--sans); font-size: 14px; margin-bottom: 44px; }
@@ -75,11 +75,7 @@
   <p>Gravitational lensing, colliding galaxy clusters and the cosmic microwave background all tell the same story: ordinary matter is only about 5&nbsp;% of the universe's energy budget, dark matter about 27&nbsp;%. What it is made of is still open. One well-motivated candidate is the <em>axion</em>, a very light particle that would also solve a puzzle in the strong interaction (why the neutron has no measurable electric dipole moment). In a strong magnetic field an axion can turn into a photon. For axions in a large, still unexplored mass range that photon is in the terahertz band, at energies of a few meV. The <a href="https://arxiv.org/abs/2111.12103">BREAD</a> experiment uses a large reflector inside a magnet to collect such photons and focus them onto a sensor. The sensor has to see single photons of a few meV, with almost no false counts.</p>
 
   <h2><span class="n">02 · ENERGY SCALES</span>A detector for milli-electronvolts</h2>
-  <p>Particle detectors are built around a threshold: the smallest energy they can register. Collider detectors work at GeV, dark-matter time-projection chambers at keV, superconducting transition-edge sensors down to about an eV. Light dark matter and THz photons deposit far less, between a meV and an eV, where a room-temperature thermal kick (25&nbsp;meV) would already be enormous. You need something that changes state when a few meV land in it, and that does nothing otherwise.</p>
-  <figure class="ix" id="ladderFig">
-    <div class="box"><svg viewBox="0 0 640 238" role="img" aria-label="Energy ladder on a logarithmic axis from 10 micro-electronvolts to 10 GeV, with detector thresholds and reference energies"></svg></div>
-    <figcaption>Where detectors work, on a logarithmic energy axis, with a few reference energies. Breaking one Cooper pair in aluminium costs about 0.4&nbsp;meV, a tenth of a 1&nbsp;THz photon.</figcaption>
-  </figure>
+  <p>Every particle detector has a threshold: the smallest energy it can register. Light dark matter and THz photons deposit very little, somewhere between a meV and an eV, where a single room-temperature thermal kick (about 25&nbsp;meV) would already be enormous. You need something that changes state when a few meV land in it, and that does nothing otherwise. Superconductors are a natural place to look: breaking one Cooper pair in aluminium costs only about 0.4&nbsp;meV, a tenth of the energy of a 1&nbsp;THz photon.</p>
 
   <h2><span class="n">03 · SUPERCONDUCTORS</span>Cooper pairs, and what breaks them</h2>
   <p>Below about 1.2&nbsp;K, the electrons in aluminium bind into Cooper pairs, which all share one quantum state and carry current without resistance. Splitting a pair costs twice the superconducting gap, 2Δ&nbsp;≈&nbsp;0.4&nbsp;meV. A THz photon absorbed in the metal, or a phonon (a quantum of lattice vibration) that travels in from a particle hit in the substrate, can supply that. The two electrons it frees are <em>quasiparticles</em>: they wander through the film for up to a millisecond before they find a partner and recombine.</p>
@@ -105,10 +101,10 @@
   <p>Think of a speaking tube with a tuning fork attached to its side. Sound at most pitches passes straight through, but at the fork's pitch the fork rings and absorbs it, so the transmitted sound dips. A SQUAT sits right next to a microwave feedline, with no readout resonator in between: the qubit itself is the tuning fork. Its transition frequency (6–9&nbsp;GHz) shows up as a dip in the transmitted microwaves, and the dip sits at <var>f</var><sub>0</sub>&nbsp;+&nbsp;<var>χ</var><sub>0</sub>&nbsp;cos(π<var>n</var><sub>g</sub>) for even parity and <var>f</var><sub>0</sub>&nbsp;−&nbsp;<var>χ</var><sub>0</sub>&nbsp;cos(π<var>n</var><sub>g</sub>) for odd. A tone parked between the two dips has its phase pushed one way or the other, so every quasiparticle tunnelling event shows up as a jump: a random telegraph signal.</p>
   <figure class="ix" id="readFig">
     <div class="box">
-      <div class="two"><canvas style="height:200px" aria-label="Transmission against frequency with the even and odd parity dips"></canvas><canvas style="height:200px" aria-label="Phase of the readout tone against time, and the switching rate"></canvas></div>
-      <div class="ctl"><label><span>offset charge <var>n</var><sub>g</sub></span><input type="range" min="0" max="0.5" value="0.08" step="0.005" aria-label="Offset charge"></label><output></output><label>deposit <input type="range" min="0" max="2" value="1" step="0.01" aria-label="Deposited energy, logarithmic"></label><output></output><button type="button">Deposit energy</button></div>
+      <canvas style="height:230px" aria-label="Transmission past the SQUAT against frequency, with the even and odd parity dips"></canvas>
+      <div class="ctl"><label><span>offset charge <var>n</var><sub>g</sub></span><input type="range" min="0" max="0.5" value="0.1" step="0.005" aria-label="Offset charge"></label><output></output><span class="readout"></span></div>
     </div>
-    <figcaption>Left: transmission past the SQUAT. Light curve odd, dark curve even, gold line the readout tone; tune <var>n</var><sub>g</sub> to see the two parities split and merge. Right: the tone's phase over time and the parity-switching rate (simulated). Background switches are rare; a deposit sets off a burst of switches that dies away as the quasiparticles recombine. The height of the burst grows with the energy, which is how a SQUAT measures it. On the <a href="index.html#research">home page</a> you can watch all of this happen inside the device.</figcaption>
+    <figcaption>Transmission past a SQUAT for even (gold) and odd (blue) charge parity, with a splitting 2<var>χ</var><sub>0</sub> of 9.5&nbsp;MHz and a linewidth of a few MHz, as in the first devices. The two dips move apart and together as the offset charge changes, and merge at <var>n</var><sub>g</sub>&nbsp;=&nbsp;0.25. A readout tone between them (dashed) sees a different phase for each parity, so every quasiparticle tunnelling shows up as a jump.</figcaption>
   </figure>
 
   <h2><span class="n">06 · DESIGN</span>Simulating the electric fields</h2>
