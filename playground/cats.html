@@ -344,7 +344,7 @@ const BOND_W = 8;   // how much more often a bonded partner gets picked
 const bonded = (a, b) => BONDS.some(([p, q]) => (a.name === p && b.name === q) || (a.name === q && b.name === p));
 const bondW = (a, b) => (bonded(a, b) ? BOND_W : 1);
 // a small headshot shows under a name when it's clicked (only these cats have one)
-const CAT_PHOTO = { "Lenny": "lenny2", Edna: "edna", Dolly: "dolly", Frank: "frank" };
+const CAT_PHOTO = { "Lenny": "lenny2", Edna: "edna", Dolly: "dolly", Frank: "frank", Rigby: "rigby" };
 
 // fur markings, evaluated once per triangle (flat colours, low-poly look)
 const tmpC = new THREE.Color(), cA = new THREE.Color(), cB = new THREE.Color();
@@ -543,7 +543,8 @@ function buildCat(def, idx) {
     const pts = [];
     for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) pts.push(sx * 0.024, 0.008, 0.112, sx * 0.105, 0.016 - k * 0.013, 0.095 - k * 0.01);
     const wg = new THREE.BufferGeometry(); wg.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
-    head.add(new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0xf6f2ea, transparent: true, opacity: 0.75 })));
+    const darkW = def.name === "Dolly" || def.name === "Frank";   // the two black cats have black whiskers
+    head.add(new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: darkW ? 0x0c0b0d : 0xf6f2ea, transparent: true, opacity: darkW ? 0.9 : 0.75 })));
   }
   // legs: two-bone, solved per frame so paws stay on the ground
   c.legs = [];
@@ -3419,24 +3420,26 @@ function catSaid(c) { const S = window.playgroundSound; if (S && Math.random() <
 //  with Dolly and Frank. His body is two circles (chest and hips) for walls, furniture and cats; the cats steer
 //  round him too.
 // ===================================================================
-const dog = { on: false, meshes: [], pos: V(0, 0, 0), heading: 0, speed: 0, state: null, t: 0, phase: 0, pop: 0, P: null, wag: 0, scene: null, label: null, hover: false,
-              hunger: 0.4, bed: null, step: null, playing: false, curlK: 0, food: 0, r: 0.2 };
+const dog = { name: "Rigby", on: false, meshes: [], pos: V(0, 0, 0), heading: 0, speed: 0, state: null, t: 0, phase: 0, pop: 0, P: null, wag: 0, scene: null, label: null, hover: false,
+              hunger: 0.4, bed: null, step: null, playing: false, food: 0, r: 0.2 };
 const DOG_FRONT = 0.42, DOG_RR = 0.2, DOG_RF = 0.19;
 const DOG_POSES = {   // hip height, body pitch (+ = front up), front legs (relative to the floor), hind legs, head pitch (relative to the floor, + = nose down), tail, eyes
   stand:   { hipY: 0.5, pitch: 0, fl: 0, fk: 0, hl: 0.12, hk: -0.28, head: 0.05, tail: 0.15, eye: 1 },
   walk:    { hipY: 0.5, pitch: 0, fl: 0, fk: 0, hl: 0.12, hk: -0.28, head: 0.12, tail: 0.3, eye: 1 },
   run:     { hipY: 0.48, pitch: 0.03, fl: 0, fk: 0, hl: 0.1, hk: -0.3, head: 0.2, tail: 0.5, eye: 1 },
-  sniff:   { hipY: 0.5, pitch: -0.08, fl: 0.05, fk: 0, hl: 0.15, hk: -0.3, head: 0.95, tail: 0.25, eye: 1 },
-  eat:     { hipY: 0.48, pitch: -0.16, fl: 0.12, fk: 0, hl: -0.05, hk: -0.25, head: 1.25, tail: 0.5, eye: 0.8 },
-  sit:     { hipY: 0.105, pitch: 1.0, fl: 0.02, fk: 0, hl: -0.5, hk: 2.95, head: 0.38, tail: 1.4, eye: 1 },
+  sniff:   { hipY: 0.5, pitch: -0.08, fl: 0.05, fk: 0, hl: 0.15, hk: -0.3, head: 1.2, tail: 0.25, eye: 1, neck: 1.05 },
+  eat:     { hipY: 0.45, pitch: -0.22, fl: 0.15, fk: 0, hl: -0.1, hk: -0.25, head: 1.45, tail: 0.5, eye: 0.8, neck: 1.5 },
+  sit:     { hipY: 0.205, pitch: 0.78, fl: 0.02, fk: 0, hl: -0.5, hk: 2.95, head: 0.36, tail: 1.06, eye: 1, sitW: 1 },
   lie:     { hipY: 0.14, pitch: 0.02, fl: -1.45, fk: 0.1, hl: -1.25, hk: 2.55, head: 0.05, tail: -1.25, eye: 1 },
-  doze:    { hipY: 0.13, pitch: 0.0, fl: -1.5, fk: 0.1, hl: -1.25, hk: 2.55, head: 0.55, tail: -1.3, eye: 0.1 },
+  doze:    { hipY: 0.13, pitch: 0.0, fl: -1.5, fk: 0.1, hl: -1.25, hk: 2.55, head: 0.35, tail: -1.3, eye: 0.1, neck: 0.55 },
   stretch: { hipY: 0.5, pitch: -0.5, fl: -1.02, fk: 0, hl: -0.42, hk: -0.12, head: -0.15, tail: 0.9, eye: 0.35 },   // downward dog
   bow:     { hipY: 0.48, pitch: -0.45, fl: -0.98, fk: 0, hl: -0.38, hk: -0.12, head: -0.25, tail: 1.1, eye: 1 },     // play bow
   air:     { hipY: 0.5, pitch: 0.15, fl: -0.5, fk: 0.4, hl: 0.6, hk: -0.4, head: 0.0, tail: 0.6, eye: 1 },
 };
-DOG_POSES.curl = DOG_POSES.doze;
-const DOG_K = ["hipY", "pitch", "fl", "fk", "hl", "hk", "head", "tail", "eye"];
+// curled up like a croissant: his own body bent round, head turned back towards his hips, tail wrapped round his nose
+DOG_POSES.curl = { hipY: 0.115, pitch: 0.0, fl: -1.42, fk: 2.9, hl: -1.3, hk: 2.6, head: 0.25, tail: -2.0, eye: 0.08, neck: 0.85, bend: 0.85, hTurn: -2.3, tWrap: 1.7 };
+const DOG_K = ["hipY", "pitch", "fl", "fk", "hl", "hk", "head", "tail", "eye", "sitW", "neck", "bend", "hTurn", "tWrap"];
+for (const k in DOG_POSES) for (const q of ["sitW", "neck", "bend", "hTurn", "tWrap"]) DOG_POSES[k][q] = DOG_POSES[k][q] || 0;
 const DOGSPOT = { full: 0.5, name: "Rigby" }, DOGOCC = { dog: true };
 // a sphere painted per triangle (flat colours): col(nx, ny, nz) gets the unit-sphere direction of each face
 function paintedBlob(sx, sy, sz, col, parent, x, y, z, seg) {
@@ -3449,7 +3452,7 @@ function paintedBlob(sx, sy, sz, col, parent, x, y, z, seg) {
   const m = mk(g, dog.vmat, parent, x, y, z); m.scale.set(sx, sy, sz); dog.meshes.push(m); return m;
 }
 function buildDog() {
-  const COAT = 0xc07d45, BELLY = 0xd49c66, DARK = 0x4b2f20, EAR = 0x86522e, RIDGE = 0x8f5127, WHITE = 0xf1e6d6, NOSE = 0x1d1917;
+  const COAT = 0xc07d45, BELLY = 0xd49c66, DARK = 0x4b2f20, EAR = 0x86522e, RIDGE = 0x7c4523, CROWN = 0x67381b, WHITE = 0xf1e6d6, NOSE = 0x1d1917;
   const mat = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, metalness: 0, flatShading: true });
   const coat = mat(COAT), belly = mat(BELLY), dark = mat(DARK), ear = mat(EAR), nose = mat(NOSE), tongueM = mat(0xd9737c), eyeM = mat(0x241a14);
   dog.vmat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0, flatShading: true });
@@ -3458,15 +3461,25 @@ function buildDog() {
   const cyl = (r0, r1, h, m, parent, x, y, z, seg = 7) => reg(mk(new THREE.CylinderGeometry(r0, r1, h, seg), m, parent, x, y, z));
   const root = new THREE.Group(); dog.root = root;
   const hip = new THREE.Group(); root.add(hip); dog.hip = hip;                       // everything hangs off the hips, so he can sit
-  blob(0.125, 0.14, 0.16, coat, hip, 0, 0.0, 0.0);                                    // haunches
-  // the body, with the ridge: a narrow darker stripe of hair along the top of the back
-  paintedBlob(0.13, 0.145, 0.33, (x, y, z) => (y > 0.86 && Math.abs(x) < 0.36 && z > -0.55 && z < 0.74 ? RIDGE : COAT), hip, 0, -0.01, 0.22, 16);
+  // two halves that can bend towards each other (curling up), hinged in the middle of the back at z = 0.2;
+  // the head sits on a neck hinged at the shoulders, so it can go down to the floor
+  const MID = 0.2, rear = new THREE.Group(), front = new THREE.Group(); rear.position.z = MID; front.position.z = MID; hip.add(rear, front); dog.rear = rear; dog.front = front;
+  dog.haunch = blob(0.125, 0.14, 0.16, coat, rear, 0, 0.0, -MID);                     // haunches
+  // the ridge: a darker stripe along the spine, widest at the front where its two crowns are, tapering to the hips
+  const ridge = (x, y, az) => {
+    for (const cx of [-0.032, 0.032]) if (y > 0.4 && Math.hypot(x * 0.13 - cx, az - 0.455) < 0.022) return CROWN;
+    const w = 0.33 * clamp((az - 0.04) / 0.2, 0, 1);
+    return y > 0.6 && az > 0.04 && az < 0.5 && Math.abs(x) < w ? RIDGE : null;
+  };
+  paintedBlob(0.128, 0.143, 0.2, (x, y, z) => ridge(x, y, 0.1 + z * 0.2) || COAT, rear, 0, -0.01, 0.1 - MID, 18);        // back half of the body
+  paintedBlob(0.13, 0.145, 0.22, (x, y, z) => ridge(x, y, 0.32 + z * 0.22) || COAT, front, 0, -0.012, 0.32 - MID, 18);   // front half
   // the deep chest, with the white band low on the front
-  paintedBlob(0.14, 0.17, 0.17, (x, y, z) => (z > 0.5 && y < 0.1 && y > -0.8 && Math.abs(x) < 0.46 ? WHITE : COAT), hip, 0, -0.035, 0.42, 12);
-  blob(0.1, 0.07, 0.24, belly, hip, 0, -0.11, 0.25, 7);                               // lighter underside
-  // neck and head
-  const neck = cyl(0.065, 0.09, 0.22, coat, hip, 0, 0.13, 0.58); neck.rotation.x = 0.62;
-  const head = new THREE.Group(); head.position.set(0, 0.22, 0.65); hip.add(head); dog.head = head;
+  dog.chest = paintedBlob(0.14, 0.17, 0.17, (x, y, z) => (z > 0.5 && y < 0.1 && y > -0.8 && Math.abs(x) < 0.46 ? WHITE : ridge(x * 0.14 / 0.13, y, 0.42 + z * 0.17) || COAT), front, 0, -0.035, 0.42 - MID, 16);
+  blob(0.1, 0.07, 0.13, belly, rear, 0, -0.105, 0.15 - MID, 7); blob(0.1, 0.07, 0.15, belly, front, 0, -0.11, 0.3 - MID, 7);   // lighter underside
+  // neck and head, on a hinge at the shoulders
+  const neckG = new THREE.Group(); neckG.position.set(0, 0.08, 0.5 - MID); neckG.rotation.order = "YXZ"; front.add(neckG); dog.neck = neckG;
+  const neck = cyl(0.065, 0.09, 0.22, coat, neckG, 0, 0.05, 0.08); neck.rotation.x = 0.62;
+  const head = new THREE.Group(); head.position.set(0, 0.14, 0.15); neckG.add(head); dog.head = head;
   reg(mk(rbox(0.15, 0.13, 0.17, 0.035), coat, head, 0, 0.0, 0.0));                     // skull
   reg(mk(rbox(0.085, 0.075, 0.13, 0.02), dark, head, 0, -0.03, 0.13));                // dark muzzle
   reg(mk(rbox(0.05, 0.035, 0.03, 0.01), nose, head, 0, -0.005, 0.2));                 // nose
@@ -3476,67 +3489,35 @@ function buildDog() {
     ea.rotation.set(0.1, s * 0.25, s * 0.28); dog["ear" + s] = ea;
   }
   const tongue = reg(mk(new THREE.BoxGeometry(0.035, 0.008, 0.05), tongueM, head, 0, -0.075, 0.14)); tongue.rotation.x = 0.55; dog.tongue = tongue;
-  // legs: a thigh and a lower leg each, hinged at the top
+  // legs: a thigh and a lower leg each, hinged at the top (front legs on the front half, hind legs on the back half)
   dog.legs = [];
-  for (const [side, front] of [[-1, 1], [1, 1], [-1, 0], [1, 0]]) {
-    const top = new THREE.Group(); top.position.set(side * 0.085, -0.04, front ? 0.44 : 0.0); hip.add(top);
-    cyl(front ? 0.04 : 0.055, 0.03, 0.23, coat, top, 0, -0.115, 0);
+  for (const [side, isFront] of [[-1, 1], [1, 1], [-1, 0], [1, 0]]) {
+    const top = new THREE.Group(); top.position.set(side * 0.085, -0.04, (isFront ? 0.44 : 0.0) - MID); (isFront ? front : rear).add(top);
+    cyl(isFront ? 0.04 : 0.055, 0.03, 0.23, coat, top, 0, -0.115, 0);
     const knee = new THREE.Group(); knee.position.set(0, -0.23, 0); top.add(knee);
     cyl(0.028, 0.022, 0.23, coat, knee, 0, -0.115, 0);
     blob(0.034, 0.022, 0.045, coat, knee, 0, -0.235, 0.015, 6);
-    dog.legs.push({ top, knee, side, front });
+    dog.legs.push({ top, knee, side, front: isFront });
   }
-  // the tail: long and tapering, in four links so it can wag in a curve
-  let parent = new THREE.Group(); parent.position.set(0, 0.05, -0.13); hip.add(parent);
+  // the tail: long and tapering, in four links so it can wag in a curve (and wrap round him when he curls up)
+  let parent = new THREE.Group(); parent.position.set(0, 0.05, -0.13 - MID); parent.rotation.order = "YXZ"; rear.add(parent); dog.tailBase = parent;
   const tl = [];
   for (let i = 0; i < 4; i++) {
-    const g = new THREE.Group(); if (i) g.position.set(0, 0, -0.1); parent.add(g);
+    const g = new THREE.Group(); if (i) g.position.set(0, 0, -0.1); else g.rotation.order = "YXZ"; parent.add(g);
     const seg = cyl(0.026 - i * 0.005, 0.03 - i * 0.005, 0.11, coat, g, 0, 0, -0.05, 6); seg.rotation.x = Math.PI / 2;
     tl.push(g); parent = g;
   }
   dog.tail = tl;
-  // curled up like a croissant: one smooth body bent round in a C (thicker at the hips, rounded ends), his head
-  // resting on his hips with the nose tucked in, and the tail wrapped round the outside up to his nose
-  const curl = new THREE.Group(); curl.position.set(0, 0, 0.18); root.add(curl); curl.visible = false; dog.curl = curl;
-  const CR = 0.13, A0 = -0.5 * Math.PI, A1 = 0.92 * Math.PI, NT = 26, NR = 12, FL = 0.82;
-  const at = (a, r, y) => [r * Math.cos(a), y, -r * Math.sin(a)];
-  const rad = (u) => 0.118 + 0.012 * Math.sin(u * Math.PI) - 0.014 * u;   // hips 0.118, belly 0.13, chest 0.104
-  const ctr = (u) => { const a = A0 + (A1 - A0) * u; return [a, at(a, CR, rad(u) * FL)]; };
-  const pos = [];
-  const ringPt = (u, f) => { const [a, c] = ctr(u), r = rad(u); return [c[0] + Math.cos(a) * Math.cos(f) * r, c[1] + Math.sin(f) * r * FL, c[2] - Math.sin(a) * Math.cos(f) * r]; };
-  for (let j = 0; j < NT; j++) for (let i = 0; i < NR; i++) {
-    const u0 = j / NT, u1 = (j + 1) / NT, f0 = (i / NR) * Math.PI * 2, f1 = ((i + 1) / NR) * Math.PI * 2;
-    const p00 = ringPt(u0, f0), p01 = ringPt(u0, f1), p10 = ringPt(u1, f0), p11 = ringPt(u1, f1);
-    pos.push(...p00, ...p10, ...p11, ...p00, ...p11, ...p01);
-  }
-  const bg = new THREE.BufferGeometry(); bg.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); bg.computeVertexNormals();
-  const bodyM = reg(mk(bg, coat, curl, 0, 0, 0)); bodyM.material = coat.clone(); bodyM.material.side = THREE.DoubleSide;
-  for (const u of [0, 1]) { const [, c] = ctr(u), r = rad(u); blob(r, r * FL, r, coat, curl, ...c, 12); }   // rounded ends: the hips, the chest
-  const wb = blob(0.05, 0.055, 0.045, mat(WHITE), curl, ...at(A1 - 0.12, CR - 0.075, 0.075), 8); wb.rotation.y = A1;   // white chest, on the inside
-  // the head, chin on his hips
-  const ha = A1 + 0.62, cHead = new THREE.Group(); cHead.position.set(...at(ha, CR + 0.01, 0.2)); curl.add(cHead);
-  cHead.rotation.set(0.3, ha + 0.2, -0.12, "YXZ");
-  reg(mk(rbox(0.155, 0.12, 0.17, 0.038), coat, cHead, 0, 0, 0));
-  reg(mk(rbox(0.088, 0.07, 0.13, 0.022), dark, cHead, 0, -0.022, 0.125));
-  reg(mk(rbox(0.05, 0.034, 0.03, 0.01), nose, cHead, 0, -0.004, 0.195));
-  for (const s of [-1, 1]) { reg(mk(rbox(0.026, 0.006, 0.01, 0.002), eyeM, cHead, s * 0.043, 0.027, 0.085)); const ea = reg(mk(rbox(0.075, 0.105, 0.018, 0.008), ear, cHead, s * 0.082, -0.01, -0.01)); ea.rotation.set(0.3, s * 0.25, s * 0.7); }
-  const cNeck = blob(0.085, 0.075, 0.1, coat, curl, ...at(A1 + 0.3, CR, 0.13), 9); cNeck.rotation.y = A1 + 0.3 + Math.PI;
-  // the tail: a smooth curve round the outside of the hips, its tip by his nose
-  const tpts = []; for (let i = 0; i <= 6; i++) { const a = A0 + 0.3 - i * 0.2; tpts.push(new THREE.Vector3(...at(a, CR + 0.112 - i * 0.004, 0.05 + i * 0.008))); }
-  const tailM = reg(mk(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(tpts), 18, 0.024, 6, false), coat, curl, 0, 0, 0));
-  blob(0.018, 0.018, 0.018, coat, curl, ...tpts[6].toArray(), 5);
-  // paws: the front ones tucked under his chin, the hind ones peeking out at the back
-  for (const [a, r, y, rot] of [[A1 + 0.25, CR - 0.09, 0.03, 0], [A1 + 0.45, CR - 0.08, 0.03, 0.2], [A0 + 0.45, CR + 0.115, 0.03, 0], [A0 + 0.75, CR + 0.11, 0.03, 0]]) { const pw = blob(0.034, 0.022, 0.05, coat, curl, ...at(a, r, y), 6); pw.rotation.y = a + Math.PI + rot; }
   root.visible = false; scene.add(root);
   dog.P = Object.assign({}, DOG_POSES.stand);
   const lb = document.createElement("div"); lb.className = "catlabel"; lb.textContent = "Rigby"; document.body.appendChild(lb); dog.label = lb;
 }
 // his body for collisions: hips at pos, chest in front; curled up, one round blob
 function dogCircles(x, z, h, curled) {
-  if (curled) return [[x + Math.sin(h) * 0.18, z + Math.cos(h) * 0.18, 0.3]];
+  if (curled) return [[x + Math.sin(h) * 0.22 - Math.cos(h) * 0.2, z + Math.cos(h) * 0.22 + Math.sin(h) * 0.2, 0.33]];   // the curl leans to his left
   return [[x, z, DOG_RR], [x + Math.sin(h) * DOG_FRONT, z + Math.cos(h) * DOG_FRONT, DOG_RF]];
 }
-const dogCurled = () => dog.curlK > 0.5;
+const dogCurled = () => dog.P && dog.P.bend > 0.3;
 function dogOverlap(x, z, r) {   // is a point (with radius r) inside Rigby, while he is on the floor?
   if (!dog.on || dog.bed || dog.air || !dog.root) return false;
   for (const [cx, cz, cr] of dogCircles(dog.pos.x, dog.pos.z, dog.heading, dogCurled())) if (Math.hypot(x - cx, z - cz) < cr + r) return true;
@@ -3562,7 +3543,7 @@ function dogSpot(near, minD, maxD, face) {
   return null;
 }
 function dogEnter() {
-  dog.scene = sceneName; dog.bed = null; dog.air = false; dog.playing = false; dog.step = null; dog.curlK = 0;
+  dog.scene = sceneName; dog.bed = null; dog.air = false; dog.playing = false; dog.step = null;
   const R = NAV.rooms ? NAV.rooms[0].r : NAV.free[0];
   let p = null;
   for (let k = 0; k < 80 && !p; k++) { const q = roomPoint(R, 0.5), h = Math.atan2(camera.position.x - q.x, camera.position.z - q.z); if (dogFits(q.x, q.z, h) && !cats.some((c) => Math.hypot(c.pos.x - q.x, c.pos.z - q.z) < 0.7)) p = q; }
@@ -3576,6 +3557,13 @@ function rigbyMode() {
   if (!dog.root) buildDog();
   const b = $("rigbyBanner"); b.classList.remove("show"); void b.offsetWidth; b.classList.add("show");
   clearTimeout(rigbyMode.t); rigbyMode.t = setTimeout(() => b.classList.remove("show"), 2000);
+  if (!dog.row) {
+    const li = document.createElement("li"); li.title = "Rhodesian Ridgeback: wheaten, white chest, the ridge down his back";
+    li.innerHTML = `<span class="sw" style="background:linear-gradient(180deg,#c07d45 0 62%,#f1e6d6 62% 100%)"></span><span class="nm">Rigby</span><span class="st"></span>`;
+    li.onclick = () => { dog.labelT = 5; cam.follow = dog; cam.followT = 6; cam.idle = 0; toggleCard(dog); };
+    $("catList").appendChild(li); dog.row = li; dog.li = li.querySelector(".st");
+  }
+  dog.row.hidden = false;
   if (!dog.on) { dog.on = true; dogEnter(); }
   else { dog.labelT = 3; if (!dog.bed && !dog.air && !dog.state.play) { dogEndPlay(); dog.state = { kind: "sit", dur: 3, happy: true }; dog.t = 0; } }   // already here: he sits up and wags
 }
@@ -3635,6 +3623,16 @@ function dogJumpDown() {
 function dogEndPlay() {
   const S = dog.state; dog.playing = false; dog.step = { type: "rest" };
   if (S && S.play && S.cs && S.play.step === S.cs) { clearPlan(S.play); push(S.play, poseStep("sit", rand(2, 4), { lookAt: dog })); }
+}
+function dogStatus(S) {
+  const buddy = S.buddy || (S.then && S.then.buddy), pl = S.play || (S.then && S.then.play);
+  return (
+      S.kind === "go" ? (S.then && S.then.kind === "eat" ? "going for the food" : S.then && S.then.kind === "jump" ? "heading for the bed" : pl ? "going to play with " + pl.name : buddy ? "going to " + buddy.name : "exploring")
+      : S.kind === "chase" ? "chasing " + S.play.name : S.kind === "flee" ? S.play.name + " is chasing him" : S.kind === "bow" ? (S.play ? "wants to play with " + S.play.name : "play bow")
+      : S.kind === "eat" ? "eating" : S.kind === "jump" ? "jumping" : S.kind === "stretch" ? "stretching (downward dog)"
+      : S.kind === "curl" ? (dog.bed ? "curled up on the bed" : buddy ? "curled up next to " + buddy.name : "curled up like a croissant")
+      : S.kind === "doze" ? (buddy ? "dozing next to " + buddy.name : "dozing") : S.kind === "lie" ? (buddy ? "chilling with " + buddy.name : "chilling")
+      : S.kind === "sniff" ? "sniffing around" : S.kind === "sit" ? "happy to see you" : "looking around");
 }
 // --- every frame
 function updateDog(dt, t) {
@@ -3751,6 +3749,8 @@ function updateDog(dt, t) {
   const breathe = Math.sin(t * (/doze|curl/.test(want) ? 1.6 : 2.4)) * 0.004;
   const bounce = S.kind === "bow" && S.play ? Math.abs(Math.sin(dog.t * 7)) * 0.05 : 0;
   dog.hip.position.y = P.hipY + bob + breathe + bounce; dog.hip.rotation.x = -P.pitch;
+  dog.haunch.position.y = -0.085 * P.sitW; dog.haunch.position.z = -0.2 - 0.02 * P.sitW;   // sitting, the haunches spread on the floor
+  dog.chest.position.z = 0.22 - 0.045 * P.sitW; dog.chest.scale.z = 0.17 - 0.03 * P.sitW;  // and the chest stays over the front legs
   for (const L of dog.legs) {
     const ph = dog.phase + (L.front ? 0 : Math.PI) + (L.side > 0 ? (want === "run" ? 0.5 : Math.PI) : 0);
     const swing = Math.sin(ph) * sw;
@@ -3761,35 +3761,31 @@ function updateDog(dt, t) {
   if (target && !/doze|curl/.test(S.kind)) { const h = Math.atan2(target.x - dog.pos.x, target.z - dog.pos.z); hy = clamp(angWrap(h - dog.heading), -0.7, 0.7); }
   if (/eat|stretch/.test(want)) hy = 0;
   const chew = want === "eat" ? Math.sin(dog.t * 9) * 0.06 : 0;
-  dog.head.rotation.set(P.head + P.pitch - 0.35 + chew + Math.sin(dog.phase * 2) * 0.03 * Math.min(1, dog.speed / 0.3), hy, Math.sin(t * 0.8) * (S.kind === "sit" ? 0.12 : 0.03));
+  dog.neck.rotation.x = P.neck; dog.neck.rotation.y = P.hTurn * 0.5;
+  dog.head.rotation.set(P.head + P.pitch - 0.35 - P.neck + chew + Math.sin(dog.phase * 2) * 0.03 * Math.min(1, dog.speed / 0.3), hy * (1 - Math.min(1, P.bend * 1.6)) + P.hTurn * 0.5, Math.sin(t * 0.8) * (S.kind === "sit" ? 0.12 : 0.03));
   for (const s of [-1, 1]) { dog["eye" + s].scale.y = Math.max(0.12, P.eye * (Math.sin(t * 0.9 + s) > 0.985 ? 0.15 : 1)); dog["ear" + s].rotation.x = 0.1 + Math.sin(dog.phase * 2) * 0.08 * Math.min(1, dog.speed / 0.3); }
   dog.tongue.visible = !/doze|curl|eat|stretch/.test(want) && (/sit|walk|run|bow/.test(want) || S.happy || Math.sin(t * 0.2) > 0.3);
   const wagSpd = /doze|curl/.test(want) ? 2.2 : want === "lie" ? 4.5 : S.happy || /walk|run|bow|eat/.test(want) ? 11 : 7.5, wagAmp = /doze|curl/.test(want) ? 0.12 : want === "lie" ? 0.35 : 0.6;
   dog.wag += dt * wagSpd;
-  dog.tail.forEach((g, i) => { g.rotation.y = Math.sin(dog.wag - i * 0.6) * wagAmp * (i ? 0.55 : 1); g.rotation.x = i ? 0.12 + (i === 3 ? 0.15 : 0) : P.tail * 0.5 + 0.25; });
-  // curling up: he lies down first, then settles into the croissant (and unrolls before he gets up)
-  const curlWant = S.kind === "curl" && dog.t > 1.1 && dog.t < S.dur - 0.6;
-  dog.curlK = clamp(dog.curlK + (curlWant ? dt : -dt) * 2.2, 0, 1);
-  dog.hip.visible = dog.curlK < 0.5; dog.curl.visible = dog.curlK >= 0.5;
-  if (dog.curl.visible) { const e = (dog.curlK - 0.5) * 2; dog.curl.scale.set(0.9 + 0.1 * e, (0.85 + 0.15 * e) * (1 + Math.sin(t * 1.6) * 0.03), 0.9 + 0.1 * e); }
+  const tk = clamp(P.bend / 0.6, 0, 1), tx0 = P.tail * 0.5 + 0.25;
+  dog.tail.forEach((g, i) => {
+    g.rotation.y = Math.sin(dog.wag - i * 0.6) * wagAmp * (i ? 0.55 : 1) + P.tWrap * (i ? 0.32 : 0.6);
+    g.rotation.x = i === 0 ? tx0 : (0.12 + (i === 3 ? 0.15 : 0)) * (1 - tk) - (i === 1 ? tx0 * tk : 0);   // curled: level again after the first link
+  });
+  // curling up: the two halves bend towards each other, the head turns back to the hips, the tail wraps round
+  dog.front.rotation.y = -P.bend; dog.rear.rotation.y = P.bend;
   // pop in like the cats do
   if (dog.pop < 1) { dog.pop = Math.min(1, dog.pop + dt * 3); const u = dog.pop - 1; dog.root.scale.setScalar(Math.max(0.001, 1 + 2.7 * u * u * u + 1.7 * u * u)); }
   dog.root.position.copy(dog.pos); dog.root.rotation.y = dog.heading;
+  if ((dog.stT = (dog.stT || 0) - dt) < 0) { dog.stT = 0.4; const st = dogStatus(S); dog.li.textContent = st.charAt(0).toUpperCase() + st.slice(1); }
   // his name tag: on arrival, and while the pointer is on him
   dog.labelT = Math.max(0, (dog.labelT || 0) - dt);
   const on = (dog.labelT > 0 || dog.hover) && !cinema.on;
   dog.label.classList.toggle("on", on);
   if (on) {
-    (dog.curl.visible ? dog.curl : dog.head).getWorldPosition(_w); _w.y += 0.25; _w.project(camera);
+    dog.head.getWorldPosition(_w); _w.y += 0.25; _w.project(camera);
     if (_w.z < 1) dog.label.style.transform = `translate(${((_w.x * 0.5 + 0.5) * innerWidth).toFixed(1)}px, ${((-_w.y * 0.5 + 0.5) * innerHeight).toFixed(1)}px) translate(-50%, -100%)`;
-    const buddy = S.buddy || (S.then && S.then.buddy), pl = S.play || (S.then && S.then.play);
-    dog.label.textContent = "Rigby · " + (
-      S.kind === "go" ? (S.then && S.then.kind === "eat" ? "going for the food" : S.then && S.then.kind === "jump" ? "heading for the bed" : pl ? "going to play with " + pl.name : buddy ? "going to " + buddy.name : "exploring")
-      : S.kind === "chase" ? "chasing " + S.play.name : S.kind === "flee" ? S.play.name + " is chasing him" : S.kind === "bow" ? (S.play ? "wants to play with " + S.play.name : "play bow")
-      : S.kind === "eat" ? "eating" : S.kind === "jump" ? "jumping" : S.kind === "stretch" ? "stretching (downward dog)"
-      : S.kind === "curl" ? (dog.bed ? "curled up on the bed" : buddy ? "curled up next to " + buddy.name : "curled up like a croissant")
-      : S.kind === "doze" ? (buddy ? "dozing next to " + buddy.name : "dozing") : S.kind === "lie" ? (buddy ? "chilling with " + buddy.name : "chilling")
-      : S.kind === "sniff" ? "sniffing around" : S.kind === "sit" ? "happy to see you" : "looking around");
+    dog.label.textContent = "Rigby · " + dogStatus(S);
   }
 }
 // typing "rigby" anywhere on the page
