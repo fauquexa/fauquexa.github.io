@@ -268,14 +268,15 @@ footer { font-size: 14px; color: var(--ink-faint); border-top: 1px solid var(--r
 }
 @media (min-width: 1400px) {
   .tiles { grid-template-columns: 1fr 1fr; gap: 12px; }
-  .tile:first-child, .tile:last-child { grid-column: span 2; }
-  .tile:last-child img { aspect-ratio: 32 / 9; }
+  .tile:first-child { grid-column: span 2; }   /* the Menagerie across the top, then two by two */
 }
 @media (min-width: 861px) and (max-width: 1279px) {
   .side { grid-row: 1 / span 2; }
   .play { grid-column: 2; grid-row: 1; padding: 44px clamp(20px, 6vw, 80px) 0; max-width: 780px; }
   .main { grid-column: 2; grid-row: 2; padding-top: 36px; }
   .tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .tile:first-child { grid-column: span 2; }   /* five tiles in two rows of three: the Menagerie takes two */
+  .tile:first-child .trio { aspect-ratio: 32 / 9; }
   .tile .t { padding: 8px 9px 10px; }
   .tile .t span { display: none; }
   .tile b { font-size: 13px; }
