@@ -118,6 +118,7 @@
     const pairsG = el("g", {}, g), fx = el("g", {}, g), qpG = el("g", {}, g);
     const pairs = [];
     for (let i = 0; i < 18; i++) { const side = i % 2, x = side ? XT1 + 20 + (i * 23) % 180 : XI0 + 18 + (i * 29) % 190; pairs.push({ x, a: el("circle", { r: 2.4, fill: "var(--ink-faint)" }, pairsG), b: el("circle", { r: 2.4, fill: "var(--ink-faint)" }, pairsG), ph: i }); }
+    for (const x of [XT0 + 16, XT0 + 46, XJ1 + 22, XJ1 + 52]) pairs.push({ x, trap: true, a: el("circle", { r: 2.4, fill: "var(--ink-faint)" }, pairsG), b: el("circle", { r: 2.4, fill: "var(--ink-faint)" }, pairsG), ph: x % 3 });
     let t = 0, qps = [], phase = 0;
     const CYCLE = 9;
     function reset() { qpG.innerHTML = ""; fx.innerHTML = ""; qps = []; phase = 0; pairs.forEach((p) => (p.gone = false)); }
@@ -147,7 +148,20 @@
           if (q.x > XT0 - 2) { q.mode = "drop"; q.y0 = q.y; q.k = 0; const z = el("path", { d: `M ${XT0 + 4} ${YI + 6} q 6 -4 12 0 t 12 0 t 12 0`, fill: "none", stroke: "var(--ink-faint)", "stroke-width": 1 }, fx); z.dataset.life = "0.8"; }
         } else if (q.mode === "drop") {             // falls into the lower gap and cannot climb back out
           q.k += dt / 0.35; const e = Math.min(1, q.k); q.y = q.y0 + (YT - 5 - q.y0) * e; q.x += (XT0 + 30 + q.s * 10 - q.x) * Math.min(1, dt * 6);
-          if (e >= 1) { q.mode = "trapped"; q.next = 0.3 + Math.random() * 0.4; q.side = 0; }
+          if (e >= 1) {
+            q.mode = "trapped"; q.next = 0.3 + Math.random() * 0.4; q.side = 0;
+            // multiplication: the energy it gave up falling into the lower gap breaks a pair in the trap, so one becomes three
+            const p = pairs.find((p) => p.trap && !p.gone && p.x < XJ0);
+            if (p) {
+              p.gone = true;
+              const z = el("path", { d: `M ${q.x} ${q.y + 6} Q ${(q.x + p.x) / 2 + 8} ${(q.y + YC) / 2} ${p.x} ${YC + 6}`, fill: "none", stroke: "var(--accent)", "stroke-width": 1.4, "stroke-dasharray": "3 3" }, fx); z.dataset.life = "0.7";
+              const f = el("circle", { cx: p.x, cy: YC + 8, r: 6, fill: "none", stroke: "var(--accent)", "stroke-width": 1.4 }, fx); f.dataset.life = "0.6";
+              for (const s of [-1, 1]) qps.push({ x: p.x + s * 5, y: YC - 2, mode: "rise", ty: YT - 5, node: el("circle", { r: 4.2, fill: "var(--gold)", stroke: "var(--bg)", "stroke-width": 1 }, qpG), s, t: 0, side: 0 });
+            }
+          }
+        } else if (q.mode === "rise") {             // a new quasiparticle from the broken pair, up to the trap's gap edge
+          q.y += (q.ty - q.y) * Math.min(1, dt * 7); q.x = clamp(q.x, XT0 + 6, XJ0 - 6);
+          if (Math.abs(q.y - q.ty) < 0.6) { q.mode = "trapped"; q.next = 0.2 + Math.random() * 0.5; q.side = 0; }
         } else if (q.mode === "trapped") {          // tunnels back and forth through the junction
           q.next -= dt;
           if (q.hop) { q.hop.k += dt / 0.22; const e = Math.min(1, q.hop.k), s = e * e * (3 - 2 * e); q.x = q.hop.a + (q.hop.b - q.hop.a) * s; if (e >= 1) q.hop = null; }

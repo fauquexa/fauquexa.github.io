@@ -9,7 +9,8 @@
 
    A detection runs on a loop: each time either a particle hits the silicon (phonons) or a THz photon is absorbed
    by the islands, Cooper pairs break in proportion to the energy, the quasiparticles wander, and those that reach
-   the junction get trapped in its lower-gap leads and tunnel back and forth; every tunnelling flips the charge
+   the junction drop into its lower-gap leads, where the energy each one gives up breaks more Cooper pairs, so one
+   quasiparticle becomes several (the 'amplifying' in SQUAT); trapped, they tunnel back and forth; every tunnelling flips the charge
    parity, which the live trace shows as the qubit frequency jumping by 2 chi. The more energy, the more
    quasiparticles reach the junction and the more switches the burst has: the rate trace and the burst-size plot show
    that. Quasiparticles that recombine before reaching the junction leave no trace. Hover or tap a part for what it
@@ -50,7 +51,7 @@
     chargeLine: ["Charge line", "A coplanar line like the feedline that ends in a thorn: a 60 µm taper to a 1 µm-radius tip, recessed 20 µm into the ground plane, about 80 µm from the island. A voltage on it sets the island's offset charge; keeping the tip back keeps the coupling tiny, so the line doesn't drain energy from the qubit."],
     islands: ["Superconducting islands", "The qubit's two aluminium islands, 110 µm pizza slices with a 160° opening, 17 µm apart. Below about 1.2 K their electrons bind into Cooper pairs, which flow without resistance. Together the slices form the qubit, a tiny nonlinear LC circuit, and also an antenna: THz photons are absorbed directly in them. A phonon or photon carrying more than twice the superconducting gap (about 0.36 meV) breaks a pair into two quasiparticles."],
     pocket: ["Silicon substrate", "Bare silicon where the aluminium was etched away: a 330 µm pocket around the islands that opens onto the feedline. Energy deposited in the chip spreads through the silicon as phonons, quantised lattice vibrations, and can reach every SQUAT on the chip."],
-    junction: ["Josephson junction (modified Dolan)", "The junction layer lands on each island on a dome-shaped connection pad (an argon clean first removes the islands' oxide, so the contact is not a second junction). From one pad a lead narrows to a 150 nm thin lead; from the other an elliptical drop reaches into the gap. Evaporated from two angles past a suspended resist bridge, the two overlap through about 1 nm of aluminium oxide, and Cooper pairs tunnel through it coherently: that makes the circuit a qubit. The leads have a smaller superconducting gap than the islands, so quasiparticles that wander in lose energy and cannot climb back out. Trapped at the junction, they tunnel again and again, each time flipping the charge parity."],
+    junction: ["Josephson junction (modified Dolan)", "The junction layer lands on each island on a dome-shaped connection pad (an argon clean first removes the islands' oxide, so the contact is not a second junction). From one pad a lead narrows to a 150 nm thin lead; from the other an elliptical drop reaches into the gap. Evaporated from two angles past a suspended resist bridge, the two overlap through about 1 nm of aluminium oxide, and Cooper pairs tunnel through it coherently: that makes the circuit a qubit. The leads have a smaller superconducting gap than the islands, so quasiparticles that wander in lose energy and cannot climb back out. Dropping into the leads, each one gives off enough energy to break another Cooper pair there, so one quasiparticle becomes several: the amplifying in SQUAT. Trapped at the junction, they tunnel again and again, each time flipping the charge parity."],
     chipFeed: ["Feedline", "One coplanar microwave line, 10 µm wide, runs across the chip from launch pad to launch pad. A tone sent down it reads out all three SQUATs at once: each one couples directly to the line, with no readout resonator, at its own frequency."],
     chipCharge: ["Charge line", "Each SQUAT has its own: a coplanar line from a launch pad at the chip edge down to a sharp tip just short of the SQUAT. A small voltage on it sets the island's offset charge, which tunes how far apart the even and odd parity frequencies sit."],
     chipSquat: ["A SQUAT", "Two superconducting aluminium islands joined by one Josephson junction, in a pocket cut out of the ground plane next to the feedline: the qubit and the sensor in one. Click to zoom in and watch it detect."],
@@ -306,7 +307,7 @@
       fx.push({ node: el("circle", { cx: x, cy: y, r: 2.5, class: "sq-hit" }, gFx), t: 0, life: 1.0, grow: 8 });
     }
     const Eisl = photon ? 0.6 * E : 0.01 * E;           // what reaches the islands, meV
-    const ntrap = Math.max(1, Math.min(9, Math.round(Eisl / 0.45), 2 * npairs));
+    const ntrap = Math.max(1, Math.min(6, Math.round(Eisl / 0.9), 2 * npairs));   // quasiparticles that reach the junction (each is then multiplied there)
     ev = { photon, E, Eisl, ntrap, label, txt, npairs, x, y, side, broke: false, at: tNow, mark: [tNow, label], flips: 0 };
     marks.push(ev.mark);
   }
@@ -340,6 +341,21 @@
     const tq = { side, u: q ? q.x : 0, v: q ? q.y : side * (g + 1 + rnd() * 2.5), vu: 0, vv: 0, t: q ? 0.2 : 0, life: dark ? 0.7 : 1.7 + rnd() * 0.5, hop: null, lastHop: 0, dark,
                  ev: q ? q.ev : null, node: q ? q.ins : el("circle", { r: 0.75, class: "sq-qp" }, gInsQP), dot: q ? q.node : el("circle", { r: 2, class: "sq-qp" }, gQP) };
     trapped.push(tq);
+    if (q && !dark) multiply(tq);
+  }
+  // quasiparticle multiplication: falling from the island's gap to the lower gap of the leads, a quasiparticle gives
+  // up more than twice the leads' gap, which breaks another pair there (now and then two): one quasiparticle in,
+  // three or five out, all trapped at the junction
+  function multiply(src) {
+    const extra = rnd() < 0.25 ? 4 : 2;
+    fx.push({ node: el("circle", { cx: src.u, cy: src.v, r: 1.5, class: "sq-tunnel" }, gFx), t: 0, life: 0.5, grow: 6 });
+    fx.push({ node: el("circle", { cx: INS.x + src.u * INS.m, cy: INS.y + src.v * INS.m, r: 2, class: "sq-tunnel" }, gIns), t: 0, life: 0.6, grow: 9 });
+    for (let k = 0; k < extra; k++) {
+      const side = k % 2 ? src.side : -src.side * (rnd() < 0.5 ? 1 : -1);   // the new pair's two quasiparticles land in the leads either side
+      const v = side < 0 ? -(g * 0.4 + rnd() * g * 0.6) : JJ.bridge + 1 + rnd() * (g - JJ.bridge);
+      trapped.push({ side, u: (rnd() - 0.5) * 0.6, v, vu: 0, vv: 0, t: 0, life: 1.6 + rnd() * 0.6, hop: null, lastHop: 0, dark: false, ev: src.ev,
+                     node: el("circle", { r: 0.75, class: "sq-qp" }, gInsQP), dot: el("circle", { r: 2, class: "sq-qp" }, gQP) });
+    }
   }
   function tunnel(tq) {
     tq.hop = { t: 0, from: tq.v, to: tq.side < 0 ? JJ.bridge + 0.8 + rnd() * 2.2 : JJ.bridge - 0.8 - rnd() * 3 }; parity = -parity; flips++;
@@ -477,7 +493,7 @@
     const cc = canvasCtx(scatCv); if (!cc) return;
     const { c, w, h } = cc, cs = getComputedStyle(fig), sans = cs.getPropertyValue("--sans");
     const left = 34, right = w - 8, top = 8, bottom = h - 22;
-    const ex = [0.1, 30], ny = [3, 300], lx = (v) => left + (Math.log(v / ex[0]) / Math.log(ex[1] / ex[0])) * (right - left), ly = (v) => bottom - (Math.log(v / ny[0]) / Math.log(ny[1] / ny[0])) * (bottom - top);
+    const ex = [0.1, 30], ny = [5, 800], lx = (v) => left + (Math.log(v / ex[0]) / Math.log(ex[1] / ex[0])) * (right - left), ly = (v) => bottom - (Math.log(v / ny[0]) / Math.log(ny[1] / ny[0])) * (bottom - top);
     c.font = `10.5px ${sans}`; c.fillStyle = cs.getPropertyValue("--ink-faint"); c.strokeStyle = cs.getPropertyValue("--rule"); c.lineWidth = 1;
     c.beginPath(); c.moveTo(left, top); c.lineTo(left, bottom); c.lineTo(right, bottom); c.stroke();
     c.textAlign = "center"; c.textBaseline = "top";
@@ -485,8 +501,9 @@
     c.fillText("energy in islands (meV)", (left + right) / 2, bottom + 11);
     c.textAlign = "right"; c.textBaseline = "middle";
     for (const v of [10, 100]) { const y = ly(v); c.fillText(v + "", left - 4, y); c.beginPath(); c.moveTo(left - 3, y); c.lineTo(left, y); c.stroke(); }
-    // the proportional guide: about 28 switches per meV
-    c.setLineDash([3, 4]); c.beginPath(); c.moveTo(lx(ex[0]), ly(Math.max(ny[0], 28 * ex[0]))); c.lineTo(lx(ny[1] / 28), ly(ny[1])); c.stroke(); c.setLineDash([]);
+    // the proportional guide, through the bursts seen so far (median switches per meV)
+    const ratios = bursts.map(([e, n]) => n / e).sort((a, b) => a - b), kq = ratios.length ? ratios[ratios.length >> 1] : 45;
+    c.setLineDash([3, 4]); c.beginPath(); c.moveTo(lx(Math.max(ex[0], ny[0] / kq)), ly(Math.max(ny[0], kq * ex[0]))); c.lineTo(lx(Math.min(ex[1], ny[1] / kq)), ly(Math.min(ny[1], kq * ex[1]))); c.stroke(); c.setLineDash([]);
     bursts.forEach(([e, n, photon], i) => {
       const a = 0.35 + 0.65 * (i + 1) / bursts.length;
       c.globalAlpha = a; c.fillStyle = photon ? cs.getPropertyValue("--accent") : cs.getPropertyValue("--gold");
@@ -519,6 +536,6 @@
   for (let i = 0; i < 2; i++) sample(SPAN / 2);
   pairs.forEach((p) => placePair(p, 0));
   // a few earlier bursts, so the energy plot is not empty at first
-  for (let i = 0; i < 6; i++) { const e = Math.exp(Math.log(0.3) + rnd() * Math.log(40)), n = Math.max(1, Math.min(9, Math.round(e / 0.45))); bursts.push([e, Math.max(4, Math.round(n * (13 + rnd() * 6))), rnd() < 0.4]); }
+  for (let i = 0; i < 6; i++) { const e = Math.exp(Math.log(0.3) + rnd() * Math.log(40)), n = Math.max(1, Math.min(6, Math.round(e / 0.9))); bursts.push([e, Math.max(6, Math.round(n * 3.5 * (11 + rnd() * 4))), rnd() < 0.4]); }
   viewUi(); drawPlots(); kick();
 })();

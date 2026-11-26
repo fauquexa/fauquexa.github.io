@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/style.css?v=20261127a">
   <script src="assets/site.js?v=20261123a"></script>
-  <script src="assets/squats.js?v=20261127a" defer></script>
+  <script src="assets/squats.js?v=20261127b" defer></script>
   <style>
     .page { max-width: 760px; margin: 0 auto; padding: 28px 22px 64px; }
     .topbar { display: flex; justify-content: space-between; align-items: center; font-family: var(--sans); font-size: 14px; margin-bottom: 44px; }
@@ -83,10 +83,10 @@
 
   <h2><span class="n">03 · SUPERCONDUCTORS</span>Cooper pairs, and what breaks them</h2>
   <p>Below about 1.2&nbsp;K, the electrons in aluminium bind into Cooper pairs, which all share one quantum state and carry current without resistance. Splitting a pair costs twice the superconducting gap, 2Δ&nbsp;≈&nbsp;0.4&nbsp;meV. A THz photon absorbed in the metal, or a phonon (a quantum of lattice vibration) that travels in from a particle hit in the substrate, can supply that. The two electrons it frees are <em>quasiparticles</em>: they wander through the film for up to a millisecond before they find a partner and recombine.</p>
-  <p>For quantum computing, quasiparticles are a nuisance (“quasiparticle poisoning”): they disturb the qubit. In a SQUAT they are the signal. The idea of the full design: around the junction, use a superconductor with a smaller gap. A quasiparticle that wanders in relaxes to that lower gap and can't climb back out. It stays trapped right at the junction and crosses it again and again, and each crossing is a separate count.</p>
+  <p>For quantum computing, quasiparticles are a nuisance (“quasiparticle poisoning”): they disturb the qubit. In a SQUAT they are the signal. The idea of the full design: around the junction, use a superconductor with a smaller gap. A quasiparticle that wanders in relaxes to that lower gap and can't climb back out. It stays trapped right at the junction and crosses it again and again, and each crossing is a separate count. Better still, falling into the lower gap releases energy: if the island's gap is more than about three times the trap's, that is enough to break another Cooper pair in the trap. One quasiparticle becomes several (about seven for a gap ratio of ten), and every one of them tunnels. That is the <em>amplifying</em> in the name.</p>
   <figure class="ix" id="qpFig">
     <div class="box"><svg viewBox="0 0 640 250" role="img" aria-label="Energy diagram across a SQUAT: island gap, lower-gap trap, junction barrier, with quasiparticles relaxing into the trap and tunnelling back and forth"></svg></div>
-    <figcaption>Energy against position across the device, in the trapping design proposed for SQUATs. A deposit breaks a pair high above the gap; the quasiparticles cascade down to the gap edge in about a nanosecond, diffuse, drop into the lower-gap trap and then shuttle across the junction many times. The first SQUATs are all aluminium, with almost no trap yet.</figcaption>
+    <figcaption>Energy against position across the device, in the trapping design proposed for SQUATs. A deposit breaks a pair high above the gap; the quasiparticles cascade down to the gap edge in about a nanosecond and diffuse. Each one that drops into the lower-gap trap gives up enough energy to break a pair there (blue), so one quasiparticle becomes three, and they all shuttle across the junction many times. The first SQUATs are all aluminium, with almost no trap yet.</figcaption>
   </figure>
 
   <h2><span class="n">04 · THE TRANSMON</span>A qubit that knows the parity of its electrons</h2>
