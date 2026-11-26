@@ -2035,6 +2035,7 @@ function randomFloorPoint(c, near, minD = 0.5, maxD = 2.4, sameRoom) {
     if (blocked(x, z, c.r + 0.08)) continue;
     if (near && NAV.rooms && roomAt(x, z) !== home && (sameRoom || Math.random() < 0.75)) continue;   // mostly stay in the same room
     if (cats.some((o) => o !== c && !o.perch && Math.hypot(o.pos.x - x, o.pos.z - z) < 0.45)) continue;
+    if (dogOverlap(x, z, 0.3)) continue;
     return { x, z };
   }
   return null;
@@ -2440,6 +2441,7 @@ function freeFor(c, x, z, ignore) {
     if (o === c || o === ignore || o.perch || o.air) continue;
     if (Math.hypot(o.pos.x - x, o.pos.z - z) < (c.r + o.r) * 0.95) return false;
   }
+  if (ignore !== dog && dogOverlap(x, z, c.r * 0.95)) return false;   // Rigby
   return true;
 }
 function steer(c, desired, look, ignore) {
@@ -3411,31 +3413,56 @@ function catSaid(c) { const S = window.playgroundSound; if (S && Math.random() <
 
 // ===================================================================
 //  Rigby mode: type "rigby" and a gentle, happy Rhodesian Ridgeback trots in and chills with the cats.
-//  Light wheaten coat, darker muzzle and ears. He wanders, sniffs, sits and wags, and likes to lie down near a
-//  cat. He goes round the cats, and nudges a cat aside gently if one walks into him.
+//  Light wheaten coat with a white band on the chest, darker muzzle and ears, and the ridge along his back (painted
+//  into the coat). He wanders and sniffs, sits and wags, lies down next to the cats, curls up like a croissant to
+//  sleep (sometimes on the bed), eats from the bowls, does a downward-dog stretch when he gets up, and plays chase
+//  with Dolly and Frank. His body is two circles (chest and hips) for walls, furniture and cats; the cats steer
+//  round him too.
 // ===================================================================
-const dog = { on: false, meshes: [], pos: V(0, 0, 0), heading: 0, speed: 0, r: 0.24, state: null, t: 0, phase: 0, pop: 0, pose: null, P: null, wag: 0, scene: null, label: null, hover: false };
+const dog = { on: false, meshes: [], pos: V(0, 0, 0), heading: 0, speed: 0, state: null, t: 0, phase: 0, pop: 0, P: null, wag: 0, scene: null, label: null, hover: false,
+              hunger: 0.4, bed: null, step: null, playing: false, curlK: 0, food: 0, r: 0.2 };
+const DOG_FRONT = 0.42, DOG_RR = 0.2, DOG_RF = 0.19;
 const DOG_POSES = {   // hip height, body pitch (+ = front up), front legs (relative to the floor), hind legs, head pitch (relative to the floor, + = nose down), tail, eyes
-  stand: { hipY: 0.5, pitch: 0, fl: 0, fk: 0, hl: 0.12, hk: -0.28, head: 0.05, tail: 0.15, eye: 1 },
-  walk:  { hipY: 0.5, pitch: 0, fl: 0, fk: 0, hl: 0.12, hk: -0.28, head: 0.12, tail: 0.3, eye: 1 },
-  sniff: { hipY: 0.5, pitch: -0.08, fl: 0.05, fk: 0, hl: 0.15, hk: -0.3, head: 0.95, tail: 0.25, eye: 1 },
-  sit:   { hipY: 0.105, pitch: 1.0, fl: 0.02, fk: 0, hl: -0.5, hk: 2.95, head: 0.38, tail: 1.4, eye: 1 },
-  lie:   { hipY: 0.14, pitch: 0.02, fl: -1.45, fk: 0.1, hl: -1.25, hk: 2.55, head: 0.05, tail: -1.25, eye: 1 },
-  doze:  { hipY: 0.13, pitch: 0.0, fl: -1.5, fk: 0.1, hl: -1.25, hk: 2.55, head: 0.55, tail: -1.3, eye: 0.1 },
+  stand:   { hipY: 0.5, pitch: 0, fl: 0, fk: 0, hl: 0.12, hk: -0.28, head: 0.05, tail: 0.15, eye: 1 },
+  walk:    { hipY: 0.5, pitch: 0, fl: 0, fk: 0, hl: 0.12, hk: -0.28, head: 0.12, tail: 0.3, eye: 1 },
+  run:     { hipY: 0.48, pitch: 0.03, fl: 0, fk: 0, hl: 0.1, hk: -0.3, head: 0.2, tail: 0.5, eye: 1 },
+  sniff:   { hipY: 0.5, pitch: -0.08, fl: 0.05, fk: 0, hl: 0.15, hk: -0.3, head: 0.95, tail: 0.25, eye: 1 },
+  eat:     { hipY: 0.48, pitch: -0.16, fl: 0.12, fk: 0, hl: -0.05, hk: -0.25, head: 1.25, tail: 0.5, eye: 0.8 },
+  sit:     { hipY: 0.105, pitch: 1.0, fl: 0.02, fk: 0, hl: -0.5, hk: 2.95, head: 0.38, tail: 1.4, eye: 1 },
+  lie:     { hipY: 0.14, pitch: 0.02, fl: -1.45, fk: 0.1, hl: -1.25, hk: 2.55, head: 0.05, tail: -1.25, eye: 1 },
+  doze:    { hipY: 0.13, pitch: 0.0, fl: -1.5, fk: 0.1, hl: -1.25, hk: 2.55, head: 0.55, tail: -1.3, eye: 0.1 },
+  stretch: { hipY: 0.5, pitch: -0.5, fl: -1.02, fk: 0, hl: -0.42, hk: -0.12, head: -0.15, tail: 0.9, eye: 0.35 },   // downward dog
+  bow:     { hipY: 0.48, pitch: -0.45, fl: -0.98, fk: 0, hl: -0.38, hk: -0.12, head: -0.25, tail: 1.1, eye: 1 },     // play bow
+  air:     { hipY: 0.5, pitch: 0.15, fl: -0.5, fk: 0.4, hl: 0.6, hk: -0.4, head: 0.0, tail: 0.6, eye: 1 },
 };
+DOG_POSES.curl = DOG_POSES.doze;
 const DOG_K = ["hipY", "pitch", "fl", "fk", "hl", "hk", "head", "tail", "eye"];
+const DOGSPOT = { full: 0.5, name: "Rigby" }, DOGOCC = { dog: true };
+// a sphere painted per triangle (flat colours): col(nx, ny, nz) gets the unit-sphere direction of each face
+function paintedBlob(sx, sy, sz, col, parent, x, y, z, seg) {
+  const g = new THREE.SphereGeometry(1, seg, Math.max(6, seg - 2)).toNonIndexed(), p = g.attributes.position, cols = [], c = new THREE.Color();
+  for (let i = 0; i < p.count; i += 3) {
+    const cx = (p.getX(i) + p.getX(i + 1) + p.getX(i + 2)) / 3, cy = (p.getY(i) + p.getY(i + 1) + p.getY(i + 2)) / 3, cz = (p.getZ(i) + p.getZ(i + 1) + p.getZ(i + 2)) / 3, l = Math.hypot(cx, cy, cz) || 1;
+    c.set(col(cx / l, cy / l, cz / l)); for (let k = 0; k < 3; k++) cols.push(c.r, c.g, c.b);
+  }
+  g.setAttribute("color", new THREE.Float32BufferAttribute(cols, 3)); g.computeVertexNormals();
+  const m = mk(g, dog.vmat, parent, x, y, z); m.scale.set(sx, sy, sz); dog.meshes.push(m); return m;
+}
 function buildDog() {
-  const COAT = 0xc07d45, BELLY = 0xd49c66, DARK = 0x4b2f20, EAR = 0x86522e, NOSE = 0x1d1917;
-  const mat = (c) => { const m = new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, metalness: 0, flatShading: true }); return m; };
+  const COAT = 0xc07d45, BELLY = 0xd49c66, DARK = 0x4b2f20, EAR = 0x86522e, RIDGE = 0x8f5127, WHITE = 0xf1e6d6, NOSE = 0x1d1917;
+  const mat = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, metalness: 0, flatShading: true });
   const coat = mat(COAT), belly = mat(BELLY), dark = mat(DARK), ear = mat(EAR), nose = mat(NOSE), tongueM = mat(0xd9737c), eyeM = mat(0x241a14);
+  dog.vmat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0, flatShading: true });
   const reg = (m) => { dog.meshes.push(m); return m; };
-  const blob = (sx, sy, sz, m, parent, x, y, z, seg = 9) => { const g = new THREE.SphereGeometry(1, seg, Math.max(6, seg - 2)); const o = reg(mk(g, m, parent, x, y, z)); o.scale.set(sx, sy, sz); return o; };
+  const blob = (sx, sy, sz, m, parent, x, y, z, seg = 9) => { const o = reg(mk(new THREE.SphereGeometry(1, seg, Math.max(6, seg - 2)), m, parent, x, y, z)); o.scale.set(sx, sy, sz); return o; };
   const cyl = (r0, r1, h, m, parent, x, y, z, seg = 7) => reg(mk(new THREE.CylinderGeometry(r0, r1, h, seg), m, parent, x, y, z));
   const root = new THREE.Group(); dog.root = root;
   const hip = new THREE.Group(); root.add(hip); dog.hip = hip;                       // everything hangs off the hips, so he can sit
   blob(0.125, 0.14, 0.16, coat, hip, 0, 0.0, 0.0);                                    // haunches
-  blob(0.13, 0.145, 0.33, coat, hip, 0, -0.01, 0.22);                                 // body
-  blob(0.14, 0.17, 0.17, coat, hip, 0, -0.035, 0.42);                                 // deep chest
+  // the body, with the ridge: a narrow darker stripe of hair along the top of the back
+  paintedBlob(0.13, 0.145, 0.33, (x, y, z) => (y > 0.86 && Math.abs(x) < 0.36 && z > -0.55 && z < 0.74 ? RIDGE : COAT), hip, 0, -0.01, 0.22, 16);
+  // the deep chest, with the white band low on the front
+  paintedBlob(0.14, 0.17, 0.17, (x, y, z) => (z > 0.5 && y < 0.1 && y > -0.8 && Math.abs(x) < 0.46 ? WHITE : COAT), hip, 0, -0.035, 0.42, 12);
   blob(0.1, 0.07, 0.24, belly, hip, 0, -0.11, 0.25, 7);                               // lighter underside
   // neck and head
   const neck = cyl(0.065, 0.09, 0.22, coat, hip, 0, 0.13, 0.58); neck.rotation.x = 0.62;
@@ -3444,7 +3471,7 @@ function buildDog() {
   reg(mk(rbox(0.085, 0.075, 0.13, 0.02), dark, head, 0, -0.03, 0.13));                // dark muzzle
   reg(mk(rbox(0.05, 0.035, 0.03, 0.01), nose, head, 0, -0.005, 0.2));                 // nose
   for (const s of [-1, 1]) {
-    const e = reg(mk(new THREE.SphereGeometry(0.014, 6, 5), eyeM, head, s * 0.042, 0.022, 0.08)); dog["eye" + s] = e;
+    dog["eye" + s] = reg(mk(new THREE.SphereGeometry(0.014, 6, 5), eyeM, head, s * 0.042, 0.022, 0.08));
     const ea = reg(mk(rbox(0.07, 0.1, 0.018, 0.008), ear, head, s * 0.078, -0.012, -0.01));   // soft, floppy ears
     ea.rotation.set(0.1, s * 0.25, s * 0.28); dog["ear" + s] = ea;
   }
@@ -3453,41 +3480,92 @@ function buildDog() {
   dog.legs = [];
   for (const [side, front] of [[-1, 1], [1, 1], [-1, 0], [1, 0]]) {
     const top = new THREE.Group(); top.position.set(side * 0.085, -0.04, front ? 0.44 : 0.0); hip.add(top);
-    cyl(front ? 0.04 : 0.055, 0.03, 0.23, front ? coat : coat, top, 0, -0.115, 0);
+    cyl(front ? 0.04 : 0.055, 0.03, 0.23, coat, top, 0, -0.115, 0);
     const knee = new THREE.Group(); knee.position.set(0, -0.23, 0); top.add(knee);
     cyl(0.028, 0.022, 0.23, coat, knee, 0, -0.115, 0);
     blob(0.034, 0.022, 0.045, coat, knee, 0, -0.235, 0.015, 6);
     dog.legs.push({ top, knee, side, front });
   }
   // the tail: long and tapering, in four links so it can wag in a curve
-  let parent = hip, tl = [];
-  const tb = new THREE.Group(); tb.position.set(0, 0.05, -0.13); hip.add(tb); parent = tb;
+  let parent = new THREE.Group(); parent.position.set(0, 0.05, -0.13); hip.add(parent);
+  const tl = [];
   for (let i = 0; i < 4; i++) {
     const g = new THREE.Group(); if (i) g.position.set(0, 0, -0.1); parent.add(g);
     const seg = cyl(0.026 - i * 0.005, 0.03 - i * 0.005, 0.11, coat, g, 0, 0, -0.05, 6); seg.rotation.x = Math.PI / 2;
     tl.push(g); parent = g;
   }
   dog.tail = tl;
+  // curled up like a croissant: one smooth body bent round in a C (thicker at the hips, rounded ends), his head
+  // resting on his hips with the nose tucked in, and the tail wrapped round the outside up to his nose
+  const curl = new THREE.Group(); curl.position.set(0, 0, 0.18); root.add(curl); curl.visible = false; dog.curl = curl;
+  const CR = 0.13, A0 = -0.5 * Math.PI, A1 = 0.92 * Math.PI, NT = 26, NR = 12, FL = 0.82;
+  const at = (a, r, y) => [r * Math.cos(a), y, -r * Math.sin(a)];
+  const rad = (u) => 0.118 + 0.012 * Math.sin(u * Math.PI) - 0.014 * u;   // hips 0.118, belly 0.13, chest 0.104
+  const ctr = (u) => { const a = A0 + (A1 - A0) * u; return [a, at(a, CR, rad(u) * FL)]; };
+  const pos = [];
+  const ringPt = (u, f) => { const [a, c] = ctr(u), r = rad(u); return [c[0] + Math.cos(a) * Math.cos(f) * r, c[1] + Math.sin(f) * r * FL, c[2] - Math.sin(a) * Math.cos(f) * r]; };
+  for (let j = 0; j < NT; j++) for (let i = 0; i < NR; i++) {
+    const u0 = j / NT, u1 = (j + 1) / NT, f0 = (i / NR) * Math.PI * 2, f1 = ((i + 1) / NR) * Math.PI * 2;
+    const p00 = ringPt(u0, f0), p01 = ringPt(u0, f1), p10 = ringPt(u1, f0), p11 = ringPt(u1, f1);
+    pos.push(...p00, ...p10, ...p11, ...p00, ...p11, ...p01);
+  }
+  const bg = new THREE.BufferGeometry(); bg.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); bg.computeVertexNormals();
+  const bodyM = reg(mk(bg, coat, curl, 0, 0, 0)); bodyM.material = coat.clone(); bodyM.material.side = THREE.DoubleSide;
+  for (const u of [0, 1]) { const [, c] = ctr(u), r = rad(u); blob(r, r * FL, r, coat, curl, ...c, 12); }   // rounded ends: the hips, the chest
+  const wb = blob(0.05, 0.055, 0.045, mat(WHITE), curl, ...at(A1 - 0.12, CR - 0.075, 0.075), 8); wb.rotation.y = A1;   // white chest, on the inside
+  // the head, chin on his hips
+  const ha = A1 + 0.62, cHead = new THREE.Group(); cHead.position.set(...at(ha, CR + 0.01, 0.2)); curl.add(cHead);
+  cHead.rotation.set(0.3, ha + 0.2, -0.12, "YXZ");
+  reg(mk(rbox(0.155, 0.12, 0.17, 0.038), coat, cHead, 0, 0, 0));
+  reg(mk(rbox(0.088, 0.07, 0.13, 0.022), dark, cHead, 0, -0.022, 0.125));
+  reg(mk(rbox(0.05, 0.034, 0.03, 0.01), nose, cHead, 0, -0.004, 0.195));
+  for (const s of [-1, 1]) { reg(mk(rbox(0.026, 0.006, 0.01, 0.002), eyeM, cHead, s * 0.043, 0.027, 0.085)); const ea = reg(mk(rbox(0.075, 0.105, 0.018, 0.008), ear, cHead, s * 0.082, -0.01, -0.01)); ea.rotation.set(0.3, s * 0.25, s * 0.7); }
+  const cNeck = blob(0.085, 0.075, 0.1, coat, curl, ...at(A1 + 0.3, CR, 0.13), 9); cNeck.rotation.y = A1 + 0.3 + Math.PI;
+  // the tail: a smooth curve round the outside of the hips, its tip by his nose
+  const tpts = []; for (let i = 0; i <= 6; i++) { const a = A0 + 0.3 - i * 0.2; tpts.push(new THREE.Vector3(...at(a, CR + 0.112 - i * 0.004, 0.05 + i * 0.008))); }
+  const tailM = reg(mk(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(tpts), 18, 0.024, 6, false), coat, curl, 0, 0, 0));
+  blob(0.018, 0.018, 0.018, coat, curl, ...tpts[6].toArray(), 5);
+  // paws: the front ones tucked under his chin, the hind ones peeking out at the back
+  for (const [a, r, y, rot] of [[A1 + 0.25, CR - 0.09, 0.03, 0], [A1 + 0.45, CR - 0.08, 0.03, 0.2], [A0 + 0.45, CR + 0.115, 0.03, 0], [A0 + 0.75, CR + 0.11, 0.03, 0]]) { const pw = blob(0.034, 0.022, 0.05, coat, curl, ...at(a, r, y), 6); pw.rotation.y = a + Math.PI + rot; }
   root.visible = false; scene.add(root);
   dog.P = Object.assign({}, DOG_POSES.stand);
   const lb = document.createElement("div"); lb.className = "catlabel"; lb.textContent = "Rigby"; document.body.appendChild(lb); dog.label = lb;
 }
-function dogSpot(near, minD, maxD) {
-  for (let k = 0; k < 50; k++) {
+// his body for collisions: hips at pos, chest in front; curled up, one round blob
+function dogCircles(x, z, h, curled) {
+  if (curled) return [[x + Math.sin(h) * 0.18, z + Math.cos(h) * 0.18, 0.3]];
+  return [[x, z, DOG_RR], [x + Math.sin(h) * DOG_FRONT, z + Math.cos(h) * DOG_FRONT, DOG_RF]];
+}
+const dogCurled = () => dog.curlK > 0.5;
+function dogOverlap(x, z, r) {   // is a point (with radius r) inside Rigby, while he is on the floor?
+  if (!dog.on || dog.bed || dog.air || !dog.root) return false;
+  for (const [cx, cz, cr] of dogCircles(dog.pos.x, dog.pos.z, dog.heading, dogCurled())) if (Math.hypot(x - cx, z - cz) < cr + r) return true;
+  return false;
+}
+function dogFits(x, z, h) { for (const [cx, cz, cr] of dogCircles(x, z, h, false)) if (blocked(cx, cz, cr + 0.04)) return false; return true; }
+function dogCollide() {   // push both circles out of walls and furniture (moving him as a whole)
+  for (let it = 0; it < 2; it++) for (const [cx, cz, cr] of dogCircles(dog.pos.x, dog.pos.z, dog.heading, dogCurled())) {
+    const q = pushOut({ x: cx, z: cz }, cr); dog.pos.x += q.x - cx; dog.pos.z += q.z - cz;
+  }
+}
+// a free spot for him: room for the whole body facing 'face' (or any way), clear of the cats
+function dogSpot(near, minD, maxD, face) {
+  for (let k = 0; k < 60; k++) {
     let x, z;
     if (near) { const a = rand(0, Math.PI * 2), d = rand(minD, maxD); x = near.x + Math.sin(a) * d; z = near.z + Math.cos(a) * d; }
     else { const p = roomPoint(pickRoom(), 0.45); x = p.x; z = p.z; }
-    if (blocked(x, z, dog.r + 0.06)) continue;
-    if (cats.some((c) => !c.perch && Math.hypot(c.pos.x - x, c.pos.z - z) < 0.42)) continue;
-    return { x, z };
+    const h = face ? Math.atan2(face.x - x, face.z - z) : rand(-Math.PI, Math.PI);
+    if (!dogFits(x, z, h)) continue;
+    if (cats.some((c) => !c.perch && dogCircles(x, z, h).some(([cx, cz, cr]) => Math.hypot(c.pos.x - cx, c.pos.z - cz) < cr + c.r + 0.12))) continue;
+    return { x, z, h };
   }
   return null;
 }
 function dogEnter() {
-  dog.scene = sceneName;
+  dog.scene = sceneName; dog.bed = null; dog.air = false; dog.playing = false; dog.step = null; dog.curlK = 0;
   const R = NAV.rooms ? NAV.rooms[0].r : NAV.free[0];
   let p = null;
-  for (let k = 0; k < 60 && !p; k++) { const q = roomPoint(R, 0.5); if (!blocked(q.x, q.z, dog.r + 0.08) && !cats.some((c) => Math.hypot(c.pos.x - q.x, c.pos.z - q.z) < 0.5)) p = q; }
+  for (let k = 0; k < 80 && !p; k++) { const q = roomPoint(R, 0.5), h = Math.atan2(camera.position.x - q.x, camera.position.z - q.z); if (dogFits(q.x, q.z, h) && !cats.some((c) => Math.hypot(c.pos.x - q.x, c.pos.z - q.z) < 0.7)) p = q; }
   p = p || dogSpot(null) || { x: 0, z: R[2] + 1 };
   dog.pos.set(p.x, 0, p.z); dog.heading = camHeading(dog); dog.speed = 0;
   Object.assign(dog.P, DOG_POSES.sit); dog.state = { kind: "sit", dur: 3.5, happy: true }; dog.t = 0;
@@ -3499,82 +3577,201 @@ function rigbyMode() {
   const b = $("rigbyBanner"); b.classList.remove("show"); void b.offsetWidth; b.classList.add("show");
   clearTimeout(rigbyMode.t); rigbyMode.t = setTimeout(() => b.classList.remove("show"), 2000);
   if (!dog.on) { dog.on = true; dogEnter(); }
-  else { dog.state = { kind: "sit", dur: 3, happy: true }; dog.t = 0; dog.labelT = 3; }   // already here: he sits up and wags
+  else { dog.labelT = 3; if (!dog.bed && !dog.air && !dog.state.play) { dogEndPlay(); dog.state = { kind: "sit", dur: 3, happy: true }; dog.t = 0; } }   // already here: he sits up and wags
 }
-// what to do next: mostly settle down near a cat, sometimes wander and sniff, sometimes sit and look happy
-function dogNext() {
+// --- what he wants to do next
+function dogPlayable(c) {
+  return c.present !== false && !c.perch && !c.air && !c.sess && c.poseName !== "curl" && !(c.step && (c.step.type === "eat" || c.step.type === "jump" || c.step.food || c.step.type === "crawl" || c.step.type === "walk" && c.step.food));
+}
+function dogFoodBowl() {
+  return bowls.filter((b) => !b.gone && b.food > 0.45 && b.spots.length < 2 && !b.spots.some((s) => s.c === DOGSPOT)).sort((p, q) => Math.hypot(p.x - dog.pos.x, p.z - dog.pos.z) - Math.hypot(q.x - dog.pos.x, q.z - dog.pos.z))[0];
+}
+function dogGoEat(b) {   // stand with his head over the bowl, on a side the cats leave free
+  const base = Math.atan2(dog.pos.x - b.x, dog.pos.z - b.z);
+  for (let k = 0; k < 14; k++) {
+    const a = base + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.35;
+    if (b.spots.some((s) => Math.abs(angWrap(s.a - a)) < 1.8)) continue;
+    const x = b.x + Math.sin(a) * 0.7, z = b.z + Math.cos(a) * 0.7;
+    if (!dogFits(x, z, a + Math.PI)) continue;
+    const spot = { c: DOGSPOT, a, x: b.x + Math.sin(a) * 0.3, z: b.z + Math.cos(a) * 0.3 }; b.spots.push(spot);
+    dog.state = { kind: "go", to: { x, z }, face: b, then: { kind: "eat", dur: rand(7, 11), bowl: b, spot } }; dog.t = 0; return true;
+  }
+  return false;
+}
+function dogGoBed() {
+  const beds = PERCHES.filter((P) => P.kind === "bed" && !P.occ && !cats.some((c) => c.perch && Math.hypot(c.pos.x - P.pos.x, c.pos.z - P.pos.z) < 0.55));
+  if (!beds.length) return false;
+  const P = pick(beds); P.occ = DOGOCC;
+  dog.state = { kind: "go", to: { x: P.approach.x, z: P.approach.z }, face: P.pos, loose: true, then: { kind: "jump", up: P } }; dog.t = 0; return true;
+}
+function dogNext(after) {
   dog.t = 0;
+  if (dog.bed) { dogJumpDown(); return; }
+  // waking up: a long downward-dog stretch first
+  if (after && /lie|doze|curl/.test(after) && Math.random() < 0.65) { dog.state = { kind: "stretch", dur: rand(2.2, 3.2) }; return; }
+  const b = dogFoodBowl();
+  if (b && dog.hunger > 0.55 && dogGoEat(b)) return;
+  const players = cats.filter((c) => (c.name === "Dolly" || c.name === "Frank") && dogPlayable(c));
   const floorCats = cats.filter((c) => !c.perch && !c.air);
   const r = Math.random();
-  if (floorCats.length && r < 0.45) {
-    const c = pick(floorCats), p = dogSpot(c.pos, 0.55, 0.85);
-    if (p) { dog.state = { kind: "go", to: p, then: { kind: Math.random() < 0.5 ? "doze" : "lie", dur: rand(12, 26), buddy: c } }; return; }
+  if (players.length && r < 0.3) { const c = pick(players), p = dogSpot(c.pos, 0.85, 1.2, c.pos); if (p) { dog.state = { kind: "go", to: p, face: c.pos, then: { kind: "bow", dur: 1.3, play: c } }; return; } }
+  if (r < 0.4 && dogGoBed()) return;
+  if (floorCats.length && r < 0.68) {
+    const c = pick(floorCats), p = dogSpot(c.pos, 0.6, 0.95, c.pos);
+    if (p) { dog.state = { kind: "go", to: p, face: c.pos, then: { kind: pick(["lie", "doze", "curl"]), dur: rand(14, 30), buddy: c } }; return; }
   }
-  if (r < 0.75) { const p = dogSpot(dog.pos, 0.8, 2.6) || dogSpot(null); if (p) { dog.state = { kind: "go", to: p, then: Math.random() < 0.5 ? { kind: "sniff", dur: rand(1.5, 3) } : { kind: "stand", dur: rand(1.5, 3.5) } }; return; } }
-  dog.state = { kind: Math.random() < 0.5 ? "sit" : "lie", dur: rand(5, 11), happy: true };
+  if (r < 0.85) { const p = dogSpot(dog.pos, 0.8, 2.6) || dogSpot(null); if (p) { dog.state = { kind: "go", to: p, then: Math.random() < 0.5 ? { kind: "sniff", dur: rand(1.5, 3) } : { kind: "stand", dur: rand(1.5, 3.5) } }; return; } }
+  dog.state = { kind: pick(["sit", "lie", "curl"]), dur: rand(6, 14), happy: true };
 }
+function dogJump(to, toY, then) {
+  dog.state = { kind: "jump", from: { x: dog.pos.x, z: dog.pos.z, y: dog.pos.y }, to: { x: to.x, z: to.z, y: toY }, dur: 0.7, then }; dog.t = 0; dog.air = true;
+  dog.heading = Math.atan2(to.x - dog.pos.x, to.z - dog.pos.z);
+}
+function dogJumpDown() {
+  const P = dog.bed; let land = { x: P.approach.x, z: P.approach.z };
+  const q = dogSpot(land, 0.05, 0.5); if (q) land = q;
+  dogJump(land, 0, { kind: "stretch", dur: rand(2, 3) });
+}
+function dogEndPlay() {
+  const S = dog.state; dog.playing = false; dog.step = { type: "rest" };
+  if (S && S.play && S.cs && S.play.step === S.cs) { clearPlan(S.play); push(S.play, poseStep("sit", rand(2, 4), { lookAt: dog })); }
+}
+// --- every frame
 function updateDog(dt, t) {
   if (!dog.on) return;
   if (dog.scene !== sceneName) dogEnter();
-  dog.t += dt;
-  const S = dog.state; let want = "stand", target = null;
+  dog.t += dt; dog.hunger = Math.min(1.2, dog.hunger + dt / 140);
+  // fresh food: he wants some
+  const food = bowls.reduce((s, b) => s + (b.gone ? 0 : b.food), 0);
+  if (food > dog.food + 0.5 && !dog.bed && !dog.air && dog.state && !/eat|jump|chase|flee/.test(dog.state.kind) && !(dog.state.then && dog.state.then.kind === "eat") && Math.random() < 0.7) {
+    const b = dogFoodBowl(); if (b) { dogEndPlay(); dogGoEat(b); }
+  }
+  dog.food = food;
+  const St = dog.state;
+  for (const b of bowls) if (b.spots.some((s) => s.c === DOGSPOT) && !((St.kind === "eat" && St.bowl === b) || (St.kind === "go" && St.then && St.then.bowl === b))) b.spots = b.spots.filter((s) => s.c !== DOGSPOT);
+  for (const P of PERCHES) if (P.occ === DOGOCC && dog.bed !== P && dog.landBed !== P && !(St.kind === "go" && St.then && St.then.up === P)) P.occ = null;
+  let S = dog.state, want = "stand", target = null;
   if (S.kind === "go") {
     const W = navWay(dog.pos.x, dog.pos.z, S.to.x, S.to.z), dx = W.x - dog.pos.x, dz = W.z - dog.pos.z, dd = Math.hypot(S.to.x - dog.pos.x, S.to.z - dog.pos.z);
-    let hx = dx, hz = dz;
+    let hx = dx / (Math.hypot(dx, dz) || 1), hz = dz / (Math.hypot(dx, dz) || 1);
     for (const c of cats) {                     // steer round the cats
-      if (c.perch) continue;
-      const ox = dog.pos.x - c.pos.x, oz = dog.pos.z - c.pos.z, o = Math.hypot(ox, oz);
-      if (o < 0.6 && o > 1e-3) { const k = (0.6 - o) / 0.6 * 1.6; hx += ox / o * k; hz += oz / o * k; }
+      if (c.perch || c.air || (S.then && S.then.play === c && dd < 1)) continue;
+      for (const [cx, cz] of dogCircles(dog.pos.x, dog.pos.z, dog.heading)) { const ox = cx - c.pos.x, oz = cz - c.pos.z, o = Math.hypot(ox, oz); if (o < 0.6 && o > 1e-3) { const k = (0.6 - o) / 0.6 * 1.4; hx += ox / o * k; hz += oz / o * k; } }
     }
-    const goalH = Math.atan2(hx, hz), turn = angWrap(goalH - dog.heading);
+    const goalH = dd < 0.25 && S.face ? Math.atan2(S.face.x - dog.pos.x, S.face.z - dog.pos.z) : Math.atan2(hx, hz), turn = angWrap(goalH - dog.heading);
     dog.heading += clamp(turn, -dt * 2.6, dt * 2.6);
-    const vmax = dd < 0.5 ? 0.18 + dd * 0.6 : 0.5;
-    dog.speed += ((Math.abs(turn) > 1.2 ? 0.08 : vmax) - dog.speed) * Math.min(1, dt * 3);
+    const vmax = dd < 0.25 ? 0 : dd < 0.6 ? 0.15 + dd * 0.55 : 0.5;
+    dog.speed += ((Math.abs(turn) > 1.2 ? Math.min(vmax, 0.08) : vmax) - dog.speed) * Math.min(1, dt * 3);
     const ox = dog.pos.x, oz = dog.pos.z;
     dog.pos.x += Math.sin(dog.heading) * dog.speed * dt; dog.pos.z += Math.cos(dog.heading) * dog.speed * dt;
-    pushOut(dog.pos, dog.r);
-    S.stuck = Math.hypot(dog.pos.x - ox, dog.pos.z - oz) < dog.speed * dt * 0.3 ? (S.stuck || 0) + dt : 0;
-    want = "walk";
-    if (dd < 0.12 || S.stuck > 1.5 || dog.t > 25) { dog.state = Object.assign({}, S.then || { kind: "stand", dur: 2 }); dog.t = 0; dog.speed = 0; }
+    if (!S.loose || dd > 0.6) dogCollide();
+    S.stuck = Math.hypot(dog.pos.x - ox, dog.pos.z - oz) < dog.speed * dt * 0.3 && dd > 0.25 ? (S.stuck || 0) + dt : 0;
+    want = dog.speed > 0.05 ? "walk" : "stand";
+    const faced = !S.face || Math.abs(angWrap(Math.atan2(S.face.x - dog.pos.x, S.face.z - dog.pos.z) - dog.heading)) < 0.12;
+    if ((dd < 0.25 && faced) || S.stuck > 1.5 || dog.t > 25) {
+      if (S.then && S.then.kind === "jump" && (S.stuck > 1.5 || dog.t > 25) && dd > 0.6) { S.then.up.occ = null; S.then = null; }   // couldn't get to the bed
+      if (S.then && S.then.spot && (S.stuck > 1.5 || dog.t > 25) && dd > 0.6) { S.then.bowl.spots = S.then.bowl.spots.filter((s) => s.c !== DOGSPOT); S.then = null; }
+      if (S.then && S.then.kind === "jump") { const P = S.then.up; dogJump(P.pos, P.pos.y, { kind: "curl", dur: rand(25, 45), onBed: P }); dog.landBed = P; }
+      else { dog.state = Object.assign({}, S.then || { kind: "stand", dur: 2 }); dog.t = 0; dog.speed = 0; }
+      if (dog.state.play) { const c = dog.state.play; if (dogPlayable(c)) { clearPlan(c); push(c, poseStep("crouch", 1.3, { lookAt: dog })); } else dog.state = { kind: "sit", dur: 3, happy: true }; }
+    }
+  } else if (S.kind === "jump") {
+    const u = Math.min(1, dog.t / S.dur), e = u * u * (3 - 2 * u);
+    dog.pos.x = lerp(S.from.x, S.to.x, e); dog.pos.z = lerp(S.from.z, S.to.z, e);
+    dog.pos.y = lerp(S.from.y, S.to.y, e) + Math.sin(u * Math.PI) * (0.18 + Math.abs(S.to.y - S.from.y) * 0.4);
+    want = u < 0.85 ? "air" : "stand";
+    if (u >= 1) {
+      dog.air = false; dog.pos.y = S.to.y;
+      if (dog.landBed) { dog.bed = dog.landBed; dog.landBed = null; }
+      else if (dog.bed) { dog.bed.occ = null; dog.bed = null; }
+      dog.state = Object.assign({}, S.then); dog.t = 0;
+    }
+  } else if (S.kind === "chase" || S.kind === "flee") {   // playing tag with a cat
+    const c = S.play, still = c.present !== false && c.step === S.cs;
+    if (!still || dog.t > S.dur + 1) { dogEndPlay(); dog.state = { kind: "bow", dur: 1.4, happy: true, after: "lie", buddy: c }; dog.t = 0; }
+    else {
+      let tx, tz;
+      if (S.kind === "chase") { const d = Math.hypot(c.pos.x - dog.pos.x, c.pos.z - dog.pos.z); tx = c.pos.x - (c.pos.x - dog.pos.x) / (d || 1) * 0.55; tz = c.pos.z - (c.pos.z - dog.pos.z) / (d || 1) * 0.55; }
+      else {
+        if (!S.goal || Math.hypot(S.goal.x - dog.pos.x, S.goal.z - dog.pos.z) < 0.35 || (S.re = (S.re || 0) + dt) > 2.2) {
+          let best = null, bd = -1; for (let k = 0; k < 8; k++) { const p = dogSpot(dog.pos, 0.9, 2.2); if (p) { const dd = Math.hypot(p.x - c.pos.x, p.z - c.pos.z); if (dd > bd) { bd = dd; best = p; } } }
+          S.goal = best || S.goal || { x: dog.pos.x, z: dog.pos.z }; S.re = 0;
+        }
+        tx = S.goal.x; tz = S.goal.z;
+      }
+      const W = navWay(dog.pos.x, dog.pos.z, tx, tz), dd = Math.hypot(W.x - dog.pos.x, W.z - dog.pos.z), turn = angWrap(Math.atan2(W.x - dog.pos.x, W.z - dog.pos.z) - dog.heading);
+      dog.heading += clamp(turn, -dt * 3.2, dt * 3.2);
+      dog.speed += ((dd < 0.15 ? 0 : Math.abs(turn) > 1.3 ? 0.2 : S.kind === "chase" ? 0.8 : 0.7) - dog.speed) * Math.min(1, dt * 3);
+      dog.pos.x += Math.sin(dog.heading) * dog.speed * dt; dog.pos.z += Math.cos(dog.heading) * dog.speed * dt;
+      dogCollide();
+      want = dog.speed > 0.45 ? "run" : "walk"; target = c.pos;
+    }
   } else {
     dog.speed *= Math.exp(-dt * 6);
-    want = S.kind === "sniff" ? "sniff" : S.kind;
-    // settling next to a cat, he turns to face it; sitting happily, he looks at you
+    want = S.kind;
     if (S.buddy && S.buddy.present !== false) target = S.buddy.pos;
+    if (S.play) target = S.play.pos;
     if (S.kind === "sit" || S.kind === "stand") target = camera.position;
-    if (target && S.kind !== "doze") { const h = Math.atan2(target.x - dog.pos.x, target.z - dog.pos.z), d = angWrap(h - dog.heading); if (S.kind !== "lie" || Math.abs(d) > 0.9) dog.heading += clamp(d, -dt * 1.2, dt * 1.2) * (S.kind === "lie" ? 0.4 : 1); }
-    if (dog.t > S.dur) dogNext();
+    if (target && !/doze|curl|stretch|eat/.test(S.kind)) { const h = Math.atan2(target.x - dog.pos.x, target.z - dog.pos.z), d = angWrap(h - dog.heading); if (S.kind !== "lie" || Math.abs(d) > 0.9) dog.heading += clamp(d, -dt * 1.2, dt * 1.2) * (S.kind === "lie" ? 0.4 : 1); }
+    if (S.kind === "eat") {                       // munching: the bowl empties
+      const b = S.bowl; if (b.gone) S.dur = 0;
+      else { const k = Math.min(b.food, dt * 0.13); b.food -= k; dog.hunger = Math.max(0, dog.hunger - k * 0.9); if (b.food < 0.05) S.dur = Math.min(S.dur, dog.t + 0.8); }
+    }
+    if (!dog.bed && !dog.air) dogCollide();
+    if (dog.t > S.dur) {
+      if (S.kind === "eat") S.bowl.spots = S.bowl.spots.filter((s) => s.c !== DOGSPOT);
+      if (S.kind === "bow" && S.play) {          // the play bow: then tag, either way round
+        const c = S.play;
+        if (dogPlayable(c) || (c.step && c.step.type === "pose" && c.step.pose === "crouch")) {
+          clearPlan(c);
+          if (Math.random() < 0.5) { const cs = { type: "flee", from: dog, dur: rand(4, 6) }; push(c, cs); dog.step = { type: "chase" }; dog.state = { kind: "chase", play: c, cs, dur: cs.dur }; }
+          else { const cs = { type: "chase", target: dog, dur: rand(4, 6) }; push(c, cs); dog.playing = true; dog.step = { type: "flee" }; dog.state = { kind: "flee", play: c, cs, dur: cs.dur }; }
+          dog.t = 0;
+        } else dogNext("bow");
+      } else if (S.after) { dog.state = { kind: S.after, dur: rand(8, 16), buddy: S.buddy }; dog.t = 0; }
+      else dogNext(S.kind);
+    }
   }
-  // gently nudge aside any cat that walks into him
-  for (const c of cats) {
+  S = dog.state;
+  // gently nudge aside any cat that walks into him (and the cats steer round him themselves)
+  if (!dog.bed && !dog.air) for (const c of cats) {
     if (c.perch || c.air) continue;
-    const ox = c.pos.x - dog.pos.x, oz = c.pos.z - dog.pos.z, o = Math.hypot(ox, oz), R = dog.r + c.r * 0.7;
-    if (o < R && o > 1e-4) { const k = Math.min(R - o, dt * 0.9); c.pos.x += ox / o * k; c.pos.z += oz / o * k; pushOut(c.pos, c.r); }
+    for (const [cx, cz, cr] of dogCircles(dog.pos.x, dog.pos.z, dog.heading, dogCurled())) {
+      const ox = c.pos.x - cx, oz = c.pos.z - cz, o = Math.hypot(ox, oz), R = cr + c.r * 0.75;
+      if (o < R && o > 1e-4) { c.pos.x += ox / o * (R - o); c.pos.z += oz / o * (R - o); pushOut(c.pos, c.r * 0.7); }
+    }
   }
+  if (!dog.air) dog.pos.y = dog.bed ? dog.bed.pos.y : 0;
   // pose, gait, head, tail
-  const goal = DOG_POSES[want] || DOG_POSES.stand, k = Math.min(1, dt * (want === "walk" || want === "stand" ? 6 : 2.6));
+  const goal = DOG_POSES[want] || DOG_POSES.stand, fast = /walk|stand|run|air/.test(want), k = Math.min(1, dt * (fast ? 6 : 2.6));
   for (const key of DOG_K) dog.P[key] += (goal[key] - dog.P[key]) * k;
   const P = dog.P;
-  dog.phase += dog.speed * dt * (Math.PI * 2 / 0.62);
-  const sw = Math.min(1, dog.speed / 0.4) * 0.5, bob = Math.abs(Math.sin(dog.phase)) * 0.012 * Math.min(1, dog.speed / 0.3);
-  const breathe = Math.sin(t * (want === "doze" ? 1.6 : 2.4)) * 0.004;
-  dog.hip.position.y = P.hipY + bob + breathe; dog.hip.rotation.x = -P.pitch;
+  dog.phase += dog.speed * dt * (Math.PI * 2 / (want === "run" ? 0.9 : 0.62));
+  const sw = Math.min(1, dog.speed / 0.4) * (want === "run" ? 0.7 : 0.5), bob = Math.abs(Math.sin(dog.phase)) * (want === "run" ? 0.03 : 0.012) * Math.min(1, dog.speed / 0.3);
+  const breathe = Math.sin(t * (/doze|curl/.test(want) ? 1.6 : 2.4)) * 0.004;
+  const bounce = S.kind === "bow" && S.play ? Math.abs(Math.sin(dog.t * 7)) * 0.05 : 0;
+  dog.hip.position.y = P.hipY + bob + breathe + bounce; dog.hip.rotation.x = -P.pitch;
   for (const L of dog.legs) {
-    const ph = dog.phase + (L.front ? 0 : Math.PI) + (L.side > 0 ? Math.PI : 0);
+    const ph = dog.phase + (L.front ? 0 : Math.PI) + (L.side > 0 ? (want === "run" ? 0.5 : Math.PI) : 0);
     const swing = Math.sin(ph) * sw;
     if (L.front) { L.top.rotation.x = P.fl + P.pitch + swing; L.knee.rotation.x = P.fk + Math.max(0, -Math.cos(ph)) * sw * 0.9; }
     else { L.top.rotation.x = P.hl + swing; L.knee.rotation.x = P.hk - Math.max(0, Math.cos(ph)) * sw * 0.6; }
   }
-  // head: looks about, at a buddy or at you; nods along when he walks
   let hy = Math.sin(t * 0.35 + 1.3) * 0.25;
-  if (target && S.kind !== "doze") { const h = Math.atan2(target.x - dog.pos.x, target.z - dog.pos.z); hy = clamp(angWrap(h - dog.heading), -0.7, 0.7); }
-  dog.head.rotation.set(P.head + P.pitch - 0.35 + Math.sin(dog.phase * 2) * 0.03 * Math.min(1, dog.speed / 0.3), hy, Math.sin(t * 0.8) * (S.kind === "sit" ? 0.12 : 0.03));   // a little head tilt when he sits
+  if (target && !/doze|curl/.test(S.kind)) { const h = Math.atan2(target.x - dog.pos.x, target.z - dog.pos.z); hy = clamp(angWrap(h - dog.heading), -0.7, 0.7); }
+  if (/eat|stretch/.test(want)) hy = 0;
+  const chew = want === "eat" ? Math.sin(dog.t * 9) * 0.06 : 0;
+  dog.head.rotation.set(P.head + P.pitch - 0.35 + chew + Math.sin(dog.phase * 2) * 0.03 * Math.min(1, dog.speed / 0.3), hy, Math.sin(t * 0.8) * (S.kind === "sit" ? 0.12 : 0.03));
   for (const s of [-1, 1]) { dog["eye" + s].scale.y = Math.max(0.12, P.eye * (Math.sin(t * 0.9 + s) > 0.985 ? 0.15 : 1)); dog["ear" + s].rotation.x = 0.1 + Math.sin(dog.phase * 2) * 0.08 * Math.min(1, dog.speed / 0.3); }
-  dog.tongue.visible = want !== "doze" && (want === "sit" || want === "walk" || S.happy || Math.sin(t * 0.2) > 0.3);
-  // the tail never really stops: a happy sweep, slower when he's lying down, lazy thumps when dozing
-  const wagSpd = want === "doze" ? 2.2 : want === "lie" ? 4.5 : S.happy || want === "walk" ? 11 : 7.5, wagAmp = want === "doze" ? 0.12 : want === "lie" ? 0.35 : 0.6;
+  dog.tongue.visible = !/doze|curl|eat|stretch/.test(want) && (/sit|walk|run|bow/.test(want) || S.happy || Math.sin(t * 0.2) > 0.3);
+  const wagSpd = /doze|curl/.test(want) ? 2.2 : want === "lie" ? 4.5 : S.happy || /walk|run|bow|eat/.test(want) ? 11 : 7.5, wagAmp = /doze|curl/.test(want) ? 0.12 : want === "lie" ? 0.35 : 0.6;
   dog.wag += dt * wagSpd;
   dog.tail.forEach((g, i) => { g.rotation.y = Math.sin(dog.wag - i * 0.6) * wagAmp * (i ? 0.55 : 1); g.rotation.x = i ? 0.12 + (i === 3 ? 0.15 : 0) : P.tail * 0.5 + 0.25; });
+  // curling up: he lies down first, then settles into the croissant (and unrolls before he gets up)
+  const curlWant = S.kind === "curl" && dog.t > 1.1 && dog.t < S.dur - 0.6;
+  dog.curlK = clamp(dog.curlK + (curlWant ? dt : -dt) * 2.2, 0, 1);
+  dog.hip.visible = dog.curlK < 0.5; dog.curl.visible = dog.curlK >= 0.5;
+  if (dog.curl.visible) { const e = (dog.curlK - 0.5) * 2; dog.curl.scale.set(0.9 + 0.1 * e, (0.85 + 0.15 * e) * (1 + Math.sin(t * 1.6) * 0.03), 0.9 + 0.1 * e); }
   // pop in like the cats do
   if (dog.pop < 1) { dog.pop = Math.min(1, dog.pop + dt * 3); const u = dog.pop - 1; dog.root.scale.setScalar(Math.max(0.001, 1 + 2.7 * u * u * u + 1.7 * u * u)); }
   dog.root.position.copy(dog.pos); dog.root.rotation.y = dog.heading;
@@ -3583,10 +3780,16 @@ function updateDog(dt, t) {
   const on = (dog.labelT > 0 || dog.hover) && !cinema.on;
   dog.label.classList.toggle("on", on);
   if (on) {
-    dog.head.getWorldPosition(_w); _w.y += 0.22; _w.project(camera);
+    (dog.curl.visible ? dog.curl : dog.head).getWorldPosition(_w); _w.y += 0.25; _w.project(camera);
     if (_w.z < 1) dog.label.style.transform = `translate(${((_w.x * 0.5 + 0.5) * innerWidth).toFixed(1)}px, ${((-_w.y * 0.5 + 0.5) * innerHeight).toFixed(1)}px) translate(-50%, -100%)`;
-    const buddy = S.buddy || (S.then && S.then.buddy);
-    dog.label.textContent = "Rigby · " + (S.kind === "go" ? (buddy ? "going to " + buddy.name : "exploring") : S.kind === "doze" ? (buddy ? "dozing next to " + buddy.name : "dozing") : S.kind === "lie" ? (buddy ? "chilling with " + buddy.name : "chilling") : S.kind === "sniff" ? "sniffing around" : S.kind === "sit" ? "happy to see you" : "looking around");
+    const buddy = S.buddy || (S.then && S.then.buddy), pl = S.play || (S.then && S.then.play);
+    dog.label.textContent = "Rigby · " + (
+      S.kind === "go" ? (S.then && S.then.kind === "eat" ? "going for the food" : S.then && S.then.kind === "jump" ? "heading for the bed" : pl ? "going to play with " + pl.name : buddy ? "going to " + buddy.name : "exploring")
+      : S.kind === "chase" ? "chasing " + S.play.name : S.kind === "flee" ? S.play.name + " is chasing him" : S.kind === "bow" ? (S.play ? "wants to play with " + S.play.name : "play bow")
+      : S.kind === "eat" ? "eating" : S.kind === "jump" ? "jumping" : S.kind === "stretch" ? "stretching (downward dog)"
+      : S.kind === "curl" ? (dog.bed ? "curled up on the bed" : buddy ? "curled up next to " + buddy.name : "curled up like a croissant")
+      : S.kind === "doze" ? (buddy ? "dozing next to " + buddy.name : "dozing") : S.kind === "lie" ? (buddy ? "chilling with " + buddy.name : "chilling")
+      : S.kind === "sniff" ? "sniffing around" : S.kind === "sit" ? "happy to see you" : "looking around");
   }
 }
 // typing "rigby" anywhere on the page
@@ -3597,7 +3800,7 @@ addEventListener("keydown", (e) => {
   typed = (typed + e.key.toLowerCase()).slice(-5);
   if (typed === "rigby") { typed = ""; rigbyMode(); }
 });
-gl.addEventListener("pointermove", (e) => { if (!dog.on || e.pointerType !== "mouse") return; setRay(e); dog.hover = raycaster.intersectObjects(dog.meshes, false).length > 0; });
+gl.addEventListener("pointermove", (e) => { if (!dog.on || e.pointerType !== "mouse") return; setRay(e); dog.hover = raycaster.intersectObjects(dog.meshes, false).some((h) => h.object.visible && (h.object.parent.visible !== false)); });
 gl.addEventListener("pointerleave", () => { dog.hover = false; });
 
 function update(dt, t) {
