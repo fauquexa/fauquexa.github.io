@@ -195,7 +195,7 @@ const hillH = (x, z) => {   // what the roads ride on
 };
 const lakeK = (x, z) => 0;   // lakes are switched off; everything that tests for water stays, and never finds any
 const forestK = (x, z) => N1(x / 420 - 70.1, z / 420 + 23.9) + 0.35 * N1(x / 90, z / 90);
-const detailH = (x, z) => { const dw = desertW(tempN(x, z)); return 1.1 * N1(x / 38 + 3.1, z / 38 + 8.7) + (dw > 0 ? dw * 2.4 * (Math.sqrt(N1(x / 55 + 2, z / 85 - 1) ** 2 + 0.03) - 0.17) : 0); };
+const detailH = (x, z) => { const dw = desertW(tempN(x, z)); return 0.6 * N1(x / 62 + 3.1, z / 62 + 8.7) + (dw > 0 ? dw * 2.4 * (Math.sqrt(N1(x / 55 + 2, z / 85 - 1) ** 2 + 0.03) - 0.17) : 0); };
 const roadSurf = (x, z) => hillH(x, z) + 0.35;
 const waterY = (x, z) => hillH(x, z) - 2.6;
 const rawH = (x, z) => hillH(x, z) - 11 * lakeK(x, z) + detailH(x, z) * (1 - lakeK(x, z));
@@ -300,12 +300,13 @@ function roadDist(segs, x, z) {
   return { d: best, dirx, dirz, px, pz, low };
 }
 // ground height: the landscape, cut and filled around each road. The road deck is level across its width at
-// its centre-line height, so the ground under it and just beside it takes that height (about 30 cm below the deck),
-// then blends back into the hillside over the next dozen metres, like a cutting or an embankment. Following
+// its centre-line height, so the ground under it and just beside it takes that height (15 cm below the deck),
+// then blends back into the hillside over the next twenty metres, like a cutting or an embankment. Following
 // the hillside right up to the road instead let the uphill side poke up through the road on side slopes.
+const ROAD_STEP = 0.15;
 function groundAt(segs, x, z) {
-  const r = roadDist(segs, x, z), t = smooth(1.8, 15, r.d);
-  return { h: lerp(Math.min(roadSurf(r.px, r.pz), r.low) - 0.32, rawH(x, z), t), d: r.d, px: r.px, pz: r.pz };
+  const r = roadDist(segs, x, z), t = smooth(1.8, 24, r.d);
+  return { h: lerp(Math.min(roadSurf(r.px, r.pz), r.low) - ROAD_STEP, rawH(x, z), t), d: r.d, px: r.px, pz: r.pz, t };
 }
 
 // ===================================================================
@@ -575,7 +576,7 @@ const jx = (i, j) => (hash(i, j, 51) - 0.5) * 1.6, jz = (i, j) => (hash(i, j, 52
 
 function buildChunk(cx, cz) {
   const x0 = cx * CH, z0 = cz * CH, step = CH / CSEG, n = CSEG + 1;
-  const segs = segsIn(x0, z0, x0 + CH, z0 + CH, 18);
+  const segs = segsIn(x0, z0, x0 + CH, z0 + CH, 32);
   const group = new THREE.Group();
   // terrain heights on the wobbly grid (edges of the chunk stay straight so neighbours meet)
   const gx = new Float32Array(n * n), gz = new Float32Array(n * n), gy = new Float32Array(n * n), gd = new Float32Array(n * n);
@@ -766,7 +767,7 @@ function segsNear(x, z) {
   const cx = Math.floor(x / CH), cz = Math.floor(z / CH), k = cx + "," + cz;
   const c = chunks.get(k); if (c) return c.segs;
   let s = segCache.get(k);
-  if (!s) { s = segsIn(cx * CH, cz * CH, cx * CH + CH, cz * CH + CH, 18); segCache.set(k, s); if (segCache.size > 200) segCache.clear(); }
+  if (!s) { s = segsIn(cx * CH, cz * CH, cx * CH + CH, cz * CH + CH, 32); segCache.set(k, s); if (segCache.size > 200) segCache.clear(); }
   return s;
 }
 
@@ -918,10 +919,12 @@ const buildCarOf = (kind, mat) => (kind === "off" ? buildOffroader(mat) : buildG
 const KIND = {
   gt:  { eye: [0.36, 1.1, -0.55], wheel: [0.36, 0.8, 0.08], wr: 0.17, dash: { y: 0.82, z: 0.42, w: 1.5 }, belt: 0.97, half: 0.78, door: [-1.5, 0.6], floor: 0.45, max: 340,
          vRoad: 95, vOff: 30, aRoad: 7.2, aOff: 4, grip: 10.5, gripOff: 0.8, latOff: 4.5, dragOff: (v) => 0.9 + 0.0009 * v * v + 0.05 * Math.abs(v),
-         yawCap: 0.85, yawLow: 5, steerRate: 3.6, bumpy: 0.4 },
+         yawCap: 0.85, yawLow: 5, steerRate: 3.6, bumpy: 0.4,
+         susp: { f: 1.5, z: 0.5, travel: 0.09, droop: 0.1, ip: 1.2, ir: 0.45, hcg: 0.45 } },
   off: { eye: [0.42, 1.78, -0.3], wheel: [0.42, 1.36, 0.32], wr: 0.18, dash: { y: 1.33, z: 0.66, w: 1.75 }, belt: 1.48, half: 0.94, door: [-1.8, 0.8], floor: 0.95, max: 240,
          vRoad: 58, vOff: 38, aRoad: 8, aOff: 6, grip: 8, gripOff: 0.9, latOff: 3.6, dragOff: (v) => 0.4 + 0.0005 * v * v,
-         yawCap: 0.6, yawLow: 7, steerRate: 2.3, bumpy: 1 },
+         yawCap: 0.6, yawLow: 7, steerRate: 2.3, bumpy: 1,
+         susp: { f: 1.15, z: 0.38, travel: 0.2, droop: 0.22, ip: 1.4, ir: 0.6, hcg: 0.75 } },
 };
 // the driver's view: a dashboard with a speedometer, a steering wheel that turns with the steering, and two
 // arms with the hands at ten to two
@@ -993,7 +996,7 @@ BODY.color.setHex(PAINTS[myPaint]);
 
 // The whole car state in one small plain object, changed only in drive().
 // Multiplayer will later broadcast exactly this (Azure Web PubSub, or the Supabase project's realtime channels).
-const car = { kind: "gt", air: false, vy: 0, x: 0, y: 0, z: 0, heading: 0, speed: 0, vx: 0, vz: 0, steer: 0, yaw: 0, pitch: 0, roll: 0, onRoad: true, dist: 0 };
+const car = { kind: "gt", air: false, vy: 0, x: 0, y: 0, z: 0, heading: 0, speed: 0, vx: 0, vz: 0, steer: 0, yaw: 0, pitch: 0, roll: 0, onRoad: true, dist: 0, susp: null, load: 1, slope: 0 };
 const input = { thr: 0, brk: 0, steer: 0, hb: false };
 
 function placeOnRoad(x, z) {
@@ -1011,7 +1014,7 @@ function placeOnRoad(x, z) {
   car.x = best.p[0]; car.z = best.p[1];
   let h = Math.atan2(best.q[0] - best.p[0], best.q[1] - best.p[1]);
   if (Math.cos(h - car.heading) < 0 && Math.abs(car.speed) > 1) h += Math.PI;   // keep roughly the way we were going
-  car.heading = h; car.speed = 0; car.vx = car.vz = 0; car.steer = 0; car.yaw = 0; car.air = false; car.vy = 0;
+  car.heading = h; car.speed = 0; car.vx = car.vz = 0; car.steer = 0; car.yaw = 0; car.air = false; car.vy = 0; car.susp = null;
   car.y = roadSurf(car.x, car.z);
   if (far) stream(car.x, car.z, true);
 }
@@ -1030,7 +1033,10 @@ function startPos() {
 
 function heightAt(x, z) {
   const segs = segsNear(x, z), g = groundAt(segs, x, z);
-  return { h: g.d < 0.3 ? roadSurf(g.px, g.pz) : g.h, d: g.d };
+  // what the tyres feel: flush with the deck at the road edge (the drawn verge sits 15 cm lower so the
+  // hillside never pokes up through the tarmac), easing into the landscape with the cutting or embankment
+  const deck = roadSurf(g.px, g.pz);
+  return { h: g.d <= 0 ? deck : g.t >= 1 ? g.h : lerp(deck, rawH(x, z), g.t), d: g.d };
 }
 
 // arcade physics: engine and brakes along the car, grip across it, the steering sets the yaw rate
@@ -1039,19 +1045,19 @@ function drive(dt) {
   let vf = car.vx * fx + car.vz * fz;
   const here = heightAt(car.x, car.z), onRoad = here.d < 0.4, K = KIND[car.kind];
   const vmax = onRoad ? K.vRoad : K.vOff, acc = onRoad ? K.aRoad : K.aOff;   // DB9: 0-100 km/h in ~4.5 s; off-roader: ~215 km/h on tarmac, ~195 across country
-  const v0 = vf, grounded = !car.air;
+  const v0 = vf, grounded = !car.air, load = clamp(car.load, 0, 1.2);
   if (grounded && input.thr > 0) { if (vf < -0.5) vf += 15 * input.thr * dt; else vf += acc * input.thr * Math.max(0, 1 - (vf / vmax) ** 2) * dt; }
   if (grounded && input.brk > 0) { if (vf > 0.5) vf -= 13 * input.brk * dt; else vf -= 4.5 * input.brk * Math.max(0, 1 + vf / 9) * dt; }
   if (grounded && input.hb) vf -= Math.sign(vf) * Math.min(Math.abs(vf), 5 * dt);
   const drag = onRoad || !grounded ? 0.15 + 0.0003 * vf * vf : K.dragOff(vf);
   vf -= Math.sign(vf) * Math.min(Math.abs(vf), drag * dt);
-  if (grounded) vf -= 9.81 * Math.sin(car.pitch) * dt;         // hills pull you back, or along
+  if (grounded) vf -= 9.81 * Math.sin(car.slope) * dt;         // hills pull you back, or along
   car.vx += fx * (vf - v0); car.vz += fz * (vf - v0);
   // steering: the wheel asks for a turn rate, and the car eases into it, so turns roll in smoothly. At speed
   // the turn is limited by grip: about 1.07 g of sideways pull, and about 1.4 g while braking (trail braking:
   // the weight shifts onto the front wheels), when the car also settles into the turn faster.
   const vabs = Math.abs(vf), dirv = vf < 0 ? -1 : 1, braking = input.brk > 0 && vf > 0.5;
-  const grip = (braking ? 1.29 : 1) * K.grip * (onRoad ? 1 : K.gripOff);
+  const grip = (braking ? 1.29 : 1) * K.grip * (onRoad ? 1 : K.gripOff) * Math.max(0.15, load);   // tyres grip in proportion to the weight on them
   const maxYaw = Math.min((braking ? 1.18 : 1) * K.yawCap, vabs / K.yawLow, grip / Math.max(vabs, 1)) * (input.hb ? 1.5 : 1);
   if (grounded) car.yaw += (input.steer * maxYaw * (vabs < 0.3 ? 0 : dirv) - car.yaw) * Math.min(1, dt * K.steerRate * (braking ? 1.4 : 1));
   else car.yaw *= Math.exp(-dt * 0.6);   // in the air the wheels do nothing; the car keeps a little of its spin
@@ -1060,36 +1066,68 @@ function drive(dt) {
   // grip: kill the sideways part of the velocity in the new heading (slowly on the handbrake, so it drifts)
   const gx = Math.sin(car.heading), gz = Math.cos(car.heading), rx = Math.cos(car.heading), rz = -Math.sin(car.heading);
   let f2 = car.vx * gx + car.vz * gz, l2 = car.vx * rx + car.vz * rz;
-  if (grounded) l2 *= Math.exp(-(input.hb ? 1.1 : onRoad ? 9 : K.latOff) * dt);
+  if (grounded) l2 *= Math.exp(-(input.hb ? 1.1 : onRoad ? 9 : K.latOff) * dt * Math.min(1, load));
   car.vx = gx * f2 + rx * l2; car.vz = gz * f2 + rz * l2;
   // move, then sit on the ground
   car.x += car.vx * dt; car.z += car.vz * dt;
   collide();
   const h0 = heightAt(car.x, car.z);
-  const hf = heightAt(car.x + gx * 1.4, car.z + gz * 1.4).h, hb = heightAt(car.x - gx * 1.4, car.z - gz * 1.4).h;
-  const hl = heightAt(car.x + rx * 0.9, car.z + rz * 0.9).h, hr = heightAt(car.x - rx * 0.9, car.z - rz * 0.9).h;
-  // the body rides on a smooth average of the ground under it (never below the ground at its centre)
-  const sp = Math.hypot(car.vx, car.vz), ground = Math.max(h0.h - 0.15, (2 * h0.h + hf + hb + hl + hr) / 6), settle = car.kind === "off" ? 16 : 10;
-  if (car.air) {
-    // flying: gravity only, the nose follows the arc, until the ground comes back up
-    car.vy -= 9.81 * dt; car.y += car.vy * dt;
-    car.pitch += (Math.atan2(car.vy, Math.max(4, sp)) - car.pitch) * Math.min(1, dt * 1.2);
-    car.roll *= Math.exp(-dt * 0.8);
-    if (car.y <= ground) {
-      if (car.vy < -7) { car.vx *= 0.85; car.vz *= 0.85; }   // a hard landing costs speed
-      car.y = ground; car.vy = 0; car.air = false;
-    }
-  } else {
-    // on the ground the car follows it; where the ground drops away faster than gravity could pull the car
-    // down (about 2.5 g as it goes over a crest while still climbing), it takes off with the speed it had
-    const vyNew = (ground - car.y) / Math.max(dt, 1e-4), acc = (vyNew - car.vy) / Math.max(dt, 1e-4);
-    if (sp > 15 && acc < -24.5 && car.vy > 0.8) { car.air = true; car.vy = Math.min(car.vy, sp * 0.6); car.y += car.vy * dt; }
-    else { car.vy = clamp(vyNew, -sp * 0.8 - 2, sp * 0.8 + 2); car.y = ground; }
-    car.pitch += (Math.atan2(hf - hb, 2.8) - car.pitch) * Math.min(1, dt * settle);
-    car.roll += (Math.atan2(hl - hr, 1.8) - car.roll) * Math.min(1, dt * settle);
-  }
+  suspend(dt, gx, gz, rx, rz, K, (vf - v0) / Math.max(dt, 1e-4), f2 * car.yaw);
+  const sp = Math.hypot(car.vx, car.vz);
   car.onRoad = h0.d < 0.4; car.speed = f2;
   car.dist += sp * dt;
+}
+
+// suspension: the body is a mass on four springs and dampers, one at each wheel, and it heaves, pitches and
+// rolls on them. Wheels only push, so where the ground falls away faster than gravity pulls the car down (over a
+// crest, fast) the tyres lift off and the car flies on its own momentum; landings are caught by the springs and
+// the bump stops. Braking dips the nose, accelerating squats the tail, and corners lean the body outwards.
+function suspend(dt, gx, gz, rx, rz, K, ax, aLat) {
+  const W = carMesh.userData.wheels, S = K.susp, om = 2 * Math.PI * S.f;
+  const k = om * om / 4, c = 2 * S.z * om / 4, c0 = 9.81 / (4 * k);        // per wheel, per unit mass; c0 = static sag
+  const gr = W.map((w) => {
+    const X = car.x + rx * w.position.x + gx * w.position.z, Z = car.z + rz * w.position.x + gz * w.position.z, q = heightAt(X, Z);
+    return q.h + (q.d > 0.4 ? 0.015 * K.bumpy * N1(X / 3.3 + 9.1, Z / 3.3 - 4.7) : 0);   // a little texture off the tarmac
+  });
+  const lz = W.map((w) => w.position.z), lx = W.map((w) => w.position.x);
+  const front = (gr[0] + gr[1]) / 2, back = (gr[2] + gr[3]) / 2, wb = lz[0] - lz[2];
+  car.slope = Math.atan2(front - back, wb);
+  if (!car.susp) {   // just placed: sit at rest on the ground
+    car.y = (gr[0] + gr[1] + gr[2] + gr[3]) / 4; car.pitch = car.slope; car.roll = Math.atan2((gr[0] + gr[2] - gr[1] - gr[3]) / 2, lx[0] - lx[1]);
+    car.vy = 0; car.air = false; car.load = 1; car.susp = { g: gr, pr: 0, rr: 0, off: [0, 0, 0, 0] }; return;
+  }
+  const st = car.susp, prev = st.g, n = Math.max(1, Math.ceil(dt / 0.004)), h = dt / n, wasAir = car.air;
+  let F = 0, contacts = 0, landVy = 0;
+  for (let it = 1; it <= n; it++) {
+    const u = it / n;
+    let Fs = 0, Tp = 0, Tr = 0, nc = 0;
+    for (let i = 0; i < 4; i++) {
+      const gi = prev[i] + (gr[i] - prev[i]) * u, gRate = clamp((gr[i] - prev[i]) / dt, -6, 6);
+      const a = car.y + lz[i] * Math.sin(car.pitch) + lx[i] * Math.sin(car.roll), cmp = gi + c0 - a;
+      if (cmp <= 0) continue;
+      const rate = gRate - (car.vy + lz[i] * st.pr + lx[i] * st.rr);
+      // dampers: firmer on rebound than on bump (as on real cars), so the body doesn't spring back up after a dip
+      let f = k * cmp + clamp(c * (rate > 0 ? rate : 2.2 * rate), -7, 7);
+      if (cmp > c0 + S.travel) { const e = cmp - c0 - S.travel; f += 40 * k * e + 10 * c * rate; }   // rubber bump stop: stiff and lossy
+      f = Math.max(0, f); Fs += f; Tp += f * lz[i]; Tr += f * lx[i]; nc++;
+    }
+    const L = Math.min(1, Fs / 9.81);
+    if (nc && !contacts && wasAir && it === 1) landVy = car.vy;
+    car.vy += (Fs - 9.81) * h;
+    st.pr += ((Tp + ax * S.hcg * L) / S.ip) * h;
+    st.rr += ((Tr + aLat * S.hcg * L) / S.ir) * h;
+    if (!nc) { st.pr *= Math.exp(-h * 0.4); st.rr *= Math.exp(-h * 0.4); }
+    car.y += car.vy * h; car.pitch = clamp(car.pitch + st.pr * h, -0.9, 0.9); car.roll = clamp(car.roll + st.rr * h, -0.8, 0.8);
+    F += Fs / n; contacts = Math.max(contacts, nc);
+  }
+  if (landVy < -7) { car.vx *= 0.85; car.vz *= 0.85; }   // a hard landing costs speed
+  car.air = contacts === 0;
+  car.load += (F / 9.81 - car.load) * Math.min(1, dt * 12);
+  for (let i = 0; i < 4; i++) {   // where each wheel sits under the body, for the wheel meshes
+    const a = car.y + lz[i] * Math.sin(car.pitch) + lx[i] * Math.sin(car.roll);
+    st.off[i] = clamp(gr[i] - a, -S.droop, S.travel);
+  }
+  st.g = gr;
 }
 
 // houses and trees are solid: push the car out of them and lose most of the speed
@@ -1147,15 +1185,14 @@ function placeCamera(dt, snap) {
   if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * (snap ? 1 : Math.min(1, dt * 2)); camera.updateProjectionMatrix(); }
 }
 function updateCarMesh(dt) {
-  let by = 0, bp = 0, br = 0;
-  if (!car.onRoad && !car.air) {
-    const a = KIND[car.kind].bumpy * Math.min(1, Math.abs(car.speed) / 12);
-    by = N1(car.x / 2.3, car.z / 2.3) * 0.07 * a; bp = N1(car.x / 3.1 + 5, car.z / 3.1) * 0.035 * a; br = N1(car.x / 2.7, car.z / 2.7 - 8) * 0.045 * a;
-  }
-  carMesh.position.set(car.x, car.y + by, car.z);
-  carMesh.rotation.set(-car.pitch + bp, car.heading, car.roll + br, "YXZ");
-  const w = carMesh.userData.wheels, spin = (car.speed / carMesh.userData.wr) * dt;
-  w.forEach((wh, i) => { wh.children[0].rotation.x += spin; if (i < 2) wh.rotation.y = car.steer; });
+  carMesh.position.set(car.x, car.y, car.z);
+  carMesh.rotation.set(-car.pitch, car.heading, car.roll, "YXZ");
+  const w = carMesh.userData.wheels, spin = (car.speed / carMesh.userData.wr) * dt, off = car.susp ? car.susp.off : null;
+  w.forEach((wh, i) => {
+    wh.children[0].rotation.x += spin; if (i < 2) wh.rotation.y = car.steer;
+    if (wh.userData.y0 === undefined) wh.userData.y0 = wh.position.y;
+    wh.position.y = wh.userData.y0 + (off ? off[i] : 0);
+  });
   carMesh.updateMatrixWorld(true);
   if (VIEWS[view] === "driver") updateCockpit(dt);
 }
@@ -1171,7 +1208,7 @@ function applyView() {
 }
 function setKind(kind) {   // switch cars: a new random paint every time
   if (!KIND[kind] || kind === car.kind) return;
-  car.kind = kind; carMesh.visible = false; carMesh = myCars[kind]; carMesh.visible = true;
+  car.kind = kind; car.susp = null; carMesh.visible = false; carMesh = myCars[kind]; carMesh.visible = true;
   let k; do { k = paintKeys[Math.floor(Math.random() * paintKeys.length)]; } while (k === myPaint);
   myPaint = k; BODY.color.setHex(PAINTS[k]);
   document.querySelectorAll("#cars button").forEach((b) => b.classList.toggle("on", b.dataset.kind === kind));
@@ -1637,7 +1674,7 @@ function gridSlot(n) {
 }
 function toGrid() {
   const order = [...race.racers.keys()].sort(), n = Math.max(0, order.indexOf(net.id)), g = gridSlot(n);
-  car.x = g.x; car.z = g.z; car.heading = g.h; car.vx = car.vz = 0; car.speed = 0; car.yaw = 0; car.steer = 0; car.air = false; car.vy = 0;
+  car.x = g.x; car.z = g.z; car.heading = g.h; car.vx = car.vz = 0; car.speed = 0; car.yaw = 0; car.steer = 0; car.air = false; car.vy = 0; car.susp = null;
   car.y = heightAt(car.x, car.z).h; stream(car.x, car.z, true); placeCamera(0, true);
   race.grid = g; net.sendT = 99; net.sent = "";
 }
@@ -1795,7 +1832,7 @@ function raceTick() {
 }
 // held on the grid until GO
 const raceHeld = () => race && race.me && race.state === "invite" && race.grid;
-function holdOnGrid() { const g = race.grid; car.x = g.x; car.z = g.z; car.heading = g.h; car.vx = car.vz = 0; car.speed = 0; car.yaw = 0; car.air = false; car.vy = 0; car.y = heightAt(car.x, car.z).h; }
+function holdOnGrid() { const g = race.grid; car.x = g.x; car.z = g.z; car.heading = g.h; car.vx = car.vz = 0; car.speed = 0; car.yaw = 0; car.air = false; car.vy = 0; car.susp = null; car.y = heightAt(car.x, car.z).h; }
 
 document.getElementById("raceS5").onclick = () => startRace("s", 5);
 document.getElementById("raceS15").onclick = () => startRace("s", 15);
