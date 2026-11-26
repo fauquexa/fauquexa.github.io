@@ -40,6 +40,7 @@
   // the W002 junction, in um around the junction centre: dome pads on both island edges, a thick lead (top) narrowing
   // to the thin lead, an elliptical drop (bottom) reaching up into the gap; they overlap at the Dolan bridge
   const JJ = { padA: 3.25, padB: 4.6, thick: 1.2, thickEnd: -0.5, thin: 0.15, dropW: 3, dropTip: 3.4, bridge: 4.0 };
+  JJ.barrier = JJ.thickEnd;   // the junction itself: where the thin lead meets the wide one
   const PAD_C = g + 3;                                           // where quasiparticles from an island enter its lead
 
   const INFO = {
@@ -51,7 +52,7 @@
     chargeLine: ["Charge line", "A coplanar line like the feedline that ends in a thorn: a 60 µm taper to a 1 µm-radius tip, recessed 20 µm into the ground plane, about 80 µm from the island. A voltage on it sets the island's offset charge; keeping the tip back keeps the coupling tiny, so the line doesn't drain energy from the qubit."],
     islands: ["Superconducting islands", "The qubit's two aluminium islands, 110 µm pizza slices with a 160° opening, 17 µm apart. Below about 1.2 K their electrons bind into Cooper pairs, which flow without resistance. Together the slices form the qubit, a tiny nonlinear LC circuit, and also an antenna: THz photons are absorbed directly in them. A phonon or photon carrying more than twice the superconducting gap (about 0.36 meV) breaks a pair into two quasiparticles."],
     pocket: ["Silicon substrate", "Bare silicon where the aluminium was etched away: a 330 µm pocket around the islands that opens onto the feedline. Energy deposited in the chip spreads through the silicon as phonons, quantised lattice vibrations, and can reach every SQUAT on the chip."],
-    junction: ["Josephson junction (modified Dolan)", "The junction layer lands on each island on a dome-shaped connection pad (an argon clean first removes the islands' oxide, so the contact is not a second junction). From one pad a lead narrows to a 150 nm thin lead; from the other an elliptical drop reaches into the gap. Evaporated from two angles past a suspended resist bridge, the two overlap through about 1 nm of aluminium oxide, and Cooper pairs tunnel through it coherently: that makes the circuit a qubit. The leads have a smaller superconducting gap than the islands, so quasiparticles that wander in lose energy and cannot climb back out. Dropping into the leads, each one gives off enough energy to break another Cooper pair there, so one quasiparticle becomes several: the amplifying in SQUAT. Trapped at the junction, they tunnel again and again, each time flipping the charge parity."],
+    junction: ["Josephson junction (modified Dolan)", "The junction layer lands on each island on a dome-shaped connection pad (an argon clean first removes the islands' oxide, so the contact is not a second junction). From one pad a wide lead comes down; from the other an elliptical drop narrows into a 150 nm thin lead that reaches up across the gap. Where the thin lead meets the wide one, the two layers (evaporated from two angles past a suspended resist bridge) overlap through a thin oxide: the Hf/HfOx/Hf junction itself, the small gold square. Cooper pairs tunnel through it coherently, which makes the circuit a qubit. Hafnium becomes superconducting far below aluminium, so the leads have a much smaller gap than the islands, so quasiparticles that wander in lose energy and cannot climb back out. Dropping into the leads, each one gives off enough energy to break another Cooper pair there, so one quasiparticle becomes several: the amplifying in SQUAT. Trapped at the junction, they tunnel again and again, each time flipping the charge parity."],
     chipFeed: ["Feedline", "One coplanar microwave line, 10 µm wide, runs across the chip from launch pad to launch pad. A tone sent down it reads out all three SQUATs at once: each one couples directly to the line, with no readout resonator, at its own frequency."],
     chipCharge: ["Charge line", "Each SQUAT has its own: a coplanar line from a launch pad at the chip edge down to a sharp tip just short of the SQUAT. A small voltage on it sets the island's offset charge, which tunes how far apart the even and odd parity frequencies sit."],
     chipSquat: ["A SQUAT", "Two superconducting aluminium islands joined by one Josephson junction, in a pocket cut out of the ground plane next to the feedline: the qubit and the sensor in one. Click to zoom in and watch it detect."],
@@ -94,7 +95,7 @@
     el("rect", { x: c(-JJ.thin / 2), y: JJ.thickEnd - 0.1, width: JJ.thin, height: JJ.bridge + 0.6 - JJ.thickEnd, class: cls }, gr);   // thin lead
     const w = JJ.dropW / 2;                                                                                      // the drop
     el("path", { d: `M ${P(c(-w), g + 0.3)} L ${P(c(-w), g)} C ${P(c(-w), g - 2.6)} ${P(c(-0.45), JJ.dropTip + 0.2)} ${P(c(0), JJ.dropTip)} C ${P(c(0.45), JJ.dropTip + 0.2)} ${P(c(w), g - 2.6)} ${P(c(w), g)} L ${P(c(w), g + 0.3)} Z`, class: cls }, gr);
-    el("rect", { x: c(-0.35), y: JJ.bridge - 0.35, width: 0.7, height: 0.7, rx: 0.15, class: "sq-barrier" }, gr);    // the overlap
+    el("rect", { x: c(-0.35), y: JJ.barrier - 0.35, width: 0.7, height: 0.7, rx: 0.15, class: "sq-barrier" }, gr);   // the overlap: Hf/HfOx/Hf
   }
   function drawPad(gr, x0, s, cls) {     // a dome pad on an island edge (s = -1 top island, +1 bottom)
     const a = JJ.padA, b = JJ.padB + (s > 0 ? 0.9 : 0);
@@ -352,18 +353,18 @@
     fx.push({ node: el("circle", { cx: INS.x + src.u * INS.m, cy: INS.y + src.v * INS.m, r: 2, class: "sq-tunnel" }, gIns), t: 0, life: 0.6, grow: 9 });
     for (let k = 0; k < extra; k++) {
       const side = k % 2 ? src.side : -src.side * (rnd() < 0.5 ? 1 : -1);   // the new pair's two quasiparticles land in the leads either side
-      const v = side < 0 ? -(g * 0.4 + rnd() * g * 0.6) : JJ.bridge + 1 + rnd() * (g - JJ.bridge);
+      const v = side < 0 ? -(g * 0.4 + rnd() * g * 0.6) : JJ.barrier + 1 + rnd() * (g - JJ.barrier - 1);
       trapped.push({ side, u: (rnd() - 0.5) * 0.6, v, vu: 0, vv: 0, t: 0, life: 1.6 + rnd() * 0.6, hop: null, lastHop: 0, dark: false, ev: src.ev,
                      node: el("circle", { r: 0.75, class: "sq-qp" }, gInsQP), dot: el("circle", { r: 2, class: "sq-qp" }, gQP) });
     }
   }
   function tunnel(tq) {
-    tq.hop = { t: 0, from: tq.v, to: tq.side < 0 ? JJ.bridge + 0.8 + rnd() * 2.2 : JJ.bridge - 0.8 - rnd() * 3 }; parity = -parity; flips++;
+    tq.hop = { t: 0, from: tq.v, to: tq.side < 0 ? JJ.barrier + 0.8 + rnd() * 3 : JJ.barrier - 0.8 - rnd() * 3 }; parity = -parity; flips++;
     flipTimes.push(tNow);
     if (tq.ev) tq.ev.flips++;
     if (!tq.dark && fx.filter((f) => f.kind === "tun").length > 3) return;      // keep the flashes readable in a burst
-    fx.push({ node: el("circle", { cx: 0, cy: JJ.bridge, r: 2, class: "sq-tunnel" }, gFx), t: 0, life: 0.4, grow: 7, kind: "tun" });
-    fx.push({ node: el("circle", { cx: INS.x, cy: INS.y + JJ.bridge * INS.m, r: 3, class: "sq-tunnel" }, gIns), t: 0, life: 0.5, grow: 10 });
+    fx.push({ node: el("circle", { cx: 0, cy: JJ.barrier, r: 2, class: "sq-tunnel" }, gFx), t: 0, life: 0.4, grow: 7, kind: "tun" });
+    fx.push({ node: el("circle", { cx: INS.x, cy: INS.y + JJ.barrier * INS.m, r: 3, class: "sq-tunnel" }, gIns), t: 0, life: 0.5, grow: 10 });
   }
 
   const DARK = 0.3;                  // thermally activated quasiparticles: single switches per second, in the background
@@ -418,8 +419,9 @@
         if (k >= 1) { tq.hop = null; tq.side = -tq.side; tq.lastHop = tq.t; }
       } else {
         tq.vu += (rnd() - 0.5) * 60 * dt; tq.vv += (rnd() - 0.5) * 120 * dt; tq.vu *= 0.9; tq.vv *= 0.9;
-        tq.v = tq.side < 0 ? Math.max(-g - 3, Math.min(JJ.bridge - 0.6, tq.v + tq.vv * dt)) : Math.max(JJ.bridge + 0.6, Math.min(g + 4, tq.v + tq.vv * dt));
-        const room = Math.abs(tq.v) > g ? JJ.padA * 0.8 : tq.side < 0 ? (tq.v < JJ.thickEnd ? JJ.thick / 2 : 0.05) : JJ.dropW / 2 * Math.min(1, (tq.v - JJ.dropTip) / (g - JJ.dropTip));
+        tq.v = tq.side < 0 ? Math.max(-g - 3, Math.min(JJ.barrier - 0.6, tq.v + tq.vv * dt)) : Math.max(JJ.barrier + 0.6, Math.min(g + 4, tq.v + tq.vv * dt));
+        // room to wander sideways: the pads, the wide lead above the junction, the thin lead below it, then the drop
+        const room = Math.abs(tq.v) > g ? JJ.padA * 0.8 : tq.side < 0 ? JJ.thick / 2 : tq.v < JJ.dropTip ? 0.05 : JJ.dropW / 2 * Math.min(1, (tq.v - JJ.dropTip) / (g - JJ.dropTip));
         tq.u = Math.max(-room, Math.min(room, tq.u + tq.vu * dt));
         if (tq.dark) { if (!tq.lastHop && tq.t > 0.25) tunnel(tq); }
         else if (tq.t > 0.3 && tq.t - tq.lastHop > 0.06 && tq.t < tq.life - 0.15 && rnd() < 8 * dt) tunnel(tq);
