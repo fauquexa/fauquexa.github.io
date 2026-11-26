@@ -179,6 +179,7 @@ h3 { font-family: var(--serif); font-weight: 600; font-size: 19px; line-height: 
 .sq-head { font-size: 12.5px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
 .sq-tracebox { margin: 12px 0 0; display: grid; grid-template-columns: minmax(0, 1fr) 230px; gap: 4px 16px; }
 .sq-tracebox .sq-traces { min-width: 0; }
+.sq-tracebox.solo { grid-template-columns: 1fr; }
 .sq-trace { height: 78px; }
 .sq-rate { height: 58px; }
 .sq-scatter { height: 150px; }

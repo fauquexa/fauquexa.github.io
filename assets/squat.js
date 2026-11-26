@@ -43,20 +43,20 @@
   JJ.barrier = JJ.thickEnd;   // the junction itself: where the thin lead meets the wide one
   const PAD_C = g + 3;                                           // where quasiparticles from an island enter its lead
 
-  const INFO = {
-    chip: ["A three-SQUAT chip", "Three SQUATs share one feedline across a 9 mm silicon chip. Each sits at its own frequency, so one line reads them all, and a particle hit anywhere on the chip sends phonons to every one of them. Click a SQUAT to zoom in."],
-    ground: ["Ground plane", "The aluminium film covering most of the chip, held at ground. It shields the qubits and gives the microwaves a return path."],
-    launch: ["Launch pad", "Where the feedline meets the outside world: a wire bond connects the 200 µm pad to the coaxial cables of the fridge, and a 300 µm taper brings the line down to the 10 µm on-chip waveguide."],
-    bondpad: ["Charge-line launch", "The same launch as the feedline's: a wire-bond pad that tapers down to the on-chip charge line. A small voltage applied here reaches that SQUAT's island."],
-    feedline: ["Feedline", "A coplanar waveguide (a 10 µm centre strip between 5.8 µm gaps) carrying the microwave readout tone. The SQUATs couple to it directly, with no readout resonator, each at its own frequency, so many can share one line."],
-    chargeLine: ["Charge line", "A coplanar line like the feedline that ends in a thorn: a 60 µm taper to a 1 µm-radius tip, recessed 20 µm into the ground plane, about 80 µm from the island. A voltage on it sets the island's offset charge; keeping the tip back keeps the coupling tiny, so the line doesn't drain energy from the qubit."],
-    islands: ["Superconducting islands", "The qubit's two aluminium islands, 110 µm pizza slices with a 160° opening, 17 µm apart. Below about 1.2 K their electrons bind into Cooper pairs, which flow without resistance. Together the slices form the qubit, a tiny nonlinear LC circuit, and also an antenna: THz photons are absorbed directly in them. A phonon or photon carrying more than twice the superconducting gap (about 0.36 meV) breaks a pair into two quasiparticles."],
-    pocket: ["Silicon substrate", "Bare silicon where the aluminium was etched away: a 330 µm pocket around the islands that opens onto the feedline. Energy deposited in the chip spreads through the silicon as phonons, quantised lattice vibrations, and can reach every SQUAT on the chip."],
-    junction: ["Josephson junction (modified Dolan)", "The junction layer lands on each island on a dome-shaped connection pad (an argon clean first removes the islands' oxide, so the contact is not a second junction). From one pad a wide lead comes down; from the other an elliptical drop narrows into a 150 nm thin lead that reaches up across the gap. Where the thin lead meets the wide one, the two layers (evaporated from two angles past a suspended resist bridge) overlap through a thin oxide: the Hf/HfOx/Hf junction itself, the small gold square. Cooper pairs tunnel through it coherently, which makes the circuit a qubit. Hafnium becomes superconducting far below aluminium, so the leads have a much smaller gap than the islands, so quasiparticles that wander in lose energy and cannot climb back out. Dropping into the leads, each one gives off enough energy to break another Cooper pair there, so one quasiparticle becomes several: the amplifying in SQUAT. Trapped at the junction, they tunnel again and again, each time flipping the charge parity."],
-    chipFeed: ["Feedline", "One coplanar microwave line, 10 µm wide, runs across the chip from launch pad to launch pad. A tone sent down it reads out all three SQUATs at once: each one couples directly to the line, with no readout resonator, at its own frequency."],
-    chipCharge: ["Charge line", "Each SQUAT has its own: a coplanar line from a launch pad at the chip edge down to a sharp tip just short of the SQUAT. A small voltage on it sets the island's offset charge, which tunes how far apart the even and odd parity frequencies sit."],
-    chipSquat: ["A SQUAT", "Two superconducting aluminium islands joined by one Josephson junction, in a pocket cut out of the ground plane next to the feedline: the qubit and the sensor in one. Click to zoom in and watch it detect."],
-    holes: ["Flux-trapping holes", "Six round 5 µm holes per island on a staggered 40 µm grid, at least 10 µm from every edge. Any magnetic flux left over when the film turns superconducting gets caught here as a vortex. Pinned in a hole, the vortex cannot drift through the aluminium, where a moving vortex would dissipate energy and break Cooper pairs."],
+  const INFO = {   // short: one or two sentences each
+    chip: ["A three-SQUAT chip", "Three SQUATs share one feedline on a 9 mm chip. Click one to zoom in."],
+    ground: ["Ground plane", "Aluminium covering most of the chip, held at ground."],
+    launch: ["Launch pad", "A wire-bond pad that connects the feedline to the fridge's cables."],
+    bondpad: ["Charge-line launch", "The wire-bond pad of one SQUAT's charge line."],
+    feedline: ["Feedline", "A 10 µm coplanar line carrying the readout tone. Each SQUAT couples to it directly, at its own frequency."],
+    chargeLine: ["Charge line", "A weak line ending in a recessed tip. A voltage on it sets the island's offset charge."],
+    islands: ["Superconducting islands", "Two 110 µm aluminium islands: the qubit's capacitor and the detector's absorber. A deposit above 2Δ (≈ 0.4 meV) breaks Cooper pairs here."],
+    pocket: ["Silicon substrate", "Bare silicon around the islands. A particle hit spreads through it as phonons."],
+    junction: ["Josephson junction", "Hf/HfOx/Hf, the small gold square where the thin lead meets the wide one. Its low gap traps quasiparticles, each breaks more pairs, and they tunnel back and forth, flipping the parity."],
+    chipFeed: ["Feedline", "One line reads out all three SQUATs, each at its own frequency."],
+    chipCharge: ["Charge line", "One per SQUAT: sets its offset charge."],
+    chipSquat: ["A SQUAT", "Two islands and one junction: the qubit and the sensor in one. Click to zoom in."],
+    holes: ["Flux-trapping holes", "5 µm holes that pin stray magnetic flux, so it can't move and break pairs."],
   };
 
   const parts = [];
@@ -492,6 +492,7 @@
   }
   // every finished burst: how many switches it had against the energy that reached the islands (log-log)
   function drawScatter() {
+    if (!scatCv) return;                         // the home page leaves this plot out
     const cc = canvasCtx(scatCv); if (!cc) return;
     const { c, w, h } = cc, cs = getComputedStyle(fig), sans = cs.getPropertyValue("--sans");
     const left = 34, right = w - 8, top = 8, bottom = h - 22;

@@ -66,6 +66,38 @@
       read.style.color = chi < 1.6 ? "var(--gold)" : "";
     }
     slider.addEventListener("input", update); update();
+    // the galaxy: stars orbit at the speeds we observe; whatever the mass inside can't hold drifts outwards (and
+    // too much mass pulls them in), so with too little halo the outer stars fly off. The halo glows faintly.
+    const gcv = $("canvas.galaxy", fig);
+    if (gcv) {
+      let gs = 9; const grnd = () => ((gs = (gs * 16807) % 2147483647) / 2147483647);
+      const stars = [];
+      for (let i = 0; i < 900; i++) {
+        const bulge = grnd() < 0.18, arm = grnd() < 0.5 ? 0 : Math.PI;
+        const r = bulge ? 0.5 + grnd() * 4 : 2 + Math.min(29, -6.5 * Math.log(1 - grnd() * 0.99));
+        const th = bulge ? grnd() * TAU : arm + 1.9 * Math.log(r) + (grnd() - 0.5) * 0.9;
+        stars.push({ r, home: r, th, a: 1, b: 0.4 + grnd() * 0.6, warm: grnd() });
+      }
+      const vObs = (r) => Math.sqrt(vStar2(r) + vHalo2(r, VTRUE));
+      whileVisible(gcv, (dt) => {
+        const { c, w, h } = sizeCanvas(gcv), cx = w / 2, cy = h / 2, k = (w / 2 - 6) / 33, V = (slider.value / 100) * 175;
+        const fill = Math.min(1.3, V / VTRUE);
+        const grad = c.createRadialGradient(cx, cy, 0, cx, cy, w / 2);
+        grad.addColorStop(0, `rgba(120,150,255,${0.22 * fill})`); grad.addColorStop(0.7, `rgba(90,110,230,${0.12 * fill})`); grad.addColorStop(1, "rgba(80,90,200,0)");
+        c.fillStyle = grad; c.beginPath(); c.arc(cx, cy, w / 2, 0, TAU); c.fill();
+        for (const s of stars) {
+          const vo = vObs(s.r), vm = Math.sqrt(vStar2(s.r) + vHalo2(s.r, V));
+          s.th += (vo / s.r) * 0.0045 * dt * 60 * 0.6;
+          s.r = Math.max(0.3, s.r + ((vo * vo - vm * vm) / vo) * 0.0011 * dt * 60);
+          if (s.r > 40 || s.r < 0.3) { s.r = s.home; s.a = 0; }
+          s.a = Math.min(1, s.a + dt * 0.8);
+          const x = cx + Math.cos(s.th) * s.r * k, y = cy + Math.sin(s.th) * s.r * k * 0.62, fade = s.a * (s.r > 33 ? Math.max(0, 1 - (s.r - 33) / 7) : 1);
+          if (fade <= 0.02) continue;
+          c.fillStyle = s.warm > 0.7 ? `rgba(255,214,160,${fade * s.b})` : `rgba(235,240,255,${fade * s.b})`;
+          c.fillRect(x - 0.7, y - 0.7, s.r < 4 ? 1.8 : 1.4, s.r < 4 ? 1.8 : 1.4);
+        }
+      });
+    }
   })();
 
   // ================================================================ 3. quasiparticle energy diagram
@@ -87,8 +119,12 @@
     const lab = (x, y, t, cls, anchor) => { const n = el("text", { x, y, "text-anchor": anchor || "middle", class: "svgtext " + (cls || "") }, g); n.textContent = t; return n; };
     lab((XI0 + XT0) / 2, 240, "island (aluminium)", "ink"); lab((XT1 + XI1) / 2, 240, "island (aluminium)", "ink");
     lab((XT0 + XJ0) / 2, 240, "trap", "ink"); lab((XJ1 + XT1) / 2, 240, "trap", "ink"); lab((XJ0 + XJ1) / 2, YTOP + 12, "junction", "ink");
-    lab(XI0 + 4, YC - 8, "Cooper pairs", "", "start");
-    lab(XI1 - 4, (YI + YC) / 2 + 4, "2Δ", "ink", "end"); el("path", { d: `M ${XI1 - 24} ${YI + 3} L ${XI1 - 24} ${YC - 3}`, stroke: "var(--ink-faint)", "marker-start": "", fill: "none" }, g);
+    lab(XI0 + 4, YC - 8, "Cooper pairs (Fermi level)", "", "start");
+    // the gaps: Δ per quasiparticle above the pairs, smaller in the trap
+    el("path", { d: `M ${XI1 - 24} ${YI + 3} L ${XI1 - 24} ${YC - 3}`, stroke: "var(--ink-faint)", fill: "none" }, g);
+    const dl = lab(XI1 - 30, (YI + YC) / 2 + 4, "", "ink", "end"); dl.innerHTML = 'Δ<tspan font-size="8" dy="3">island</tspan>';
+    el("path", { d: `M ${XJ1 + 10} ${YT + 3} L ${XJ1 + 10} ${YC - 3}`, stroke: "var(--ink-faint)", fill: "none" }, g);
+    const dt2 = lab(XJ1 + 15, (YT + YC) / 2 + 4, "", "ink", "start"); dt2.innerHTML = 'Δ<tspan font-size="8" dy="3">trap</tspan>';
     lab(XI0 + 4, YI - 8, "quasiparticle states", "", "start");
     const pairsG = el("g", {}, g), fx = el("g", {}, g), qpG = el("g", {}, g);
     const pairs = [];

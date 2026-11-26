@@ -9,9 +9,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/style.css?v=20261127a">
+  <link rel="stylesheet" href="assets/style.css?v=20261127b">
   <script src="assets/site.js?v=20261123a"></script>
-  <script src="assets/squats.js?v=20261127d" defer></script>
+  <script src="assets/squats.js?v=20261127e" defer></script>
+  <script src="assets/squat.js?v=20261127e" defer></script>
   <style>
     .page { max-width: 760px; margin: 0 auto; padding: 28px 22px 64px; }
     .topbar { display: flex; justify-content: space-between; align-items: center; font-family: var(--sans); font-size: 14px; margin-bottom: 44px; }
@@ -39,6 +40,9 @@
     .ctl button:hover { opacity: .85; }
     .ctl .readout { margin-left: auto; color: var(--ink); font-variant-numeric: tabular-nums; }
     .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .galrow { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 14px; align-items: center; }
+    .galaxy { width: 210px !important; height: 210px; border-radius: 50%; background: radial-gradient(circle, #0c1224 0%, #070a14 70%); }
+    @media (max-width: 640px) { .galrow { grid-template-columns: 1fr; justify-items: center; } }
     @media (max-width: 640px) { h1 { font-size: 36px; } .two { grid-template-columns: 1fr; } .ctl .readout { margin-left: 0; } }
     .svgtext { font-family: var(--sans); font-size: 11px; fill: var(--ink-faint); }
     .svgtext.ink { fill: var(--ink-soft); }
@@ -67,10 +71,11 @@
   <p>Stars far out in a spiral galaxy should orbit slowly, the way Neptune orbits the Sun more slowly than Mercury: almost all the visible mass sits near the centre, so beyond it <var>v</var>&nbsp;∝&nbsp;1/√<var>r</var>. In the 1970s Vera Rubin and Kent Ford measured how fast stars in Andromeda orbit, and found the curve stays flat far out. Something we can't see keeps pulling.</p>
   <figure class="ix" id="rotFig">
     <div class="box">
-      <svg viewBox="0 0 640 300" role="img" aria-label="Rotation curve of a spiral galaxy: orbital speed against radius, data staying flat while the stars-only model falls off"></svg>
+      <div class="galrow"><canvas class="galaxy" aria-label="A spiral galaxy whose dark-matter halo follows the slider"></canvas>
+      <svg viewBox="0 0 640 300" role="img" aria-label="Rotation curve of a spiral galaxy: orbital speed against radius, data staying flat while the stars-only model falls off"></svg></div>
       <div class="ctl"><label>Dark-matter halo <input type="range" min="0" max="100" value="0" step="1" aria-label="Dark-matter halo mass"></label><output>none</output><span class="readout"></span></div>
     </div>
-    <figcaption>Orbital speed against distance from the centre of a spiral galaxy (stylised, Andromeda-like). The stars and gas alone (dashed) cannot hold the outer stars on such fast orbits. Add a halo of unseen mass until the model goes through the data.</figcaption>
+    <figcaption>Orbital speed against distance from the centre of a spiral galaxy (stylised, Andromeda-like). The stars and gas alone (dashed) cannot hold the outer stars on such fast orbits. Add a halo of unseen mass until the model goes through the data. The galaxy on the left (a cartoon) shows the same thing: with too little mass its outer stars, moving as fast as we observe them to, fly off; with the halo, they stay on their orbits.</figcaption>
   </figure>
   <p>Gravitational lensing, colliding galaxy clusters and the cosmic microwave background all tell the same story: ordinary matter is only about 5&nbsp;% of the universe's energy budget, dark matter about 27&nbsp;%. What it is made of is still open. One well-motivated candidate is the <em>axion</em>, a very light particle that would also solve a puzzle in the strong interaction (why the neutron has no measurable electric dipole moment). In a strong magnetic field an axion can turn into a photon. For axions in a large, still unexplored mass range that photon is in the terahertz band, at energies of a few meV. The <a href="https://arxiv.org/abs/2111.12103">BREAD</a> experiment uses a large reflector inside a magnet to collect such photons and focus them onto a sensor. The sensor has to see single photons of a few meV, with almost no false counts.</p>
 
@@ -82,7 +87,7 @@
   <p>For quantum computing, quasiparticles are a nuisance (“quasiparticle poisoning”): they disturb the qubit. In a SQUAT they are the signal. The idea of the full design: around the junction, use a superconductor with a smaller gap. A quasiparticle that wanders in relaxes to that lower gap and can't climb back out. It stays trapped right at the junction and crosses it again and again, and each crossing is a separate count. Better still, falling into the lower gap releases energy: if the island's gap is more than about three times the trap's, that is enough to break another Cooper pair in the trap. One quasiparticle becomes several (about seven for a gap ratio of ten), and every one of them tunnels. That is the <em>amplifying</em> in the name.</p>
   <figure class="ix" id="qpFig">
     <div class="box"><svg viewBox="0 0 640 250" role="img" aria-label="Energy diagram across a SQUAT: island gap, lower-gap trap, junction barrier, with quasiparticles relaxing into the trap and tunnelling back and forth"></svg></div>
-    <figcaption>Energy against position across the device, in the trapping design proposed for SQUATs. A deposit breaks a pair high above the gap; the quasiparticles cascade down to the gap edge in about a nanosecond and diffuse. Each one that drops into the lower-gap trap gives up enough energy to break a pair there (blue), so one quasiparticle becomes three, and they all shuttle across the junction many times. The first SQUATs are all aluminium, with almost no trap yet.</figcaption>
+    <figcaption>Energy against position across the device, in the trapping design proposed for SQUATs. All the Cooper pairs sit at the same energy, the common Fermi level; above it, quasiparticle states start Δ higher in the island and only Δ<sub>trap</sub> higher in the trap, so breaking a pair costs 2Δ (Δ for each of its two quasiparticles). A deposit breaks a pair high above the gap; the quasiparticles cascade down to the gap edge in about a nanosecond and diffuse. Each one that drops into the lower-gap trap gives up enough energy to break a pair there (blue), so one quasiparticle becomes three, and they all shuttle across the junction many times. The first SQUATs are all aluminium, with almost no trap yet.</figcaption>
   </figure>
 
   <h2><span class="n">04 · THE TRANSMON</span>A qubit that knows the parity of its electrons</h2>
@@ -107,7 +112,31 @@
     <figcaption>Transmission past a SQUAT for even (gold) and odd (blue) charge parity, with a splitting 2<var>χ</var><sub>0</sub> of 9.5&nbsp;MHz and a linewidth of a few MHz, as in the first devices. The two dips move apart and together as the offset charge changes, and merge at <var>n</var><sub>g</sub>&nbsp;=&nbsp;0.25. A readout tone between them (dashed) sees a different phase for each parity, so every quasiparticle tunnelling shows up as a jump.</figcaption>
   </figure>
 
-  <h2><span class="n">06 · DESIGN</span>Simulating the electric fields</h2>
+  <h2><span class="n">06 · A DETECTION</span>Watch a SQUAT detect</h2>
+  <p>Here is all of it together. The drawing is a chip like the ones we make: three SQUATs on one feedline, each with its own charge line. Zoomed in on one SQUAT, you can watch a deposit break pairs, the quasiparticles find the junction and multiply there, and the parity switch back and forth.</p>
+  <figure class="squat" id="squatFig">
+    <div class="sq-stage">
+      <svg viewBox="-235 -255 470 470" role="group" aria-label="Interactive drawing of a SQUAT chip: three pizza-shaped SQUATs on one feedline, which zooms into a single SQUAT with its charge line, two superconducting islands and a modified-Dolan Josephson junction"></svg>
+      <div class="sq-zoom" role="group" aria-label="Zoom"><button type="button" data-view="chip">Chip</button><button type="button" data-view="squat" class="on">SQUAT</button></div>
+      <p class="sq-hint" hidden>Click a SQUAT to zoom in</p>
+    </div>
+    <div class="sq-panel sq-tracebox">
+      <div class="sq-traces">
+        <div class="sq-head">Charge parity, live</div>
+        <div class="sq-trace"><canvas aria-hidden="true"></canvas></div>
+        <div class="sq-head">Switching rate</div>
+        <div class="sq-rate"><canvas aria-hidden="true"></canvas></div>
+      </div>
+      <div>
+        <div class="sq-head">Switches per burst</div>
+        <div class="sq-key"><i style="background:var(--gold)"></i>phonon hit<i style="background:var(--accent)"></i>THz photon</div>
+        <div class="sq-scatter"><canvas aria-hidden="true"></canvas></div>
+      </div>
+    </div>
+    <figcaption>A SQUAT chip like the ones we make (illustrative, not a simulation). Point at any part to see what it does, or zoom out to the chip. A particle hit or a THz photon breaks pairs in the islands; the quasiparticles that reach the junction drop into its low-gap leads, where each breaks more pairs, and they all tunnel back and forth. Every tunnel flips the parity. On the right, every burst so far: the number of switches grows in proportion to the energy that reached the islands, which is how a SQUAT measures energy.</figcaption>
+  </figure>
+
+  <h2><span class="n">07 · DESIGN</span>Simulating the electric fields</h2>
   <p>Most of a SQUAT's properties come down to capacitances: how strongly each island couples to the other, to the ground plane, to the feedline (which sets how fast the qubit radiates into it) and to the charge line. We compute them with finite-element solvers. The software breaks the chip into hundreds of thousands of small tetrahedra, finest near the metal edges where the fields change fastest, and solves Maxwell's equations on that mesh.</p>
   <figure class="ix" id="simFig">
     <div class="box">
@@ -117,7 +146,7 @@
     <figcaption id="simCap">The finite-element mesh in the plane of the metal and the electric-field energy density with one island held at 1&nbsp;V (colour, logarithmic). The energy crowds into the gaps between the islands and along every metal edge. Hover to read values.</figcaption>
   </figure>
 
-  <h2><span class="n">07 · FIRST RESULTS</span>The first SQUATs work</h2>
+  <h2><span class="n">08 · FIRST RESULTS</span>The first SQUATs work</h2>
   <p>The first measurements of SQUATs were published in early 2026 (<a href="https://arxiv.org/abs/2601.16261">Magoon et al.</a>): all-aluminium devices with no trap yet, three per chip on one feedline, cooled to about 10&nbsp;mK in two dilution refrigerators. They behave as designed: the even and odd parity dips are clearly resolved, and the parity can be read in real time with a single tone.</p>
   <div class="facts">
     <div><b>7.4–8.5 GHz</b><span>qubit frequencies, three SQUATs on one feedline</span></div>
