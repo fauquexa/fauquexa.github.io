@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SQUATs · Alain Fauquex</title>
+  <meta name="description" content="How a superconducting qubit can count single quasiparticles, and why that could help find dark matter: an interactive introduction to SQUATs for physics students.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23121315'/><path d='M14 20 L46 46 L46 54 L14 80 Z' fill='%23ecebe7'/><path d='M86 20 L54 46 L54 54 L86 80 Z' fill='%23ecebe7'/><rect x='46' y='48' width='8' height='4' fill='%23e0b35a'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css?v=20261127a">
+  <script src="assets/site.js?v=20261123a"></script>
+  <script src="assets/squats.js?v=20261127a" defer></script>
+  <style>
+    .page { max-width: 760px; margin: 0 auto; padding: 28px 22px 64px; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; font-family: var(--sans); font-size: 14px; margin-bottom: 44px; }
+    .topbar a { color: var(--ink-soft); text-decoration: none; }
+    .topbar a:hover { color: var(--ink); }
+    .topbar .theme-btn { font-family: var(--sans); font-size: 13px; color: var(--ink-soft); background: none; border: 1px solid var(--rule); border-radius: 99px; padding: 4px 12px; cursor: pointer; }
+    h1 { font-weight: 500; font-size: 46px; line-height: 1.08; letter-spacing: -.015em; margin: 0 0 14px; }
+    .dek { font-size: 22px; line-height: 1.45; color: var(--ink-soft); margin: 0 0 18px; }
+    .page .byline { font-family: var(--sans); font-size: 13.5px; color: var(--ink-faint); margin: 0 0 40px; }
+    h2 { font-weight: 500; font-size: 27px; line-height: 1.2; margin: 52px 0 12px; }
+    h2 .n { font-family: var(--sans); font-size: 13px; font-weight: 600; letter-spacing: .08em; color: var(--gold); display: block; margin-bottom: 6px; }
+    .page p { font-size: 18.5px; }
+    .eq { font-family: var(--serif); font-size: 19px; text-align: center; margin: 4px 0 18px; }
+    .eq var { font-style: italic; }
+    .page .note { font-family: var(--sans); font-size: 13.5px; color: var(--ink-faint); line-height: 1.5; }
+    figure.ix { margin: 22px 0 26px; }
+    .ix .box { border: 1px solid var(--rule); border-radius: 8px; background: var(--tile); padding: 14px 16px 12px; font-family: var(--sans); }
+    .ix svg, .ix canvas { display: block; width: 100%; }
+    .ix figcaption { font-family: var(--sans); font-size: 13.5px; line-height: 1.55; color: var(--ink-soft); margin-top: 9px; }
+    .ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; font-size: 13px; color: var(--ink-soft); margin-top: 10px; }
+    .ctl label { display: inline-flex; align-items: center; gap: 8px; }
+    .ctl input[type=range] { width: 170px; accent-color: var(--gold); }
+    .ctl output { font-variant-numeric: tabular-nums; color: var(--ink); min-width: 4.5em; }
+    .ctl button { font-family: var(--sans); font-size: 13px; font-weight: 500; color: var(--bg); background: var(--ink); border: 0; border-radius: 99px; padding: 6px 14px; cursor: pointer; }
+    .ctl button:hover { opacity: .85; }
+    .ctl .readout { margin-left: auto; color: var(--ink); font-variant-numeric: tabular-nums; }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 640px) { h1 { font-size: 36px; } .two { grid-template-columns: 1fr; } .ctl .readout { margin-left: 0; } }
+    .svgtext { font-family: var(--sans); font-size: 11px; fill: var(--ink-faint); }
+    .svgtext.ink { fill: var(--ink-soft); }
+    .svgtext.halo { paint-order: stroke; stroke: var(--tile); stroke-width: 5px; stroke-linejoin: round; }
+    .sim-wrap { position: relative; }
+    .sim-wrap canvas { border-radius: 6px; background: #0c1119; cursor: crosshair; }
+    .sim-tip { position: absolute; pointer-events: none; font-family: var(--sans); font-size: 12px; color: var(--ink); background: var(--tile); border: 1px solid var(--rule); border-radius: 5px; padding: 3px 7px; opacity: 0; transition: opacity .1s; white-space: nowrap; }
+    .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 18px 0 24px; }
+    .facts div { border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; background: var(--tile); font-family: var(--sans); }
+    .facts b { display: block; font-size: 21px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+    .facts span { display: block; font-size: 12.5px; color: var(--ink-soft); line-height: 1.4; margin-top: 2px; }
+    .refs { font-family: var(--sans); font-size: 14.5px; line-height: 1.6; padding-left: 1.1em; }
+    .refs li { margin-bottom: 6px; }
+    .back { margin-top: 46px; font-family: var(--sans); font-size: 14px; }
+  </style>
+</head>
+<body>
+<main class="page">
+  <div class="topbar"><a href="index.html">← Alain Fauquex</a><button class="theme-btn" type="button">Dark mode</button></div>
+
+  <h1>SQUATs</h1>
+  <p class="dek">How a superconducting qubit can notice a single broken Cooper pair, and why that might help us find dark matter.</p>
+  <p class="byline">An interactive introduction for physics students · Alain Fauquex, Salemi group, UC Berkeley</p>
+
+  <h2><span class="n">01 · THE MISSING MASS</span>Most of the matter in the universe is invisible</h2>
+  <p>Stars far out in a spiral galaxy should orbit slowly, the way Neptune orbits the Sun more slowly than Mercury: almost all the visible mass sits near the centre, so beyond it <var>v</var>&nbsp;∝&nbsp;1/√<var>r</var>. In the 1970s Vera Rubin and Kent Ford measured how fast stars in Andromeda orbit, and found the curve stays flat far out. Something we can't see keeps pulling.</p>
+  <figure class="ix" id="rotFig">
+    <div class="box">
+      <svg viewBox="0 0 640 300" role="img" aria-label="Rotation curve of a spiral galaxy: orbital speed against radius, data staying flat while the stars-only model falls off"></svg>
+      <div class="ctl"><label>Dark-matter halo <input type="range" min="0" max="100" value="0" step="1" aria-label="Dark-matter halo mass"></label><output>none</output><span class="readout"></span></div>
+    </div>
+    <figcaption>Orbital speed against distance from the centre of a spiral galaxy (stylised, Andromeda-like). The stars and gas alone (dashed) cannot hold the outer stars on such fast orbits. Add a halo of unseen mass until the model goes through the data.</figcaption>
+  </figure>
+  <p>Gravitational lensing, colliding galaxy clusters and the cosmic microwave background all tell the same story: ordinary matter is only about 5&nbsp;% of the universe's energy budget, dark matter about 27&nbsp;%. What it is made of is still open. One well-motivated candidate is the <em>axion</em>, a very light particle that would also solve a puzzle in the strong interaction (why the neutron has no measurable electric dipole moment). In a strong magnetic field an axion can turn into a photon. For axions in a large, still unexplored mass range that photon is in the terahertz band, at energies of a few meV. The <a href="https://arxiv.org/abs/2111.12103">BREAD</a> experiment uses a large reflector inside a magnet to collect such photons and focus them onto a sensor. The sensor has to see single photons of a few meV, with almost no false counts.</p>
+
+  <h2><span class="n">02 · ENERGY SCALES</span>A detector for milli-electronvolts</h2>
+  <p>Particle detectors are built around a threshold: the smallest energy they can register. Collider detectors work at GeV, dark-matter time-projection chambers at keV, superconducting transition-edge sensors down to about an eV. Light dark matter and THz photons deposit far less, between a meV and an eV, where a room-temperature thermal kick (25&nbsp;meV) would already be enormous. You need something that changes state when a few meV land in it, and that does nothing otherwise.</p>
+  <figure class="ix" id="ladderFig">
+    <div class="box"><svg viewBox="0 0 640 238" role="img" aria-label="Energy ladder on a logarithmic axis from 10 micro-electronvolts to 10 GeV, with detector thresholds and reference energies"></svg></div>
+    <figcaption>Where detectors work, on a logarithmic energy axis, with a few reference energies. Breaking one Cooper pair in aluminium costs about 0.4&nbsp;meV, a tenth of a 1&nbsp;THz photon.</figcaption>
+  </figure>
+
+  <h2><span class="n">03 · SUPERCONDUCTORS</span>Cooper pairs, and what breaks them</h2>
+  <p>Below about 1.2&nbsp;K, the electrons in aluminium bind into Cooper pairs, which all share one quantum state and carry current without resistance. Splitting a pair costs twice the superconducting gap, 2Δ&nbsp;≈&nbsp;0.4&nbsp;meV. A THz photon absorbed in the metal, or a phonon (a quantum of lattice vibration) that travels in from a particle hit in the substrate, can supply that. The two electrons it frees are <em>quasiparticles</em>: they wander through the film for up to a millisecond before they find a partner and recombine.</p>
+  <p>For quantum computing, quasiparticles are a nuisance (“quasiparticle poisoning”): they disturb the qubit. In a SQUAT they are the signal. The idea of the full design: around the junction, use a superconductor with a smaller gap. A quasiparticle that wanders in relaxes to that lower gap and can't climb back out. It stays trapped right at the junction and crosses it again and again, and each crossing is a separate count.</p>
+  <figure class="ix" id="qpFig">
+    <div class="box"><svg viewBox="0 0 640 250" role="img" aria-label="Energy diagram across a SQUAT: island gap, lower-gap trap, junction barrier, with quasiparticles relaxing into the trap and tunnelling back and forth"></svg></div>
+    <figcaption>Energy against position across the device, in the trapping design proposed for SQUATs. A deposit breaks a pair high above the gap; the quasiparticles cascade down to the gap edge in about a nanosecond, diffuse, drop into the lower-gap trap and then shuttle across the junction many times. The first SQUATs are all aluminium, with almost no trap yet.</figcaption>
+  </figure>
+
+  <h2><span class="n">04 · THE TRANSMON</span>A qubit that knows the parity of its electrons</h2>
+  <p>A transmon is two superconducting islands connected by a Josephson junction: a thin oxide barrier that Cooper pairs tunnel through coherently. It behaves like an LC circuit, except that the junction's inductance is nonlinear, so its energy levels are unevenly spaced and the lowest two form a qubit. Its Hamiltonian is</p>
+  <p class="eq"><var>H</var> = 4<var>E</var><sub>C</sub> (<var>n</var> − <var>n</var><sub>g</sub>)² − <var>E</var><sub>J</sub> cos <var>φ</var></p>
+  <p>Here <var>n</var> counts the Cooper pairs that have crossed the junction, <var>φ</var> is the superconducting phase difference across it, <var>E</var><sub>C</sub> is the energy to charge the islands with one electron, <var>E</var><sub>J</sub> is how easily pairs tunnel, and <var>n</var><sub>g</sub> is the offset charge set by the surroundings (and by a gate voltage). A single quasiparticle crossing the junction shifts <var>n</var><sub>g</sub> by half a Cooper pair: the island's <em>charge parity</em> flips between even and odd.</p>
+  <figure class="ix" id="bandFig">
+    <div class="box">
+      <canvas style="height:300px" aria-label="Transmon energy levels against offset charge for even and odd parity"></canvas>
+      <div class="ctl"><label><span>E<sub>J</sub>/E<sub>C</sub></span><input type="range" min="0" max="2" value="0.7" step="0.01" aria-label="Ratio of Josephson to charging energy, logarithmic"></label><output></output><span class="readout"></span></div>
+    </div>
+    <figcaption>The three lowest levels against offset charge, solved numerically from the Hamiltonian above in the charge basis, for even (solid) and odd (dashed) parity. With small <var>E</var><sub>J</sub>/<var>E</var><sub>C</sub> the levels depend strongly on charge. Ordinary transmons sit near 50 or more, where the ripple is negligible. A SQUAT sits at about 25: it keeps just enough charge sensitivity to tell the parities apart. The splitting is given for <var>E</var><sub>C</sub>/<var>h</var>&nbsp;=&nbsp;620&nbsp;MHz, as in the first SQUATs.</figcaption>
+  </figure>
+
+  <h2><span class="n">05 · READOUT</span>Listening to the qubit directly</h2>
+  <p>Think of a speaking tube with a tuning fork attached to its side. Sound at most pitches passes straight through, but at the fork's pitch the fork rings and absorbs it, so the transmitted sound dips. A SQUAT sits right next to a microwave feedline, with no readout resonator in between: the qubit itself is the tuning fork. Its transition frequency (6–9&nbsp;GHz) shows up as a dip in the transmitted microwaves, and the dip sits at <var>f</var><sub>0</sub>&nbsp;+&nbsp;<var>χ</var><sub>0</sub>&nbsp;cos(π<var>n</var><sub>g</sub>) for even parity and <var>f</var><sub>0</sub>&nbsp;−&nbsp;<var>χ</var><sub>0</sub>&nbsp;cos(π<var>n</var><sub>g</sub>) for odd. A tone parked between the two dips has its phase pushed one way or the other, so every quasiparticle tunnelling event shows up as a jump: a random telegraph signal.</p>
+  <figure class="ix" id="readFig">
+    <div class="box">
+      <div class="two"><canvas style="height:200px" aria-label="Transmission against frequency with the even and odd parity dips"></canvas><canvas style="height:200px" aria-label="Phase of the readout tone against time, and the switching rate"></canvas></div>
+      <div class="ctl"><label><span>offset charge <var>n</var><sub>g</sub></span><input type="range" min="0" max="0.5" value="0.08" step="0.005" aria-label="Offset charge"></label><output></output><label>deposit <input type="range" min="0" max="2" value="1" step="0.01" aria-label="Deposited energy, logarithmic"></label><output></output><button type="button">Deposit energy</button></div>
+    </div>
+    <figcaption>Left: transmission past the SQUAT. Light curve odd, dark curve even, gold line the readout tone; tune <var>n</var><sub>g</sub> to see the two parities split and merge. Right: the tone's phase over time and the parity-switching rate (simulated). Background switches are rare; a deposit sets off a burst of switches that dies away as the quasiparticles recombine. The height of the burst grows with the energy, which is how a SQUAT measures it. On the <a href="index.html#research">home page</a> you can watch all of this happen inside the device.</figcaption>
+  </figure>
+
+  <h2><span class="n">06 · DESIGN</span>Simulating the electric fields</h2>
+  <p>Most of a SQUAT's properties come down to capacitances: how strongly each island couples to the other, to the ground plane, to the feedline (which sets how fast the qubit radiates into it) and to the charge line. We compute them with finite-element solvers. The software breaks the chip into hundreds of thousands of small tetrahedra, finest near the metal edges where the fields change fastest, and solves Maxwell's equations on that mesh.</p>
+  <figure class="ix" id="simFig">
+    <div class="box">
+      <div class="sim-wrap"><canvas style="aspect-ratio:1;max-width:600px;margin:0 auto" aria-label="Finite-element mesh and electric field energy density around a SQUAT"></canvas><div class="sim-tip"></div></div>
+      <div class="ctl"><label><input type="checkbox" checked> mesh</label><label><input type="checkbox" checked> field energy</label><span class="readout"></span></div>
+    </div>
+    <figcaption id="simCap">The finite-element mesh in the plane of the metal and the electric-field energy density with one island held at 1&nbsp;V (colour, logarithmic). The energy crowds into the gaps between the islands and along every metal edge. Hover to read values.</figcaption>
+  </figure>
+
+  <h2><span class="n">07 · FIRST RESULTS</span>The first SQUATs work</h2>
+  <p>The first measurements of SQUATs were published in early 2026 (<a href="https://arxiv.org/abs/2601.16261">Magoon et al.</a>): all-aluminium devices with no trap yet, three per chip on one feedline, cooled to about 10&nbsp;mK in two dilution refrigerators. They behave as designed: the even and odd parity dips are clearly resolved, and the parity can be read in real time with a single tone.</p>
+  <div class="facts">
+    <div><b>7.4–8.5 GHz</b><span>qubit frequencies, three SQUATs on one feedline</span></div>
+    <div><b>up to 9.5 MHz</b><span>parity splitting 2χ<sub>0</sub>, several times the linewidth</span></div>
+    <div><b>≈ 25</b><span><var>E</var><sub>J</sub>/<var>E</var><sub>C</sub> (<var>E</var><sub>J</sub>/<var>h</var> ≈ 16 GHz, <var>E</var><sub>C</sub>/<var>h</var> ≈ 620 MHz)</span></div>
+    <div><b>≈ 20 Hz</b><span>background parity-switching rate in the best runs</span></div>
+  </div>
+  <p>Shielding turned out to matter enormously. Without a light-tight can, stray infrared photons switched the parity more than 10,000 times a second; with a black-coated, light-tight can and filters this fell to tens per second. Mechanical vibration from the cryocooler still adds switches. One recorded event shows a burst of switching together with a sudden jump in the offset charge: free charge released in the substrate, perhaps by a particle hit.</p>
+  <p>Next come the traps: junctions made of a lower-gap superconductor such as hafnium (<a href="https://arxiv.org/abs/2510.25203">Balaji et al.</a>), calibrated energy deposits from LEDs, THz sources and radioactive sources, and many SQUATs read out together on one line. That is the path toward meV thresholds, large arrays, and a sensor for experiments like BREAD.</p>
+
+  <h2>Further reading</h2>
+  <ol class="refs">
+    <li>C. W. Fink, C. P. Salemi, B. A. Young, D. I. Schuster, N. A. Kurinsky, <a href="https://arxiv.org/abs/2310.01345">The Superconducting Quasiparticle-Amplifying Transmon: a qubit-based sensor for meV-scale phonons and single THz photons</a> (the proposal).</li>
+    <li>H. Magoon et al., <a href="https://arxiv.org/abs/2601.16261">A first demonstration of the SQUAT detector architecture: direct measurement of resonator-free charge-sensitive transmons</a> (2026).</li>
+    <li>J. Liu et al., <a href="https://arxiv.org/abs/2111.12103">Broadband solenoidal haloscope for terahertz axion detection</a> (BREAD).</li>
+  </ol>
+  <p class="back"><a href="index.html#research">← Back to my research</a></p>
+</main>
+</body>
+</html>

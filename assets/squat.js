@@ -10,8 +10,10 @@
    A detection runs on a loop: each time either a particle hits the silicon (phonons) or a THz photon is absorbed
    by the islands, Cooper pairs break in proportion to the energy, the quasiparticles wander, and those that reach
    the junction get trapped in its lower-gap leads and tunnel back and forth; every tunnelling flips the charge
-   parity, which the live trace shows as the qubit frequency jumping by 2 chi. Quasiparticles that recombine before
-   reaching the junction leave no trace. Hover or tap a part for what it is. Illustrative, not a simulation. */
+   parity, which the live trace shows as the qubit frequency jumping by 2 chi. The more energy, the more
+   quasiparticles reach the junction and the more switches the burst has: the rate trace and the burst-size plot show
+   that. Quasiparticles that recombine before reaching the junction leave no trace. Hover or tap a part for what it
+   is, also in the chip view. Illustrative, not a simulation. */
 (function () {
   const fig = document.getElementById("squatFig");
   if (!fig) return;
@@ -19,7 +21,7 @@
   const svg = fig.querySelector("svg"), stage = fig.querySelector(".sq-stage");
   const tip = document.createElement("div"); tip.className = "sq-tip"; tip.setAttribute("role", "tooltip"); tip.innerHTML = "<b></b><span></span>";
   document.body.appendChild(tip);
-  const traceCv = fig.querySelector(".sq-trace canvas"), hint = fig.querySelector(".sq-hint");
+  const traceCv = fig.querySelector(".sq-trace canvas"), rateCv = fig.querySelector(".sq-rate canvas"), scatCv = fig.querySelector(".sq-scatter canvas"), hint = fig.querySelector(".sq-hint");
   const btnChip = fig.querySelector('[data-view="chip"]'), btnSquat = fig.querySelector('[data-view="squat"]');
   const el = (name, attrs, parent) => { const e = document.createElementNS(NS, name); for (const k in attrs) e.setAttribute(k, attrs[k]); (parent || svg).appendChild(e); return e; };
 
@@ -47,9 +49,11 @@
     feedline: ["Feedline", "A coplanar waveguide (a 10 µm centre strip between 5.8 µm gaps) carrying the microwave readout tone. The SQUATs couple to it directly, with no readout resonator, each at its own frequency, so many can share one line."],
     chargeLine: ["Charge line", "A coplanar line like the feedline that ends in a thorn: a 60 µm taper to a 1 µm-radius tip, recessed 20 µm into the ground plane, about 80 µm from the island. A voltage on it sets the island's offset charge; keeping the tip back keeps the coupling tiny, so the line doesn't drain energy from the qubit."],
     islands: ["Superconducting islands", "The qubit's two aluminium islands, 110 µm pizza slices with a 160° opening, 17 µm apart. Below about 1.2 K their electrons bind into Cooper pairs, which flow without resistance. Together the slices form the qubit, a tiny nonlinear LC circuit, and also an antenna: THz photons are absorbed directly in them. A phonon or photon carrying more than twice the superconducting gap (about 0.36 meV) breaks a pair into two quasiparticles."],
-    jjpads: ["Junction connection pads", "Dome-shaped pads where the junction layer, evaporated in a separate step, lands on the islands. A brief argon ion clean first removes the islands' native oxide, so the contact is a clean superconducting connection rather than a second, accidental junction. Quasiparticles from the islands enter the junction leads here."],
     pocket: ["Silicon substrate", "Bare silicon where the aluminium was etched away: a 330 µm pocket around the islands that opens onto the feedline. Energy deposited in the chip spreads through the silicon as phonons, quantised lattice vibrations, and can reach every SQUAT on the chip."],
-    junction: ["Josephson junction (modified Dolan)", "From one island a lead narrows to a 150 nm thin lead; from the other an elliptical drop reaches into the gap. Evaporated from two angles past a 150 nm suspended resist bridge, the two overlap through about 1 nm of aluminium oxide. Cooper pairs tunnel through it coherently, which makes the circuit a qubit. The leads have a lower critical temperature, so a smaller gap, than the islands: quasiparticles that wander in lose energy and cannot climb back out. Trapped at the junction, they tunnel again and again, each time flipping the charge parity."],
+    junction: ["Josephson junction (modified Dolan)", "The junction layer lands on each island on a dome-shaped connection pad (an argon clean first removes the islands' oxide, so the contact is not a second junction). From one pad a lead narrows to a 150 nm thin lead; from the other an elliptical drop reaches into the gap. Evaporated from two angles past a suspended resist bridge, the two overlap through about 1 nm of aluminium oxide, and Cooper pairs tunnel through it coherently: that makes the circuit a qubit. The leads have a smaller superconducting gap than the islands, so quasiparticles that wander in lose energy and cannot climb back out. Trapped at the junction, they tunnel again and again, each time flipping the charge parity."],
+    chipFeed: ["Feedline", "One coplanar microwave line, 10 µm wide, runs across the chip from launch pad to launch pad. A tone sent down it reads out all three SQUATs at once: each one couples directly to the line, with no readout resonator, at its own frequency."],
+    chipCharge: ["Charge line", "Each SQUAT has its own: a coplanar line from a launch pad at the chip edge down to a sharp tip just short of the SQUAT. A small voltage on it sets the island's offset charge, which tunes how far apart the even and odd parity frequencies sit."],
+    chipSquat: ["A SQUAT", "Two superconducting aluminium islands joined by one Josephson junction, in a pocket cut out of the ground plane next to the feedline: the qubit and the sensor in one. Click to zoom in and watch it detect."],
     holes: ["Flux-trapping holes", "Six round 5 µm holes per island on a staggered 40 µm grid, at least 10 µm from every edge. Any magnetic flux left over when the film turns superconducting gets caught here as a vortex. Pinned in a hole, the vortex cannot drift through the aluminium, where a moving vortex would dissipate energy and break Cooper pairs."],
   };
 
@@ -120,35 +124,45 @@
     for (const [x, y] of HOLES) el("circle", { cx: sx + x, cy: y, r: HOLE / 2 }, gHoles);
     // the junction and its two connection pads
     const gJJ = part("junction", "jj pop", k);
+    for (const s of [-1, 1]) drawPad(gJJ, sx, s, "sq-padj");
     drawJunction(gJJ, sx, "sq-lead");
-    el("rect", { x: sx - 5, y: -g, width: 10, height: 2 * g, fill: "transparent" }, gJJ);
-    for (const s of [-1, 1]) drawPad(part("jjpads", "pads pop", k), sx, s, "sq-padj");
+    el("rect", { x: sx - 5, y: -g - 5, width: 10, height: 2 * g + 10, fill: "transparent" }, gJJ);
     o.sx = sx; return o;
   });
 
   // thin lines that keep the feedline and charge lines visible when zoomed out to the whole chip
   const gOver = el("g", { class: "sq-over", "pointer-events": "none" });
-  el("line", { x1: -LINE_START, y1: yc, x2: LINE_START, y2: yc }, gOver);
-  for (const sx of SX) el("line", { x1: sx, y1: -LINE_START, x2: sx, y2: BITE.top }, gOver);
+  const overFeed = el("line", { x1: -LINE_START, y1: yc, x2: LINE_START, y2: yc }, gOver);
+  const overCharge = SX.map((sx) => el("line", { x1: sx, y1: -LINE_START, x2: sx, y2: BITE.top }, gOver));
+  // zoomed out, the feedline, each charge line and each SQUAT explain themselves (wide invisible targets)
+  const gChip = el("g", { class: "sq-chiphit" });
+  const chipParts = [];
+  const chipPart = (name, k, node) => { node.dataset.part = name; if (k !== undefined) node.dataset.sq = k; node.setAttribute("tabindex", "-1"); chipParts.push(node); return node; };
+  chipPart("chipFeed", undefined, el("line", { x1: -LAUNCH.edge, y1: yc, x2: LAUNCH.edge, y2: yc }, gChip));
+  SX.forEach((sx, k) => {
+    chipPart("chipCharge", k, el("line", { x1: sx, y1: -LAUNCH.edge, x2: sx, y2: BITE.top - 60 }, gChip));
+    chipPart("chipSquat", k, el("circle", { cx: sx, cy: -10, r: 300 }, gChip));
+  });
+  const chipRing = SX.map((sx) => el("circle", { cx: sx, cy: -10, r: 330, class: "sq-chipring" }, gOver));
 
   // animation layers, and the magnified junction, follow the SQUAT in focus
   const gAnim = el("g", { class: "sq-anim", "pointer-events": "none" });
   const gPairs = el("g", { class: "sq-pairs" }, gAnim), gQP = el("g", { class: "sq-qps" }, gAnim), gFx = el("g", { class: "sq-fx" }, gAnim);
-  // the inset: the whole junction three times larger, with the island edges for context
-  const INS = { x: 178, y: -122, r: 42, m: 3 };
+  // the inset: the whole junction five times larger, with the island edges for context
+  const INS = { x: 163, y: -183, r: 66, m: 5 };
   const gIns = el("g", { class: "sq-inset", "pointer-events": "none" }, gAnim);
-  el("line", { x1: 2, y1: -2, x2: INS.x - INS.r * 0.72, y2: INS.y + INS.r * 0.7, class: "sq-ins-guide" }, gIns);
+  el("line", { x1: 3, y1: -4, x2: INS.x - INS.r * 0.72, y2: INS.y + INS.r * 0.7, class: "sq-ins-guide" }, gIns);
   el("defs", {}, gIns).innerHTML = `<clipPath id="sqInsClip"><circle cx="${INS.x}" cy="${INS.y}" r="${INS.r}"/></clipPath>`;
   const gInsIn = el("g", { "clip-path": "url(#sqInsClip)" }, gIns);
   el("circle", { cx: INS.x, cy: INS.y, r: INS.r, class: "sq-ins-bg" }, gInsIn);
   const gInsJ = el("g", { transform: `translate(${INS.x} ${INS.y}) scale(${INS.m})` }, gInsIn);
   const tn = Math.tan(Math.PI / 2 - half), W = 16;
   for (const s of [-1, 1]) el("path", { d: `M ${P(-W, s * (g + W * tn))} L ${P(0, s * g)} L ${P(W, s * (g + W * tn))} L ${P(W, s * 20)} L ${P(-W, s * 20)} Z`, class: "sq-ins-island" }, gInsJ);
-  for (const s of [-1, 1]) drawPad(gInsJ, 0, s, "sq-lead");
+  for (const s of [-1, 1]) drawPad(gInsJ, 0, s, "sq-padj");
   drawJunction(gInsJ, 0, "sq-lead");
   const gInsQP = el("g", {}, gInsJ);
   el("circle", { cx: INS.x, cy: INS.y, r: INS.r, class: "sq-ins-ring" }, gIns);
-  const insLabel = el("text", { x: INS.x, y: INS.y + INS.r + 8, class: "sq-ins-label" }, gIns); insLabel.textContent = "Junction ×3";
+  const insLabel = el("text", { x: INS.x, y: INS.y + INS.r + 9, class: "sq-ins-label" }, gIns); insLabel.textContent = "Junction ×5";
 
   // ---------------------------------------------------------------- the view: chip <-> one SQUAT, smoothly
   let focus = 1, view = [-235, -255, 470, 470], anim = null;
@@ -169,6 +183,7 @@
     const w = view[2], o = Math.max(0, Math.min(1, (Math.log(w) - Math.log(1200)) / (Math.log(5000) - Math.log(1200))));
     gOver.style.opacity = o;
     gIns.style.opacity = Math.max(0, Math.min(1, (1100 - w) / 450));
+    gChip.style.display = w > 2000 && !anim ? "" : "none";
     hint.hidden = !zoomedOut() || anim !== null;
     btnChip.classList.toggle("on", w > 2000); btnSquat.classList.toggle("on", w <= 2000);
     btnChip.setAttribute("aria-pressed", String(w > 2000)); btnSquat.setAttribute("aria-pressed", String(w <= 2000));
@@ -190,8 +205,9 @@
     if (top + h > innerHeight - m) top = Math.max(m, y - 18 - h);
     tip.style.left = left + "px"; tip.style.top = top + "px";
   }
+  const CHIP_PARTS = ["chipFeed", "chipCharge", "chipSquat"];
   function describe(name, k, at) {
-    if (zoomedOut()) name = null;
+    if (name && zoomedOut() !== CHIP_PARTS.includes(name)) name = null;
     if (name) {
       tip.firstChild.textContent = INFO[name][0]; tip.lastChild.textContent = INFO[name][1];
       tip.classList.add("on");
@@ -203,6 +219,18 @@
       n.classList.toggle("lift", !!name && n.dataset.part === lifts[name] && same(n));
     });
     lifted = !!name && (name === "islands" || name === "holes") && +k === focus;
+    // the chip view: the hovered line glows, the hovered SQUAT grows out of the chip
+    overFeed.classList.toggle("hot", name === "chipFeed");
+    overCharge.forEach((n, i) => n.classList.toggle("hot", name === "chipCharge" && +k === i));
+    chipRing.forEach((n, i) => n.classList.toggle("hot", name === "chipSquat" && +k === i));
+    SX.forEach((sx, i) => {
+      const on = name === "chipSquat" && +k === i;
+      parts.forEach((n) => {
+        if (n.dataset.sq !== String(i) || n.dataset.part === "bondpad" || n.dataset.part === "chargeLine") return;
+        if (on) { n.style.transformBox = "view-box"; n.style.transformOrigin = `${sx}px -10px`; n.style.transform = "scale(1.9)"; n.style.transition = "transform .25s ease"; }
+        else if (n.style.transformBox) { n.style.transform = ""; setTimeout(() => { if (!n.style.transform) { n.style.transformBox = ""; n.style.transformOrigin = ""; } }, 260); }
+      });
+    });
   }
   const centreOf = (n) => { const r = n.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
   parts.forEach((n) => {
@@ -219,6 +247,12 @@
     });
     n.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); n.dispatchEvent(new MouseEvent("click")); } });
   });
+  chipParts.forEach((n) => {
+    const k = n.dataset.sq;
+    n.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") describe(n.dataset.part, k, [e.clientX, e.clientY]); });
+    n.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") describe(null); });
+    n.addEventListener("click", (e) => { e.stopPropagation(); describe(null); if (n.dataset.part === "chipSquat") zoomK(+k); else zoomNearest(e); });
+  });
   svg.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse" && !pinned && tip.classList.contains("on")) placeTip(e.clientX, e.clientY); });
   addEventListener("scroll", () => { if (tip.classList.contains("on")) { pinned = null; describe(null); } }, { passive: true });
   // zoomed out, a click anywhere on the chip zooms into the nearest SQUAT
@@ -228,7 +262,7 @@
     let k = 0; SX.forEach((sx, i) => { if (Math.abs(sx - x) < Math.abs(SX[k] - x)) k = i; });
     zoomK(k);
   }
-  function zoomK(k) { focusOn(k); zoomTo(VIEW_SQUAT(k)); describe(null); pinned = null; }
+  function zoomK(k) { pinned = null; describe(null); focusOn(k); zoomTo(VIEW_SQUAT(k)); }
   svg.addEventListener("click", (e) => { if (zoomedOut()) zoomNearest(e); });
   document.addEventListener("click", (e) => { if (pinned && !stage.contains(e.target)) { pinned = null; describe(null); } });
 
@@ -247,7 +281,7 @@
   const CYCLE = 11.5;
   const fmtE = (meV) => (meV >= 1000 ? (meV / 1000).toFixed(2) + " eV" : meV >= 100 ? Math.round(meV) + " meV" : meV.toFixed(1) + " meV");
   function resetDetection() {
-    qps.forEach((q) => q.node.remove()); trapped.forEach((q) => { q.node.remove(); q.dot.remove(); });
+    qps.forEach((q) => { q.node.remove(); if (q.ins) q.ins.remove(); }); trapped.forEach((q) => { q.node.remove(); q.dot.remove(); });
     rings.forEach((r) => r.node && r.node.remove()); fx.forEach((f) => f.node.remove());
     qps = []; trapped = []; rings = []; fx = []; ev = null; cycleT = 0; flips = 0;
     pairs.forEach((p) => { p.broken = false; p.a.style.opacity = ""; p.b.style.opacity = ""; });
@@ -271,7 +305,9 @@
       fx.push({ node: el("line", { x1: x - 70, y1: y - 130, x2: x + 70, y2: y + 130, class: "sq-track" }, gFx), t: 0, life: 0.9 });
       fx.push({ node: el("circle", { cx: x, cy: y, r: 2.5, class: "sq-hit" }, gFx), t: 0, life: 1.0, grow: 8 });
     }
-    ev = { photon, E, label, txt, npairs, x, y, side, broke: false, at: tNow, mark: [tNow, label] };
+    const Eisl = photon ? 0.6 * E : 0.01 * E;           // what reaches the islands, meV
+    const ntrap = Math.max(1, Math.min(9, Math.round(Eisl / 0.45), 2 * npairs));
+    ev = { photon, E, Eisl, ntrap, label, txt, npairs, x, y, side, broke: false, at: tNow, mark: [tNow, label], flips: 0 };
     marks.push(ev.mark);
   }
   function wavePath(x, y) {        // a short wiggle coming in from the upper left
@@ -285,27 +321,30 @@
     if (ev.photon) spots = Array.from({ length: ev.npairs }, () => { const [x, y] = [ev.x + (rnd() - 0.5) * 10, ev.y + (rnd() - 0.5) * 10]; return inIsland(x, y, ev.side) ? [x, y, ev.side] : [ev.x, ev.y, ev.side]; });
     else spots = Array.from({ length: ev.npairs }, () => { const side = rnd() < (ev.y < 0 ? 0.7 : 0.3) ? -1 : 1, [x, y] = randomIn(side); return [x, y, side]; });
     fx.push({ node: el("circle", { cx: ev.x, cy: ev.y, r: 3, class: "sq-hit" }, gFx), t: 0, life: 0.8, grow: 6 });
+    let sureLeft = ev.ntrap;                 // the energy sets how many quasiparticles make it to the junction
     spots.forEach(([x, y, side], i) => {
       const p = pairs.find((p) => !p.broken && p.side === side);
       if (p) { p.broken = true; p.a.style.opacity = 0; p.b.style.opacity = 0; p.mendAt = 9.6 + rnd(); }
       for (const s of [-1, 1]) {
-        const a = rnd() * TAU, sure = i === 0 && s < 0;     // one quasiparticle of every deposit is sure to reach the junction
+        const a = rnd() * TAU, sure = sureLeft-- > 0;
         qps.push({ x, y, vx: Math.cos(a) * 28 * s, vy: Math.sin(a) * 28 * s, side, node: el("circle", { cx: x, cy: y, r: 2.2, class: "sq-qp" }, gQP), t: 0,
-                   life: sure ? 30 : 3 + rnd() * 1.8, reach: sure ? 3 : 0.35 + 1.2 * rnd() });
+                   life: sure ? 30 : 2.2 + rnd() * 1.6, reach: sure ? 2.2 + rnd() : 0.15 + 0.3 * rnd(), sure, ev });
       }
     });
   }
   // A quasiparticle in the lower-gap lead stays at the junction for a while and tunnels back and forth quickly: a
   // burst of parity switches. A thermal one (dark count) shows up in a lead, tunnels once and is gone.
+  // a captured quasiparticle keeps its dots (it has already slid into the lead); a thermal one appears in a lead
   function trap(q, dark) {
-    if (q) q.node.remove();
     const side = q ? q.side : (rnd() < 0.5 ? -1 : 1);
-    const tq = { side, u: 0, v: side * (g + 1 + rnd() * 2.5), vu: 0, vv: (rnd() - 0.5) * 8, t: 0, life: dark ? 0.7 : 1.4 + rnd() * 1.4, hop: null, lastHop: 0, dark,
-                 node: el("circle", { r: 0.75, class: "sq-qp" }, gInsQP), dot: el("circle", { r: 2, class: "sq-qp" }, gQP) };
+    const tq = { side, u: q ? q.x : 0, v: q ? q.y : side * (g + 1 + rnd() * 2.5), vu: 0, vv: 0, t: q ? 0.2 : 0, life: dark ? 0.7 : 1.7 + rnd() * 0.5, hop: null, lastHop: 0, dark,
+                 ev: q ? q.ev : null, node: q ? q.ins : el("circle", { r: 0.75, class: "sq-qp" }, gInsQP), dot: q ? q.node : el("circle", { r: 2, class: "sq-qp" }, gQP) };
     trapped.push(tq);
   }
   function tunnel(tq) {
-    tq.hop = { t: 0, from: tq.v, to: tq.side < 0 ? JJ.bridge + 0.8 + rnd() * 3 : JJ.bridge - 0.8 - rnd() * 4 }; parity = -parity; flips++;
+    tq.hop = { t: 0, from: tq.v, to: tq.side < 0 ? JJ.bridge + 0.8 + rnd() * 2.2 : JJ.bridge - 0.8 - rnd() * 3 }; parity = -parity; flips++;
+    flipTimes.push(tNow);
+    if (tq.ev) tq.ev.flips++;
     if (!tq.dark && fx.filter((f) => f.kind === "tun").length > 3) return;      // keep the flashes readable in a burst
     fx.push({ node: el("circle", { cx: 0, cy: JJ.bridge, r: 2, class: "sq-tunnel" }, gFx), t: 0, life: 0.4, grow: 7, kind: "tun" });
     fx.push({ node: el("circle", { cx: INS.x, cy: INS.y + JJ.bridge * INS.m, r: 3, class: "sq-tunnel" }, gIns), t: 0, life: 0.5, grow: 10 });
@@ -315,7 +354,7 @@
   function step(dt) {
     cycleT += dt;
     if (rnd() < DARK * dt) trap(null, true);
-    if (cycleT >= CYCLE) { cycleT -= CYCLE; ev = null; flips = 0; }
+    if (cycleT >= CYCLE) { cycleT -= CYCLE; if (ev && ev.flips) { bursts.push([ev.Eisl, ev.flips, ev.photon]); if (bursts.length > 40) bursts.shift(); } ev = null; flips = 0; }
     if (!ev && cycleT >= 0.3) newEvent();
     if (ev && !ev.broke && cycleT >= (ev.photon ? 1.15 : 1.35)) breakPairs();
     for (const r of rings) {
@@ -329,25 +368,37 @@
     // free quasiparticles diffuse through the island (sped up), drifting a little towards the junction
     for (const q of qps) {
       q.t += dt;
+      if (q.cap) {                       // sliding over the pad into the lead, then into the trap
+        q.cap.t += dt / 0.6; const k = Math.min(1, q.cap.t), e = k * k * (3 - 2 * k), u = 1 - e;
+        const ex = 0, ey = q.side * (g + 1.6), cx = 0, cy = q.side * (PAD_C + 1);
+        q.x = u * u * q.cap.x0 + 2 * u * e * cx + e * e * ex; q.y = u * u * q.cap.y0 + 2 * u * e * cy + e * e * ey;
+        q.node.setAttribute("cx", q.x); q.node.setAttribute("cy", q.y); q.ins.setAttribute("cx", q.x); q.ins.setAttribute("cy", q.y);
+        q.ins.style.opacity = 1; q.node.style.opacity = 1;
+        if (k >= 1) { q.done = true; trap(q); }
+        continue;
+      }
       const ax = -q.x * 1.2 * q.reach, ay = (q.side * PAD_C - q.y) * 0.9 * q.reach;
       q.vx += (ax + (rnd() - 0.5) * 900) * dt; q.vy += (ay + (rnd() - 0.5) * 900) * dt; q.vx *= 0.94; q.vy *= 0.94;
       let nx = q.x + q.vx * dt, ny = q.y + q.vy * dt;
       if (!inIsland(nx, ny, q.side)) { q.vx = -q.vx; q.vy = -q.vy; nx = q.x; ny = q.y; }
       q.x = nx; q.y = ny;
-      if (Math.hypot(q.x, q.y - q.side * PAD_C) < 13 && q.t > 0.4) { q.done = true; trap(q); continue; }
+      if (Math.hypot(q.x, q.y - q.side * PAD_C) < 16 && q.t > 0.4) {
+        q.cap = { t: 0, x0: q.x, y0: q.y }; q.life = Math.max(q.life, q.t + 2);
+        q.ins = el("circle", { r: 0.75, cx: q.x, cy: q.y, class: "sq-qp" }, gInsQP); continue;
+      }
       q.node.setAttribute("cx", q.x); q.node.setAttribute("cy", q.y);
       q.node.style.opacity = Math.min(1, q.t / 0.3) * Math.max(0, Math.min(1, (q.life - q.t) / 0.6));
     }
     qps = qps.filter((q) => {
       if (q.done) return false;
-      if (q.t > q.life) { q.node.remove(); fx.push({ node: el("circle", { cx: q.x, cy: q.y, r: 1.5, class: "sq-recomb" }, gFx), t: 0, life: 0.6, grow: 4 }); return false; }
+      if (q.t > q.life) { q.node.remove(); if (q.ins) q.ins.remove(); fx.push({ node: el("circle", { cx: q.x, cy: q.y, r: 1.5, class: "sq-recomb" }, gFx), t: 0, life: 0.6, grow: 4 }); return false; }
       return true;
     });
     // trapped ones jiggle in their lead and tunnel at a steady rate until they recombine
     for (const tq of trapped) {
       tq.t += dt;
       if (tq.hop) {
-        tq.hop.t += dt / 0.05; const k = Math.min(1, tq.hop.t); tq.v = tq.hop.from + (tq.hop.to - tq.hop.from) * k; tq.u = 0;
+        tq.hop.t += dt / 0.11; const k = Math.min(1, tq.hop.t), e = k * k * (3 - 2 * k); tq.v = tq.hop.from + (tq.hop.to - tq.hop.from) * e; tq.u *= 0.8;
         if (k >= 1) { tq.hop = null; tq.side = -tq.side; tq.lastHop = tq.t; }
       } else {
         tq.vu += (rnd() - 0.5) * 60 * dt; tq.vv += (rnd() - 0.5) * 120 * dt; tq.vu *= 0.9; tq.vv *= 0.9;
@@ -355,7 +406,7 @@
         const room = Math.abs(tq.v) > g ? JJ.padA * 0.8 : tq.side < 0 ? (tq.v < JJ.thickEnd ? JJ.thick / 2 : 0.05) : JJ.dropW / 2 * Math.min(1, (tq.v - JJ.dropTip) / (g - JJ.dropTip));
         tq.u = Math.max(-room, Math.min(room, tq.u + tq.vu * dt));
         if (tq.dark) { if (!tq.lastHop && tq.t > 0.25) tunnel(tq); }
-        else if (tq.t > 0.15 && tq.t - tq.lastHop > 0.07 && tq.t < tq.life - 0.15 && rnd() < 9 * dt) tunnel(tq);
+        else if (tq.t > 0.3 && tq.t - tq.lastHop > 0.06 && tq.t < tq.life - 0.15 && rnd() < 8 * dt) tunnel(tq);
       }
       const fade = Math.min(1, tq.t / 0.2) * Math.max(0, Math.min(1, (tq.life - tq.t) / 0.4));
       tq.node.setAttribute("cx", tq.u); tq.node.setAttribute("cy", tq.v); tq.node.style.opacity = fade;
@@ -365,17 +416,27 @@
     for (const p of pairs) if (p.broken && cycleT > p.mendAt) { p.broken = false; [p.x, p.y] = randomIn(p.side); p.a.style.opacity = ""; p.b.style.opacity = ""; }
   }
 
-  // ---------------------------------------------------------------- live parity trace
-  const SPAN = 14, trace = [], marks = [];
+  // ---------------------------------------------------------------- live plots
+  const SPAN = 14, BIN = 0.25, trace = [], marks = [], flipTimes = [], bursts = [];
   let tNow = 0;
-  function sample(dt) { tNow += dt; trace.push([tNow, parity + (rnd() - 0.5) * 0.1]); while (trace.length && trace[0][0] < tNow - SPAN) trace.shift(); while (marks.length && marks[0][0] < tNow - SPAN) marks.shift(); }
+  function sample(dt) {
+    tNow += dt; trace.push([tNow, parity + (rnd() - 0.5) * 0.1]);
+    while (trace.length && trace[0][0] < tNow - SPAN) trace.shift();
+    while (marks.length && marks[0][0] < tNow - SPAN) marks.shift();
+    while (flipTimes.length && flipTimes[0] < tNow - SPAN - 1) flipTimes.shift();
+  }
+  function canvasCtx(cv) {
+    const dpr = Math.min(2, devicePixelRatio || 1), w = cv.clientWidth, h = cv.clientHeight;
+    if (!w || !h) return null;
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    const c = cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
+    return { c, w, h };
+  }
+  const LEFT = 58;
   function drawTrace() {
-    const dpr = Math.min(2, devicePixelRatio || 1), w = traceCv.clientWidth, h = traceCv.clientHeight;
-    if (!w || !h) return;
-    if (traceCv.width !== Math.round(w * dpr) || traceCv.height !== Math.round(h * dpr)) { traceCv.width = Math.round(w * dpr); traceCv.height = Math.round(h * dpr); }
-    const c = traceCv.getContext("2d"), cs = getComputedStyle(fig), sans = cs.getPropertyValue("--sans");
-    c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, h);
-    const left = 54, right = w - 8, top = 22, yOf = (v) => top + (h - top) / 2 - v * (h - top) * 0.28;
+    const cc = canvasCtx(traceCv); if (!cc) return;
+    const { c, w, h } = cc, cs = getComputedStyle(fig), sans = cs.getPropertyValue("--sans");
+    const left = LEFT, right = w - 8, top = 18, yOf = (v) => top + (h - top) / 2 - v * (h - top) * 0.3;
     const xOf = (t) => right - ((tNow - t) / SPAN) * (right - left);
     c.font = `11px ${sans}`; c.textBaseline = "middle"; c.fillStyle = cs.getPropertyValue("--ink-faint");
     c.strokeStyle = cs.getPropertyValue("--rule"); c.setLineDash([3, 4]); c.lineWidth = 1;
@@ -384,15 +445,56 @@
     let freeRight = Infinity;                     // event markers, newest first; a label that would collide is left out
     for (let i = marks.length - 1; i >= 0; i--) {
       const [t, label] = marks[i], x = xOf(t);
-      c.strokeStyle = cs.getPropertyValue("--rule"); c.beginPath(); c.moveTo(x, top - 2); c.lineTo(x, h - 4); c.stroke();
+      c.strokeStyle = cs.getPropertyValue("--rule"); c.beginPath(); c.moveTo(x, top - 4); c.lineTo(x, h - 2); c.stroke();
       const tw = c.measureText(label).width, flip = x + 4 + tw > right, x0 = flip ? x - 4 - tw : x + 4;
       if (x0 + tw > freeRight - 6 || x0 < 4) continue;
-      c.fillStyle = cs.getPropertyValue("--ink-soft"); c.fillText(label, x0, 10); freeRight = x0;
+      c.fillStyle = cs.getPropertyValue("--ink-soft"); c.fillText(label, x0, 8); freeRight = x0;
     }
-    c.strokeStyle = cs.getPropertyValue("--gold"); c.lineWidth = 1.6; c.lineJoin = "round"; c.beginPath();
+    c.strokeStyle = cs.getPropertyValue("--gold"); c.lineWidth = 1.5; c.lineJoin = "round"; c.beginPath();
     trace.forEach(([t, v], i) => { const x = xOf(t); i ? c.lineTo(x, yOf(v)) : c.moveTo(x, yOf(v)); });
     c.stroke();
   }
+  // switches per second, in quarter-second bins, on the same time axis as the parity trace
+  let rateTop = 40;
+  function drawRate() {
+    const cc = canvasCtx(rateCv); if (!cc) return;
+    const { c, w, h } = cc, cs = getComputedStyle(fig), sans = cs.getPropertyValue("--sans");
+    const left = LEFT, right = w - 8, top = 6, bottom = h - 4, n = Math.round(SPAN / BIN), bins = new Array(n).fill(0);
+    const t0 = Math.floor((tNow - SPAN) / BIN) * BIN;
+    for (const t of flipTimes) { const i = Math.floor((t - t0) / BIN); if (i >= 0 && i < n) bins[i]++; }
+    const peak = Math.max(...bins) / BIN;
+    rateTop += (Math.max(20, Math.ceil(peak / 20) * 20) - rateTop) * 0.05;
+    const xOf = (t) => right - ((tNow - t) / SPAN) * (right - left), yOf = (r) => bottom - (r / rateTop) * (bottom - top);
+    c.font = `11px ${sans}`; c.textBaseline = "middle"; c.fillStyle = cs.getPropertyValue("--ink-faint");
+    c.fillText(Math.round(rateTop) + "/s", 6, yOf(rateTop) + 4); c.fillText("0", 6, bottom - 3);
+    c.strokeStyle = cs.getPropertyValue("--rule"); c.lineWidth = 1; c.beginPath(); c.moveTo(left, bottom + 0.5); c.lineTo(right, bottom + 0.5); c.stroke();
+    for (const [t] of marks) { const x = xOf(t); c.beginPath(); c.moveTo(x, top); c.lineTo(x, bottom); c.stroke(); }
+    c.fillStyle = cs.getPropertyValue("--accent");
+    bins.forEach((b, i) => { if (!b) return; const xa = Math.max(left, xOf(t0 + i * BIN)), xb = xOf(t0 + (i + 1) * BIN); if (xb <= left) return; const y = yOf(b / BIN); c.fillRect(xa + 0.5, y, Math.max(1, xb - xa - 1), bottom - y); });
+  }
+  // every finished burst: how many switches it had against the energy that reached the islands (log-log)
+  function drawScatter() {
+    const cc = canvasCtx(scatCv); if (!cc) return;
+    const { c, w, h } = cc, cs = getComputedStyle(fig), sans = cs.getPropertyValue("--sans");
+    const left = 34, right = w - 8, top = 8, bottom = h - 22;
+    const ex = [0.1, 30], ny = [3, 300], lx = (v) => left + (Math.log(v / ex[0]) / Math.log(ex[1] / ex[0])) * (right - left), ly = (v) => bottom - (Math.log(v / ny[0]) / Math.log(ny[1] / ny[0])) * (bottom - top);
+    c.font = `10.5px ${sans}`; c.fillStyle = cs.getPropertyValue("--ink-faint"); c.strokeStyle = cs.getPropertyValue("--rule"); c.lineWidth = 1;
+    c.beginPath(); c.moveTo(left, top); c.lineTo(left, bottom); c.lineTo(right, bottom); c.stroke();
+    c.textAlign = "center"; c.textBaseline = "top";
+    for (const v of [0.1, 1, 10]) { const x = lx(v); c.fillText(v + "", x, bottom + 3); c.beginPath(); c.moveTo(x, bottom); c.lineTo(x, bottom + 3); c.stroke(); }
+    c.fillText("energy in islands (meV)", (left + right) / 2, bottom + 11);
+    c.textAlign = "right"; c.textBaseline = "middle";
+    for (const v of [10, 100]) { const y = ly(v); c.fillText(v + "", left - 4, y); c.beginPath(); c.moveTo(left - 3, y); c.lineTo(left, y); c.stroke(); }
+    // the proportional guide: about 28 switches per meV
+    c.setLineDash([3, 4]); c.beginPath(); c.moveTo(lx(ex[0]), ly(Math.max(ny[0], 28 * ex[0]))); c.lineTo(lx(ny[1] / 28), ly(ny[1])); c.stroke(); c.setLineDash([]);
+    bursts.forEach(([e, n, photon], i) => {
+      const a = 0.35 + 0.65 * (i + 1) / bursts.length;
+      c.globalAlpha = a; c.fillStyle = photon ? cs.getPropertyValue("--accent") : cs.getPropertyValue("--gold");
+      c.beginPath(); c.arc(lx(Math.max(ex[0], Math.min(ex[1], e))), ly(Math.max(ny[0], Math.min(ny[1], n))), 3.2, 0, TAU); c.fill();
+    });
+    c.globalAlpha = 1; c.textAlign = "left";
+  }
+  const drawPlots = () => { drawTrace(); drawRate(); drawScatter(); };
 
   // ---------------------------------------------------------------- run, always (only idling while off-screen)
   let visible = true, last = 0, raf = 0, pairScale = 1;
@@ -401,7 +503,7 @@
     const real = Math.min(0.5, (t - last) / 1000 || 0.016), dt = Math.min(0.05, real); last = t;
     if (anim) { anim.t += real / anim.dur; anim.step(Math.min(1, anim.t)); if (anim.t >= 1) anim = null; }
     viewUi();
-    step(dt); sample(dt); drawTrace();
+    step(dt); sample(dt); drawPlots();
     pairs.forEach((p) => placePair(p, t / 1000));
     pairScale += ((lifted ? 1.07 : 1) - pairScale) * Math.min(1, real * 12);
     const sc = Math.abs(pairScale - 1) < 1e-4 ? "" : `scale(${pairScale.toFixed(4)})`;
@@ -411,10 +513,12 @@
   const kick = () => { if (!raf && visible && !document.hidden) { last = performance.now(); raf = requestAnimationFrame(frame); } };
   if ("IntersectionObserver" in window) new IntersectionObserver((ents) => { visible = ents[0].isIntersecting; kick(); }).observe(fig);
   document.addEventListener("visibilitychange", kick);
-  addEventListener("resize", drawTrace);
+  addEventListener("resize", drawPlots);
 
   focusOn(1); setView(VIEW_SQUAT(1)); describe(null);
   for (let i = 0; i < 2; i++) sample(SPAN / 2);
   pairs.forEach((p) => placePair(p, 0));
-  viewUi(); drawTrace(); kick();
+  // a few earlier bursts, so the energy plot is not empty at first
+  for (let i = 0; i < 6; i++) { const e = Math.exp(Math.log(0.3) + rnd() * Math.log(40)), n = Math.max(1, Math.min(9, Math.round(e / 0.45))); bursts.push([e, Math.max(4, Math.round(n * (13 + rnd() * 6))), rnd() < 0.4]); }
+  viewUi(); drawPlots(); kick();
 })();

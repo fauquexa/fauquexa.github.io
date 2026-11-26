@@ -140,7 +140,7 @@ h3 { font-family: var(--serif); font-weight: 600; font-size: 19px; line-height: 
 .sq-sub > :not([fill]), .sq-subf { fill: var(--fig-sub); transition: fill .15s; }
 .sq-lead { fill: var(--fig-lead); }
 .sq-padj { fill: var(--fig-lead); stroke: var(--fig-sub); stroke-width: .4; }
-.sq-pads.hl .sq-padj { fill: var(--fig-lead-hi); }
+.sq-jj.hl .sq-padj { fill: var(--fig-lead-hi); }
 .sq-barrier { fill: var(--gold); }
 .sq-metal.hl > :not([fill]), .sq-part.hl .sq-metalf { fill: var(--fig-metal-hi); }
 .sq-sub.hl > :not([fill]), .sq-part.hl .sq-subf { fill: var(--fig-sub-hi); }
@@ -148,9 +148,14 @@ h3 { font-family: var(--serif); font-weight: 600; font-size: 19px; line-height: 
 .pop { transform-box: fill-box; transform-origin: center; transition: transform .2s ease, filter .2s ease; }
 .pop.hl, .pop.lift { transform: scale(1.07); filter: drop-shadow(0 3px 5px rgba(0, 0, 0, .45)); }
 .sq-holes.pop { filter: none !important; }
-.sq-jj.pop.hl { transform: scale(1.6); }
-.sq-pads.pop.hl { transform: scale(1.3); }
-.sq-over line { stroke: var(--fig-sub); stroke-width: 1.3; vector-effect: non-scaling-stroke; }
+.sq-jj.pop.hl { transform: scale(2.2); }
+.sq-over line { stroke: var(--fig-sub); stroke-width: 1.3; vector-effect: non-scaling-stroke; transition: stroke .15s, stroke-width .15s; }
+.sq-over line.hot { stroke: var(--gold); stroke-width: 3.2; }
+.sq-chipring { fill: none; stroke: var(--gold); stroke-width: 1.6; vector-effect: non-scaling-stroke; opacity: 0; transition: opacity .2s; }
+.sq-chipring.hot { opacity: 1; }
+/* zoomed out: wide invisible targets for the feedline, the charge lines and the SQUATs */
+.sq-chiphit line { stroke: transparent; stroke-width: 18px; vector-effect: non-scaling-stroke; pointer-events: stroke; cursor: help; }
+.sq-chiphit circle { fill: transparent; pointer-events: all; cursor: zoom-in; }
 .sq-pairs circle { fill: var(--fig-sub); opacity: .3; }
 .sq-qp { fill: var(--gold); stroke: var(--fig-sub); stroke-width: .5; }
 .sq-ring { fill: none; stroke: var(--gold); stroke-width: 1.2; }
@@ -172,11 +177,18 @@ h3 { font-family: var(--serif); font-weight: 600; font-size: 19px; line-height: 
 .sq-hint { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); margin: 0; white-space: nowrap; font-family: var(--sans); font-size: 12px; color: var(--fig-metal); background: var(--fig-sub); padding: 3px 10px; border-radius: 99px; pointer-events: none; }
 .sq-panel { border: 1px solid var(--rule); border-radius: 6px; background: var(--tile); padding: 10px 12px; font-family: var(--sans); }
 .sq-head { font-size: 12.5px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
-.sq-tracebox { width: 73%; margin: 12px auto 0; }
-.sq-trace { height: 120px; }
-.sq-trace canvas { display: block; width: 100%; height: 100%; }
+.sq-tracebox { margin: 12px 0 0; display: grid; grid-template-columns: minmax(0, 1fr) 230px; gap: 4px 16px; }
+.sq-tracebox .sq-traces { min-width: 0; }
+.sq-trace { height: 78px; }
+.sq-rate { height: 58px; }
+.sq-scatter { height: 150px; }
+.sq-trace canvas, .sq-rate canvas, .sq-scatter canvas { display: block; width: 100%; height: 100%; }
+.sq-head + .sq-trace, .sq-head + .sq-rate { margin-bottom: 6px; }
+.sq-key { font-size: 11.5px; color: var(--ink-faint); margin: -2px 0 2px; }
+.sq-key i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin: 0 4px 0 0; vertical-align: 0; }
+.sq-key i + i, .sq-key i:not(:first-child) { margin-left: 10px; }
 .squat figcaption { font-family: var(--sans); font-size: 14px; line-height: 1.55; color: var(--ink-soft); margin-top: 10px; max-width: 70ch; }
-@media (max-width: 860px) { .sq-stage, .sq-tracebox { width: 100%; } }
+@media (max-width: 860px) { .sq-stage { width: 100%; } .sq-tracebox { grid-template-columns: 1fr; } .sq-scatter { height: 140px; } }
 /* the description box that follows the cursor over the SQUAT */
 .sq-tip { position: fixed; left: 0; top: 0; z-index: 60; max-width: 300px; pointer-events: none; opacity: 0; transition: opacity .12s;
   background: var(--tile); border: 1px solid var(--rule); border-radius: 6px; padding: 8px 11px; box-shadow: 0 6px 20px rgba(0, 0, 0, .35); font-family: var(--sans); }
@@ -301,3 +313,6 @@ footer { font-size: 14px; color: var(--ink-faint); border-top: 1px solid var(--r
   .pets span { font-size: 15px; padding-bottom: 10px; }
   .lead { font-size: 21px; }
 }
+/* a quiet "read more" link after a paragraph */
+a.more { font-family: var(--sans); font-size: .82em; font-weight: 500; white-space: nowrap; text-decoration: none; border-bottom: 1px solid var(--accent-line); }
+a.more:hover { border-bottom-color: var(--accent); }
