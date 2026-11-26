@@ -59,6 +59,12 @@
   #raceBoard h3 { font: 600 13px "Public Sans", Arial, sans-serif; margin: 14px auto 4px; max-width: 280px; text-align: left; }
   #raceBoard .hint { margin: 4px 0 0; }
   .panel .row + .row { margin-top: 6px; }
+  /* cinema mode: no UI at all, only a small exit button that shows up on a tap or mouse move */
+  body.cinema .panel, body.cinema #openPanel, body.cinema #hud, body.cinema #chat, body.cinema .tc, body.cinema .race-card { display: none !important; }
+  body.cinema #gl { cursor: none; }
+  #cinemaExit { left: auto; right: 12px; opacity: 0; transition: opacity .4s; }
+  #cinemaExit.show { opacity: 1; }
+  #fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 11; }
   /* the music speaker (from ambient.js) sits top right here: the speedometer has the lower right */
   #musicCtl { top: max(14px, env(safe-area-inset-top)); bottom: auto !important; right: max(14px, env(safe-area-inset-right)); flex-direction: column !important; }
   /* chat: recent messages above the minimap (top left on touch screens), a field to type in */
@@ -83,6 +89,8 @@
 <canvas id="hud"></canvas>
 
 <button class="fab" id="openPanel" hidden>☰ Menu</button>
+<button class="fab" id="cinemaExit" hidden>✕ Exit cinema</button>
+<div id="fade"></div>
 <div class="tc left"><button id="tLeft" aria-label="Steer left">◀</button><button id="tRight" aria-label="Steer right">▶</button></div>
 <div class="tc right"><button id="tHb" aria-label="Handbrake">DRIFT</button><button id="tBrake" aria-label="Brake and reverse">▼</button><button id="tGas" aria-label="Accelerate">▲</button></div>
 
@@ -120,6 +128,7 @@
     <button id="camBtn">chase</button>
     <button id="resetBtn">back to the road</button>
   </div>
+  <div class="row"><button id="cinemaBtn" title="The car drives itself; V or Esc to leave">cinema mode</button></div>
 
   <label>online</label>
   <input type="text" id="nameIn" maxlength="20" autocomplete="off" spellcheck="false" aria-label="Your name, shown above your car" placeholder="Your name">
@@ -314,25 +323,53 @@ function segsIn(x0, z0, x1, z1, m) {
 // distance from (x, z) to the nearest road edge (negative = on the road), that road's direction, and the
 // nearest point on its centre line (px, pz), whose height is the height of the road deck across its width
 function roadDist(segs, x, z) {
-  let best = 1e9, dirx = 0, dirz = 1, px = x, pz = z, low = 1e9;
+  let best = 1e9, dirx = 0, dirz = 1, px = x, pz = z;
   for (let s = 0; s < segs.length; s += 5) {
     const ax = segs[s], az = segs[s + 1], bx = segs[s + 2], bz = segs[s + 3];
     const vx = bx - ax, vz = bz - az, l2 = vx * vx + vz * vz;
     const t = l2 > 0 ? clamp(((x - ax) * vx + (z - az) * vz) / l2, 0, 1) : 0;
     const d = Math.hypot(x - ax - vx * t, z - az - vz * t) - segs[s + 4];
     if (d < best) { best = d; dirx = vx; dirz = vz; px = ax + vx * t; pz = az + vz * t; }
-    if (d < 2) low = Math.min(low, roadSurf(ax + vx * t, az + vz * t));   // at a junction: the lowest deck nearby
   }
-  return { d: best, dirx, dirz, px, pz, low };
+  return { d: best, dirx, dirz, px, pz };
 }
 // ground height: the landscape, cut and filled around each road. The road deck is level across its width at
 // its centre-line height, so the ground under it and just beside it takes that height (15 cm below the deck),
 // then blends back into the hillside over the next twenty metres, like a cutting or an embankment. Following
 // the hillside right up to the road instead let the uphill side poke up through the road on side slopes.
 const ROAD_STEP = 0.15;
+// Crossroads: away from them a road is level across its width at its centre-line height, but two roads that
+// cross would then meet as two differently tilted planes, one clipping through the other. So, as on real
+// roads, a junction sits on a level patch at the height of its centre, and every road joining it eases from
+// its own slope onto that patch over the last ~30 m. Only real junctions count: a road just running straight
+// through a lattice point does not need one.
+const jlikeCache = new Map();
+function jlike(i, j) {   // a road along the row and one along the column both touch (i, j): a cross, T or corner
+  const key = i + "," + j; let v = jlikeCache.get(key);
+  if (v === undefined) {
+    v = !!((getEdge(i, j, 0) || getEdge(i - 1, j, 0)) && (getEdge(i, j, 1) || getEdge(i, j - 1, 1)));
+    jlikeCache.set(key, v); if (jlikeCache.size > 20000) jlikeCache.clear();
+  }
+  return v;
+}
+const J_IN = 9, J_OUT = 38, J_LAND = 70;
+// the deck height at (x, z) on a road whose centre line is nearest at (px, pz)
+function deckAt(x, z, px, pz) {
+  const c = roadSurf(px, pz), i = Math.round(x / S), j = Math.round(z / S), n = node(i, j), r = Math.hypot(x - n[0], z - n[1]);
+  return r >= J_OUT || !jlike(i, j) ? c : lerp(c, roadSurf(n[0], n[1]), smooth(J_OUT, J_IN, r));
+}
+// the same for the land beside a junction: in the wedge between two roads the nearest road switches from one
+// to the other, and the ground must not jump there, so off the tarmac it leans on the junction's patch too
+// (easing in over the first few metres from the road edge, out to ~65 m from the junction)
+function groundDeck(x, z, px, pz, d) {
+  const c = roadSurf(px, pz), i = Math.round(x / S), j = Math.round(z / S), n = node(i, j), r = Math.hypot(x - n[0], z - n[1]);
+  if (r >= J_LAND || !jlike(i, j)) return c;
+  const wj = r >= J_OUT ? 0 : smooth(J_OUT, J_IN, r), wg = smooth(J_LAND, 50, r) * smooth(0, 6, d), w = 1 - (1 - wj) * (1 - wg);
+  return lerp(c, roadSurf(n[0], n[1]), w);
+}
 function groundAt(segs, x, z) {
   const r = roadDist(segs, x, z), t = smooth(1.8, 24, r.d);
-  return { h: lerp(Math.min(roadSurf(r.px, r.pz), r.low) - ROAD_STEP, rawH(x, z), t), d: r.d, px: r.px, pz: r.pz, t };
+  return { h: lerp(groundDeck(x, z, r.px, r.pz, r.d) - ROAD_STEP, rawH(x, z), t), d: r.d, px: r.px, pz: r.pz, t };
 }
 
 // ===================================================================
@@ -718,14 +755,16 @@ function buildRoad(e) {
   for (let k = 0; k < n; k++) {
     const a = e.pts[Math.max(0, k - 1)], b = e.pts[Math.min(n - 1, k + 1)], p = e.pts[k];
     let tx = b[0] - a[0], tz = b[1] - a[1]; const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
-    const nx = -tz, nz = tx, y = roadSurf(p[0], p[1]);
-    L.push([p[0] + nx * e.hw, y, p[1] + nz * e.hw, nx, nz]); Rr.push([p[0] - nx * e.hw, y, p[1] - nz * e.hw, nx, nz]);
+    const nx = -tz, nz = tx, lx = p[0] + nx * e.hw, lz = p[1] + nz * e.hw, rx = p[0] - nx * e.hw, rz = p[1] - nz * e.hw;
+    L.push([lx, deckAt(lx, lz, p[0], p[1]), lz, nx, nz]); Rr.push([rx, deckAt(rx, rz, p[0], p[1]), rz, nx, nz]);
   }
   const quadC = (A, B, C2, D, c) => { pos.push(...A, ...C2, ...B, ...B, ...C2, ...D); for (let i = 0; i < 6; i++) col.push(c.r, c.g, c.b); };
+  const j0 = jlike(e.ends[0][0], e.ends[0][1]), j1 = jlike(e.ends[1][0], e.ends[1][1]), mouth = J_IN + 1;
   for (let k = 0; k < n - 1; k++) {
     const t = 1 + (hash(e.i * 31 + k, e.j, 60 + e.dir) - 0.5) * 0.035, c = _col.copy(base).multiplyScalar(t);
     quadC(L[k].slice(0, 3), Rr[k].slice(0, 3), L[k + 1].slice(0, 3), Rr[k + 1].slice(0, 3), c);
-    // a low pale kerb on both sides
+    // a low pale kerb on both sides (left open where another road joins)
+    if ((j0 && e.cum[k] < mouth) || (j1 && e.cum[k + 1] > e.len - mouth)) continue;
     for (const [S0, S1, sgn] of [[L[k], L[k + 1], 1], [Rr[k], Rr[k + 1], -1]]) {
       const o = 0.3 * sgn, out0 = [S0[0] + S0[3] * o, S0[1] - 0.02, S0[2] + S0[4] * o], in0 = [S0[0], S0[1] + 0.02, S0[2]];
       const out1 = [S1[0] + S1[3] * o, S1[1] - 0.02, S1[2] + S1[4] * o], in1 = [S1[0], S1[1] + 0.02, S1[2]];
@@ -735,13 +774,13 @@ function buildRoad(e) {
   // painted lines: a dashed centre line, and edge lines on the main roads
   const quad = (ax, az, bx, bz, off, w) => {
     const tx = bx - ax, tz = bz - az, tl = Math.hypot(tx, tz) || 1, nx = -tz / tl, nz = tx / tl;
-    const ya = roadSurf(ax, az) + 0.02, yb = roadSurf(bx, bz) + 0.02;
-    const p = [[ax + nx * (off + w), ya, az + nz * (off + w)], [ax + nx * (off - w), ya, az + nz * (off - w)], [bx + nx * (off + w), yb, bz + nz * (off + w)], [bx + nx * (off - w), yb, bz + nz * (off - w)]];
+    const P = (cx, cz, o) => { const x = cx + nx * o, z = cz + nz * o; return [x, deckAt(x, z, cx, cz) + 0.02, z]; };
+    const p = [P(ax, az, off + w), P(ax, az, off - w), P(bx, bz, off + w), P(bx, bz, off - w)];
     paint.push(...p[0], ...p[2], ...p[1], ...p[1], ...p[2], ...p[3]);
   };
   for (let k = 0; k < n - 1; k++) {
     const a = e.pts[k], b = e.pts[k + 1], s0 = e.cum[k];
-    if (s0 < 9 || e.cum[k + 1] > e.len - 9) continue;   // keep junctions clean
+    if ((j0 && s0 < 11) || (j1 && e.cum[k + 1] > e.len - 11)) continue;   // keep junctions clean
     if (s0 % 12 < 5) quad(a[0], a[1], b[0], b[1], 0, 0.13);
     if (e.main) { quad(a[0], a[1], b[0], b[1], e.hw - 0.5, 0.1); quad(a[0], a[1], b[0], b[1], -(e.hw - 0.5), 0.1); }
   }
@@ -750,11 +789,17 @@ function buildRoad(e) {
   scene.add(g); return g;
 }
 function buildJunction(i, j) {
-  const [x, z] = node(i, j), r = 6.6, n = 16, y = roadSurf(x, z) + 0.005, pos = [], col = [], c = new THREE.Color(COL.mainRoad);
+  if (!jlike(i, j)) return null;
+  const main = [getEdge(i, j, 0), getEdge(i - 1, j, 0), getEdge(i, j, 1), getEdge(i, j - 1, 1)].some((e) => e && e.main);
+  const [x, z] = node(i, j), r = main ? 8.2 : 6.6, n = 20, rings = 3, pos = [], col = [], c = new THREE.Color(COL.mainRoad);
+  const y = roadSurf(x, z) + 0.012, P = (a, rr) => [x + Math.cos(a) * rr, y, z + Math.sin(a) * rr];
   for (let k = 0; k < n; k++) {
     const a0 = (k / n) * Math.PI * 2, a1 = ((k + 1) / n) * Math.PI * 2;
-    pos.push(x, y, z, x + Math.cos(a1) * r, y, z + Math.sin(a1) * r, x + Math.cos(a0) * r, y, z + Math.sin(a0) * r);
-    for (let q = 0; q < 3; q++) col.push(c.r, c.g, c.b);
+    for (let q = 0; q < rings; q++) {
+      const r0 = (q / rings) * r, r1 = ((q + 1) / rings) * r;
+      if (q === 0) { pos.push(...P(0, 0), ...P(a1, r1), ...P(a0, r1)); for (let t = 0; t < 3; t++) col.push(c.r, c.g, c.b); }
+      else { pos.push(...P(a0, r0), ...P(a1, r1), ...P(a0, r1), ...P(a0, r0), ...P(a1, r0), ...P(a1, r1)); for (let t = 0; t < 6; t++) col.push(c.r, c.g, c.b); }
+    }
   }
   const m = meshOf({ p: pos, c: col }, ROAD, false); scene.add(m); return m;
 }
@@ -778,14 +823,14 @@ function stream(px, pz, all) {
       for (const [i, j] of e.ends) { const k = i + "," + j; keepJ.add(k); if (!junctions.has(k)) junctions.set(k, buildJunction(i, j)); }
     }
     for (const [k, r] of roadMeshes) if (!keep.has(k)) { scene.remove(r.mesh); r.mesh.traverse((o) => o.geometry && o.geometry.dispose()); roadMeshes.delete(k); }
-    for (const [k, m] of junctions) if (!keepJ.has(k)) { scene.remove(m); m.geometry.dispose(); junctions.delete(k); }
+    for (const [k, m] of junctions) if (!keepJ.has(k)) { if (m) { scene.remove(m); m.geometry.dispose(); } junctions.delete(k); }
   }
 }
 function clearWorld() {
   for (const [, c] of chunks) disposeChunk(c); chunks.clear();
   for (const [, r] of roadMeshes) { scene.remove(r.mesh); r.mesh.traverse((o) => o.geometry && o.geometry.dispose()); } roadMeshes.clear();
-  for (const [, m] of junctions) { scene.remove(m); m.geometry.dispose(); } junctions.clear();
-  edgeCache.clear(); segCache.clear(); streamAt = null;
+  for (const [, m] of junctions) if (m) { scene.remove(m); m.geometry.dispose(); } junctions.clear();
+  edgeCache.clear(); segCache.clear(); jlikeCache.clear(); streamAt = null;
 }
 // road segments around any point (for the car), cached per chunk cell
 const segCache = new Map();
@@ -1061,8 +1106,8 @@ function heightAt(x, z) {
   const segs = segsNear(x, z), g = groundAt(segs, x, z);
   // what the tyres feel: flush with the deck at the road edge (the drawn verge sits 15 cm lower so the
   // hillside never pokes up through the tarmac), easing into the landscape with the cutting or embankment
-  const deck = roadSurf(g.px, g.pz);
-  return { h: g.d <= 0 ? deck : g.t >= 1 ? g.h : lerp(deck, rawH(x, z), g.t), d: g.d };
+  if (g.d <= 0) return { h: deckAt(x, z, g.px, g.pz), d: g.d };
+  return { h: g.t >= 1 ? g.h : lerp(groundDeck(x, z, g.px, g.pz, g.d), rawH(x, z), g.t), d: g.d };
 }
 
 // arcade physics: engine and brakes along the car, grip across it, the steering sets the yaw rate
@@ -1270,6 +1315,8 @@ addEventListener("keydown", (e) => {
   const k = e.key.toLowerCase();
   if ((k === "enter" || k === "t") && !chatBox.hidden && !e.repeat) { e.preventDefault(); keys.clear(); chatIn.focus(); return; }
   if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) e.preventDefault();
+  if (k === "v" && !e.repeat) { setCinema(!cinema.on); return; }
+  if (cinema.on) { if (k === "escape") setCinema(false); else showCinemaExit(2); return; }
   if (e.repeat) { keys.add(k); return; }
   keys.add(k);
   if (k === "c") cycleView();
@@ -1884,19 +1931,193 @@ document.getElementById("raceJoin").onclick = () => joinRace();
 document.getElementById("raceDecline").onclick = () => { raceInvite.hidden = true; };
 
 // ===================================================================
+//  cinema mode: the car drives itself along the roads (right-hand lane, mostly straight on at junctions,
+//  slowing for bends) while the camera cuts between film shots: roadside telephoto, helicopter, tracking
+//  shots from the front and the side, low behind the wheels, the chase view and the driver's seat.
+//  No UI; V or Esc (or the exit button) to leave.
+// ===================================================================
+const cinema = { on: false, path: [], walk: null, shot: null, last: "", fade: 0, fading: 0, exitT: 0, panelWas: true, viewWas: 0, hs: 0, stuck: 0 };
+const cinemaExitBtn = document.getElementById("cinemaExit"), fadeEl = document.getElementById("fade");
+const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+function showCinemaExit(sec) { if (!cinema.on) return; cinemaExitBtn.hidden = false; cinemaExitBtn.classList.add("show"); cinema.exitT = sec; }
+function cineLane(e, s) {   // the right-hand lane of road e, driven in direction s
+  const pts = s > 0 ? e.pts : e.pts.slice().reverse(), off = e.hw * 0.45, out = [];
+  for (let k = 0; k < pts.length; k++) {
+    const a = pts[Math.max(0, k - 1)], b = pts[Math.min(pts.length - 1, k + 1)], h = Math.atan2(b[0] - a[0], b[1] - a[1]);
+    out.push([pts[k][0] - Math.cos(h) * off, pts[k][1] + Math.sin(h) * off]);   // (-cos h, sin h) is to the right
+  }
+  return out;
+}
+function cineExtend() {   // keep ~600 m of road ahead; at each junction mostly straight on, sometimes a turn
+  const w = cinema.walk;
+  for (let guard = 0; cinema.path.length < 130 && guard < 10; guard++) {
+    const straight = edgeFrom(w.i, w.j, w.d, w.s), turns = [[1 - w.d, 1], [1 - w.d, -1]].filter(([dd, ss]) => edgeFrom(w.i, w.j, dd, ss));
+    let turned = false;
+    if (turns.length && (!straight || Math.random() < 0.3)) { [w.d, w.s] = turns[Math.floor(Math.random() * turns.length)]; turned = true; }
+    else if (!straight) w.s = -w.s;
+    const e = edgeFrom(w.i, w.j, w.d, w.s); if (!e) break;
+    const lane = cineLane(e, w.s), P = cinema.path;
+    if (turned && P.length > 6) {
+      // round the corner: cut back both lanes near the junction and join them with a curve through the corner
+      const A0 = P[P.length - 1], B0 = lane[0], C = [(A0[0] + B0[0]) / 2, (A0[1] + B0[1]) / 2], R = 11;
+      while (P.length > 3 && Math.hypot(P[P.length - 1][0] - C[0], P[P.length - 1][1] - C[1]) < R) P.pop();
+      let k = 0; while (k < lane.length - 2 && Math.hypot(lane[k][0] - C[0], lane[k][1] - C[1]) < R) k++;
+      const A = P[P.length - 1], B = lane[k];
+      for (let q = 1; q < 8; q++) { const t = q / 8, u = 1 - t; P.push([u * u * A[0] + 2 * u * t * C[0] + t * t * B[0], u * u * A[1] + 2 * u * t * C[1] + t * t * B[1]]); }
+      P.push(...lane.slice(k));
+    } else P.push(...lane.slice(1));
+    w.i += w.d === 0 ? w.s : 0; w.j += w.d === 1 ? w.s : 0;
+  }
+}
+function cineStart() {   // onto the nearest road, in its right-hand lane, going the way the car faces
+  let best = null;
+  for (const R of [400, 1500, 5000]) {
+    for (const e of edgesIn(car.x - R, car.z - R, car.x + R, car.z + R, 0)) for (let k = 0; k < e.pts.length - 1; k++) {
+      const p = e.pts[k], d = Math.hypot(p[0] - car.x, p[1] - car.z);
+      if (!best || d < best.d) best = { d, e, k };
+    }
+    if (best) break;
+  }
+  if (!best) return false;
+  const e = best.e, p = e.pts[best.k], q = e.pts[best.k + 1], s = Math.cos(Math.atan2(q[0] - p[0], q[1] - p[1]) - car.heading) >= 0 ? 1 : -1;
+  cinema.path = cineLane(e, s).slice(s > 0 ? best.k : e.pts.length - 1 - best.k);
+  const end = s > 0 ? e.ends[1] : e.ends[0];
+  cinema.walk = { i: end[0], j: end[1], d: e.dir, s };
+  cineExtend();
+  const a = cinema.path[0], b = cinema.path[1];
+  const keep = Math.min(Math.abs(car.speed), 20);
+  car.x = a[0]; car.z = a[1]; car.heading = Math.atan2(b[0] - a[0], b[1] - a[1]);
+  car.vx = Math.sin(car.heading) * keep; car.vz = Math.cos(car.heading) * keep; car.speed = keep;
+  car.yaw = 0; car.steer = 0; car.air = false; car.vy = 0; car.susp = null; car.y = heightAt(car.x, car.z).h;
+  cinema.hs = car.heading; cinema.stuck = 0;
+  stream(car.x, car.z, true);
+  return true;
+}
+function cinePilot(dt) {
+  const P = cinema.path;
+  while (P.length > 2 && (car.x - P[1][0]) * (P[1][0] - P[0][0]) + (car.z - P[1][1]) * (P[1][1] - P[0][1]) > 0) P.shift();
+  if (P.length < 90) cineExtend();
+  // knocked off the road (a house, a tree) or stuck: start again on the road, behind a quick fade
+  const off = Math.hypot(car.x - P[0][0], car.z - P[0][1]);
+  cinema.stuck = Math.abs(car.speed) < 1.5 ? cinema.stuck + dt : 0;
+  if ((off > 14 || cinema.stuck > 3) && !cinema.fading) { cinema.fading = 1; cinema.restart = true; }
+  // pure pursuit: the arc through a point a little way down the lane gives the turn rate wanted, and the
+  // steering is set to ask the car for exactly that (so it holds the lane through long bends)
+  const sp = Math.abs(car.speed), look = 6 + sp * 0.4;
+  let k = 0;
+  while (k < P.length - 1 && Math.hypot(P[k][0] - car.x, P[k][1] - car.z) < look) k++;
+  const tx = P[k][0] - car.x, tz = P[k][1] - car.z, Ld = Math.max(3, Math.hypot(tx, tz));
+  const err = wrapA(Math.atan2(tx, tz) - car.heading), KD = KIND[car.kind];
+  const grip = KD.grip * (car.onRoad ? 1 : KD.gripOff) * Math.max(0.15, Math.min(1.2, car.load));
+  const maxYaw = Math.min(KD.yawCap, sp / KD.yawLow, grip / Math.max(sp, 1));
+  input.steer = sp < 0.5 ? clamp(err * 2, -1, 1) : clamp((2 * sp * Math.sin(err) / Ld) / Math.max(1e-3, maxYaw), -1, 1);
+  // speed: the road's bends ahead set how fast we may go now (sideways 4.5 m/s^2, braking 4 m/s^2)
+  const K = car.kind === "gt" ? { cruise: 29, lat: 4.5 } : { cruise: 23, lat: 3.4 };
+  let vT = K.cruise, dist = 0;
+  const reach = 30 + (sp * sp) / 8;
+  for (let q = 0; q + 4 < P.length && dist < reach; q += 2) {
+    const a = P[q], b = P[q + 2], c = P[q + 4];
+    const l1 = Math.hypot(b[0] - a[0], b[1] - a[1]), l2 = Math.hypot(c[0] - b[0], c[1] - b[1]);
+    const turn = Math.abs(wrapA(Math.atan2(c[0] - b[0], c[1] - b[1]) - Math.atan2(b[0] - a[0], b[1] - a[1])));
+    const kap = turn / Math.max(1, (l1 + l2) / 2), vb = kap > 1e-4 ? Math.sqrt(K.lat / kap) : 99;
+    vT = Math.min(vT, Math.sqrt(vb * vb + 2 * 4 * dist));
+    dist += l1;
+  }
+  const dv = vT - car.speed;
+  input.thr = clamp(dv * 0.35, 0, 1); input.brk = dv < -1.5 ? 1 : 0; input.hb = false;
+}
+// the shots
+const SHOTS = ["roadside", "heli", "front", "side", "low", "chase", "driver", "roadside"];
+function nextShot() {
+  let kind; do kind = SHOTS[Math.floor(Math.random() * SHOTS.length)]; while (kind === cinema.last);
+  cinema.last = kind;
+  const sh = { kind, t: 0, dur: 7 + Math.random() * 5, side: Math.random() < 0.5 ? -1 : 1, a0: Math.random() * 6.28, fov: 45 };
+  if (kind === "roadside") {   // a fixed camera beside the road ahead, on a long lens, that the car drives past
+    const P = cinema.path, want = clamp(Math.abs(car.speed) * 4.5, 60, 170);
+    let acc = 0, k = 0;
+    while (k < P.length - 2 && acc < want) { acc += Math.hypot(P[k + 1][0] - P[k][0], P[k + 1][1] - P[k][1]); k++; }
+    const a = P[k], b = P[Math.min(P.length - 1, k + 1)], h = Math.atan2(b[0] - a[0], b[1] - a[1]), o = (9 + Math.random() * 8) * sh.side;
+    const x = a[0] - Math.cos(h) * o, z = a[1] + Math.sin(h) * o;
+    sh.pos = new THREE.Vector3(x, Math.max(heightAt(x, z).h, roadSurf(a[0], a[1])) + 2 + Math.random() * 3, z);
+    sh.dir = [Math.sin(h), Math.cos(h)]; sh.fov = 28 + Math.random() * 10; sh.dur = 14;
+  }
+  if (kind === "heli") sh.fov = 40;
+  if (kind === "front" || kind === "side") sh.fov = 42;
+  if (kind === "low") sh.fov = 52;
+  sh.view = kind === "driver" ? 1 : 0;
+  if (view !== sh.view) { view = sh.view; applyView(); updateCarMesh(0); }
+  cinema.shot = sh;
+  if (kind === "chase" || kind === "driver") placeCamera(0, true);
+}
+function cineCamera(dt) {
+  const sh = cinema.shot;
+  cinema.hs += wrapA(car.heading - cinema.hs) * Math.min(1, dt * 2.5);
+  // fades between shots
+  if (cinema.fading === 1) {
+    cinema.fade = Math.min(1, cinema.fade + dt / 0.35);
+    if (cinema.fade >= 1) { if (cinema.restart) { cinema.restart = false; cineStart(); } nextShot(); cinema.fading = -1; }
+  } else if (cinema.fading === -1) { cinema.fade = Math.max(0, cinema.fade - dt / 0.6); if (cinema.fade <= 0) cinema.fading = 0; }
+  fadeEl.style.opacity = cinema.fade;
+  if (cinema.exitT > 0 && (cinema.exitT -= dt) <= 0) cinemaExitBtn.classList.remove("show");
+  if (!sh) return;
+  sh.t += dt;
+  let done = sh.t > sh.dur;
+  const h = cinema.hs, fx = Math.sin(h), fz = Math.cos(h), rx = -Math.cos(h), rz = Math.sin(h);   // forward, right
+  const at = (f, r, up) => { const x = car.x + fx * f + rx * r, z = car.z + fz * f + rz * r; return camera.position.set(x, Math.max(car.y + up, heightAt(x, z).h + 0.35), z); };
+  const target = new THREE.Vector3(car.x, car.y + 0.8, car.z);
+  camera.up.set(0, 1, 0);
+  switch (sh.kind) {
+    case "chase": case "driver": placeCamera(dt, false); break;
+    case "roadside": {
+      camera.position.copy(sh.pos); camera.lookAt(target);
+      const past = (car.x - sh.pos.x) * sh.dir[0] + (car.z - sh.pos.z) * sh.dir[1];
+      if (past > 45) done = true;
+      break;
+    }
+    case "heli": { const a = sh.a0 + sh.t * 0.13; at(Math.cos(a) * 30, Math.sin(a) * 30, 15); camera.lookAt(target); break; }
+    case "front": at(9, 1.6 * sh.side, 1.0); camera.lookAt(target.set(car.x, car.y + 0.7, car.z)); break;
+    case "side": at(1.2, 5.2 * sh.side, 0.75); camera.lookAt(target.set(car.x + fx * 1.2, car.y + 0.6, car.z + fz * 1.2)); break;
+    case "low": at(-6.5, 2.4 * sh.side, 0.45); camera.lookAt(target.set(car.x + fx * 25, car.y + 0.8, car.z + fz * 25)); break;
+  }
+  if (sh.kind !== "chase" && sh.kind !== "driver" && Math.abs(camera.fov - sh.fov) > 0.05) { camera.fov = sh.fov; camera.updateProjectionMatrix(); }
+  if (done && !cinema.fading) cinema.fading = 1;
+}
+function setCinema(on) {
+  if (on === cinema.on) return;
+  if (on && race && race.me && race.state !== "over") return;   // no autopilot in a race
+  cinema.on = on;
+  document.body.classList.toggle("cinema", on);
+  keys.clear(); input.thr = 0; input.brk = 0; input.steer = 0; input.hb = false;
+  if (on) {
+    cinema.panelWas = !panel.classList.contains("hidden"); cinema.viewWas = view; setPanel(false); openBtn.hidden = true;
+    cinema.last = ""; cinema.fade = 1; cinema.fading = -1;
+    cineStart(); nextShot();
+  } else {
+    cinemaExitBtn.hidden = true; cinemaExitBtn.classList.remove("show"); fadeEl.style.opacity = 0; cinema.fade = 0; cinema.fading = 0;
+    view = cinema.viewWas; applyView(); updateCarMesh(0); placeCamera(0, true);
+    setPanel(cinema.panelWas && !(isTouch || innerWidth < 760));
+  }
+}
+window.setCinema = setCinema;   // ambient.js ends cinema when the visitor leaves fullscreen
+document.getElementById("cinemaBtn").onclick = () => setCinema(true);
+cinemaExitBtn.onclick = () => setCinema(false);
+addEventListener("mousemove", () => { if (cinema.on) showCinemaExit(2); });
+addEventListener("pointerdown", (e) => { if (cinema.on && e.target !== cinemaExitBtn) showCinemaExit(3); });
+
+// ===================================================================
 //  main loop
 // ===================================================================
 let last = 0, clock = 0;
 function frame(t) {
   const dt = Math.min(0.05, (t - last) / 1000 || 0.016); last = t; clock += dt;
   if (!THUMB) {
-    readInput(dt);
+    if (cinema.on) cinePilot(dt); else readInput(dt);
     // two half steps keep the steering stable at speed
     if (raceHeld()) holdOnGrid(); else { drive(dt / 2); drive(dt / 2); }
     raceTick();
     stream(car.x, car.z, false);
     updateCarMesh(dt);
-    placeCamera(dt, false);
+    if (cinema.on) cineCamera(dt); else placeCamera(dt, false);
     netTick(dt);
   } else updateCarMesh(0);
   placeClouds(THUMB ? 0 : clock);
