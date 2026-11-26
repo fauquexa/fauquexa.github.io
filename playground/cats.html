@@ -3411,8 +3411,7 @@ function catSaid(c) { const S = window.playgroundSound; if (S && Math.random() <
 
 // ===================================================================
 //  Rigby mode: type "rigby" and a gentle, happy Rhodesian Ridgeback trots in and chills with the cats.
-//  Light wheaten coat, darker muzzle and ears, and the breed's ridge: a stripe of hair growing the wrong way along
-//  the spine, with two little crowns at the front. He wanders, sniffs, sits and wags, and likes to lie down near a
+//  Light wheaten coat, darker muzzle and ears. He wanders, sniffs, sits and wags, and likes to lie down near a
 //  cat. He goes round the cats, and nudges a cat aside gently if one walks into him.
 // ===================================================================
 const dog = { on: false, meshes: [], pos: V(0, 0, 0), heading: 0, speed: 0, r: 0.24, state: null, t: 0, phase: 0, pop: 0, pose: null, P: null, wag: 0, scene: null, label: null, hover: false };
@@ -3420,15 +3419,15 @@ const DOG_POSES = {   // hip height, body pitch (+ = front up), front legs (rela
   stand: { hipY: 0.5, pitch: 0, fl: 0, fk: 0, hl: 0.12, hk: -0.28, head: 0.05, tail: 0.15, eye: 1 },
   walk:  { hipY: 0.5, pitch: 0, fl: 0, fk: 0, hl: 0.12, hk: -0.28, head: 0.12, tail: 0.3, eye: 1 },
   sniff: { hipY: 0.5, pitch: -0.08, fl: 0.05, fk: 0, hl: 0.15, hk: -0.3, head: 0.95, tail: 0.25, eye: 1 },
-  sit:   { hipY: 0.17, pitch: 0.62, fl: -0.05, fk: 0, hl: -1.6, hk: 2.5, head: -0.12, tail: 0.6, eye: 1 },
+  sit:   { hipY: 0.105, pitch: 1.0, fl: 0.02, fk: 0, hl: -0.5, hk: 2.95, head: 0.38, tail: 1.4, eye: 1 },
   lie:   { hipY: 0.14, pitch: 0.02, fl: -1.45, fk: 0.1, hl: -1.25, hk: 2.55, head: 0.05, tail: -1.25, eye: 1 },
   doze:  { hipY: 0.13, pitch: 0.0, fl: -1.5, fk: 0.1, hl: -1.25, hk: 2.55, head: 0.55, tail: -1.3, eye: 0.1 },
 };
 const DOG_K = ["hipY", "pitch", "fl", "fk", "hl", "hk", "head", "tail", "eye"];
 function buildDog() {
-  const COAT = 0xc07d45, BELLY = 0xd49c66, DARK = 0x4b2f20, EAR = 0x86522e, RIDGE = 0xa05f30, NOSE = 0x1d1917;
+  const COAT = 0xc07d45, BELLY = 0xd49c66, DARK = 0x4b2f20, EAR = 0x86522e, NOSE = 0x1d1917;
   const mat = (c) => { const m = new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, metalness: 0, flatShading: true }); return m; };
-  const coat = mat(COAT), belly = mat(BELLY), dark = mat(DARK), ear = mat(EAR), ridge = mat(RIDGE), nose = mat(NOSE), tongueM = mat(0xd9737c), eyeM = mat(0x241a14);
+  const coat = mat(COAT), belly = mat(BELLY), dark = mat(DARK), ear = mat(EAR), nose = mat(NOSE), tongueM = mat(0xd9737c), eyeM = mat(0x241a14);
   const reg = (m) => { dog.meshes.push(m); return m; };
   const blob = (sx, sy, sz, m, parent, x, y, z, seg = 9) => { const g = new THREE.SphereGeometry(1, seg, Math.max(6, seg - 2)); const o = reg(mk(g, m, parent, x, y, z)); o.scale.set(sx, sy, sz); return o; };
   const cyl = (r0, r1, h, m, parent, x, y, z, seg = 7) => reg(mk(new THREE.CylinderGeometry(r0, r1, h, seg), m, parent, x, y, z));
@@ -3438,9 +3437,6 @@ function buildDog() {
   blob(0.13, 0.145, 0.33, coat, hip, 0, -0.01, 0.22);                                 // body
   blob(0.14, 0.17, 0.17, coat, hip, 0, -0.035, 0.42);                                 // deep chest
   blob(0.1, 0.07, 0.24, belly, hip, 0, -0.11, 0.25, 7);                               // lighter underside
-  // the ridge: darker hair running the other way along the spine, two crowns at the front
-  const rg = reg(mk(new THREE.BoxGeometry(0.04, 0.014, 0.3), ridge, hip, 0, 0.133, 0.25)); rg.rotation.x = 0.02;
-  for (const s of [-1, 1]) blob(0.022, 0.012, 0.022, ridge, hip, s * 0.017, 0.137, 0.41, 6);
   // neck and head
   const neck = cyl(0.065, 0.09, 0.22, coat, hip, 0, 0.13, 0.58); neck.rotation.x = 0.62;
   const head = new THREE.Group(); head.position.set(0, 0.22, 0.65); hip.add(head); dog.head = head;
