@@ -88,3 +88,27 @@ Function `public.email_new_recommendation()`, trigger `recommendation_email`. To
 
 To read them: Supabase dashboard → Table editor → `recommendations` (or `select * from recommendations
 order by created_at desc;` in the SQL editor). To delete one: `delete from public.recommendations where id = …;`
+
+## Driving game best times
+
+Solo and multiplayer races in `playground/drive.html` post finishing times to a `drive_times` table in the same
+Supabase project and show the top 5 per race type (`s5`, `s15` street; `o5`, `o15` off-road). Visitors can add
+and read times, never change or delete them. Create the table once in Supabase → SQL editor:
+
+```sql
+create table public.drive_times (
+  id bigint generated always as identity primary key,
+  created_at timestamptz not null default now(),
+  race text not null check (race in ('s5', 's15', 'o5', 'o15')),
+  name text not null check (char_length(name) between 1 and 20),
+  ms integer not null check (ms between 40000 and 3600000)
+);
+alter table public.drive_times enable row level security;
+create policy "anyone can read drive times" on public.drive_times for select to anon using (true);
+create policy "anyone can add a drive time" on public.drive_times for insert to anon with check (true);
+grant select, insert on public.drive_times to anon;
+create index drive_times_board on public.drive_times (race, ms);
+```
+
+To remove a bogus time: `delete from public.drive_times where id = …;`. Add `?dev` to the game's URL to test
+multiplayer on a private channel.

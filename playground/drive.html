@@ -55,6 +55,9 @@
   #raceResults ol li span { float: right; font-family: var(--code); font-size: 12.5px; color: var(--soft); }
   #raceResults ol li.me { color: var(--accent); }
   #raceResults .hint { margin: 10px 0 0; }
+  #raceResults { max-height: 76vh; overflow-y: auto; }
+  #raceBoard h3 { font: 600 13px "Public Sans", Arial, sans-serif; margin: 14px auto 4px; max-width: 280px; text-align: left; }
+  #raceBoard .hint { margin: 4px 0 0; }
   .panel .row + .row { margin-top: 6px; }
   /* chat: recent messages above the minimap (top left on touch screens), a field to type in */
   #chat { position: fixed; z-index: 9; left: 14px; bottom: 214px; width: min(340px, 70vw); pointer-events: none; }
@@ -86,9 +89,11 @@
   <div class="row"><button id="raceJoin" class="on">join race (J)</button><button id="raceDecline">no thanks</button></div>
 </div>
 <div class="race-card" id="raceResults" role="dialog" aria-live="polite" hidden>
-  <h2>Race results</h2>
+  <h2 id="raceTitle">Race results</h2>
   <ol id="raceList"></ol>
   <p class="hint" id="raceResultsNote"></p>
+  <div id="raceBoard"></div>
+  <div class="row" style="justify-content:center;margin-top:10px"><button id="raceClose">close</button></div>
 </div>
 
 <div id="chat" hidden>
@@ -121,7 +126,8 @@
     <label>race</label>
     <div class="row"><button id="raceS5">street 5 km</button><button id="raceS15">street 15 km</button></div>
     <div class="row"><button id="raceO5">off-road 5 km</button><button id="raceO15">off-road 15 km</button></div>
-    <p class="hint" id="raceHint" style="margin:8px 0 0">Starts somewhere new on the map. Everyone online gets an invite.</p>
+    <div class="row"><button id="raceBest">best times</button></div>
+    <p class="hint" id="raceHint" style="margin:8px 0 0">Starts somewhere new on the map.</p>
   </div>
 </div>
 
@@ -189,7 +195,7 @@ const hillH = (x, z) => {   // what the roads ride on
 };
 const lakeK = (x, z) => 0;   // lakes are switched off; everything that tests for water stays, and never finds any
 const forestK = (x, z) => N1(x / 420 - 70.1, z / 420 + 23.9) + 0.35 * N1(x / 90, z / 90);
-const detailH = (x, z) => { const dw = desertW(tempN(x, z)); return 1.1 * N1(x / 38 + 3.1, z / 38 + 8.7) + (dw > 0 ? dw * 2.4 * Math.abs(N1(x / 55 + 2, z / 85 - 1)) : 0); };
+const detailH = (x, z) => { const dw = desertW(tempN(x, z)); return 1.1 * N1(x / 38 + 3.1, z / 38 + 8.7) + (dw > 0 ? dw * 2.4 * (Math.sqrt(N1(x / 55 + 2, z / 85 - 1) ** 2 + 0.03) - 0.17) : 0); };
 const roadSurf = (x, z) => hillH(x, z) + 0.35;
 const waterY = (x, z) => hillH(x, z) - 2.6;
 const rawH = (x, z) => hillH(x, z) - 11 * lakeK(x, z) + detailH(x, z) * (1 - lakeK(x, z));
@@ -908,12 +914,14 @@ function buildOffroader(paintMat) {
 const buildCarOf = (kind, mat) => (kind === "off" ? buildOffroader(mat) : buildGT(mat));
 
 // the two cars: where the driver sits and how each one goes. The DB9 is quick on tarmac and hopeless off it;
-// the off-roader is nearly as quick across country as on the road.
+// the off-roader manages ~135 km/h across country, but it is heavy: it turns slower, slides more and bounces.
 const KIND = {
   gt:  { eye: [0.36, 1.1, -0.55], wheel: [0.36, 0.8, 0.08], wr: 0.17, dash: { y: 0.82, z: 0.42, w: 1.5 }, belt: 0.97, half: 0.78, door: [-1.5, 0.6], floor: 0.45, max: 340,
-         vRoad: 95, vOff: 30, aRoad: 7.2, aOff: 4, grip: 10.5, gripOff: 0.8, latOff: 4.5, dragOff: (v) => 0.9 + 0.0009 * v * v + 0.05 * Math.abs(v) },
+         vRoad: 95, vOff: 30, aRoad: 7.2, aOff: 4, grip: 10.5, gripOff: 0.8, latOff: 4.5, dragOff: (v) => 0.9 + 0.0009 * v * v + 0.05 * Math.abs(v),
+         yawCap: 0.85, yawLow: 5, steerRate: 3.6, bumpy: 0.4 },
   off: { eye: [0.42, 1.78, -0.3], wheel: [0.42, 1.36, 0.32], wr: 0.18, dash: { y: 1.33, z: 0.66, w: 1.75 }, belt: 1.48, half: 0.94, door: [-1.8, 0.8], floor: 0.95, max: 240,
-         vRoad: 60, vOff: 54, aRoad: 9, aOff: 8.5, grip: 9.8, gripOff: 1, latOff: 7.5, dragOff: (v) => 0.3 + 0.00034 * v * v },
+         vRoad: 58, vOff: 38, aRoad: 8, aOff: 6, grip: 8, gripOff: 0.9, latOff: 3.6, dragOff: (v) => 0.4 + 0.0005 * v * v,
+         yawCap: 0.6, yawLow: 7, steerRate: 2.3, bumpy: 1 },
 };
 // the driver's view: a dashboard with a speedometer, a steering wheel that turns with the steering, and two
 // arms with the hands at ten to two
@@ -926,11 +934,12 @@ function buildCockpit(kind) {
   const zl = K.door[1] - K.door[0], zc = (K.door[0] + K.door[1]) / 2;   // door panels and a floor, so the cabin reads as a cabin
   for (const sd of [1, -1]) { const door = new THREE.Mesh(new THREE.BoxGeometry(0.06, K.belt - K.floor, zl), DASH); door.position.set(sd * K.half, (K.belt + K.floor) / 2, zc); g.add(door); }
   const floor = new THREE.Mesh(new THREE.BoxGeometry(2 * K.half, 0.04, zl), DASK); floor.position.set(0, K.floor, zc); g.add(floor);
-  const hood = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.1, 0.22), DASK); hood.position.set(wx, d.y + 0.1, d.z - 0.2); g.add(hood);
   const cv = document.createElement("canvas"); cv.width = 256; cv.height = 128;
   const tex = new THREE.CanvasTexture(cv);
-  const gauge = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.15), new THREE.MeshBasicMaterial({ map: tex }));
-  gauge.position.set(wx, d.y + 0.07, d.z - 0.316); gauge.rotation.set(0.3, Math.PI, 0); g.add(gauge);
+  // the speedometer sits in the middle of the dash, clear of the wheel and the hands, turned towards the driver
+  const pod = new THREE.Group(); pod.position.set(-0.04, d.y + (kind === "off" ? 0.2 : 0.13), d.z - 0.22); pod.lookAt(ex, ey, ez); g.add(pod);
+  pod.add(new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.2, 0.08), DASK));
+  const gauge = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.15), new THREE.MeshBasicMaterial({ map: tex })); gauge.position.z = 0.042; pod.add(gauge);
   const wheel = new THREE.Group(); wheel.position.set(wx, wy, wz); wheel.rotation.x = 0.42; g.add(wheel);
   const column = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.4, 6), DASK); column.rotation.x = Math.PI / 2; column.position.z = 0.2; wheel.add(column);
   const spin = new THREE.Group(), r = K.wr; wheel.add(spin);
@@ -984,7 +993,7 @@ BODY.color.setHex(PAINTS[myPaint]);
 
 // The whole car state in one small plain object, changed only in drive().
 // Multiplayer will later broadcast exactly this (Azure Web PubSub, or the Supabase project's realtime channels).
-const car = { kind: "gt", x: 0, y: 0, z: 0, heading: 0, speed: 0, vx: 0, vz: 0, steer: 0, yaw: 0, pitch: 0, roll: 0, onRoad: true, dist: 0 };
+const car = { kind: "gt", air: false, vy: 0, x: 0, y: 0, z: 0, heading: 0, speed: 0, vx: 0, vz: 0, steer: 0, yaw: 0, pitch: 0, roll: 0, onRoad: true, dist: 0 };
 const input = { thr: 0, brk: 0, steer: 0, hb: false };
 
 function placeOnRoad(x, z) {
@@ -1002,7 +1011,7 @@ function placeOnRoad(x, z) {
   car.x = best.p[0]; car.z = best.p[1];
   let h = Math.atan2(best.q[0] - best.p[0], best.q[1] - best.p[1]);
   if (Math.cos(h - car.heading) < 0 && Math.abs(car.speed) > 1) h += Math.PI;   // keep roughly the way we were going
-  car.heading = h; car.speed = 0; car.vx = car.vz = 0; car.steer = 0; car.yaw = 0;
+  car.heading = h; car.speed = 0; car.vx = car.vz = 0; car.steer = 0; car.yaw = 0; car.air = false; car.vy = 0;
   car.y = roadSurf(car.x, car.z);
   if (far) stream(car.x, car.z, true);
 }
@@ -1030,27 +1039,28 @@ function drive(dt) {
   let vf = car.vx * fx + car.vz * fz;
   const here = heightAt(car.x, car.z), onRoad = here.d < 0.4, K = KIND[car.kind];
   const vmax = onRoad ? K.vRoad : K.vOff, acc = onRoad ? K.aRoad : K.aOff;   // DB9: 0-100 km/h in ~4.5 s; off-roader: ~215 km/h on tarmac, ~195 across country
-  const v0 = vf;
-  if (input.thr > 0) { if (vf < -0.5) vf += 15 * input.thr * dt; else vf += acc * input.thr * Math.max(0, 1 - (vf / vmax) ** 2) * dt; }
-  if (input.brk > 0) { if (vf > 0.5) vf -= 13 * input.brk * dt; else vf -= 4.5 * input.brk * Math.max(0, 1 + vf / 9) * dt; }
-  if (input.hb) vf -= Math.sign(vf) * Math.min(Math.abs(vf), 5 * dt);
-  const drag = onRoad ? 0.15 + 0.0003 * vf * vf : K.dragOff(vf);
+  const v0 = vf, grounded = !car.air;
+  if (grounded && input.thr > 0) { if (vf < -0.5) vf += 15 * input.thr * dt; else vf += acc * input.thr * Math.max(0, 1 - (vf / vmax) ** 2) * dt; }
+  if (grounded && input.brk > 0) { if (vf > 0.5) vf -= 13 * input.brk * dt; else vf -= 4.5 * input.brk * Math.max(0, 1 + vf / 9) * dt; }
+  if (grounded && input.hb) vf -= Math.sign(vf) * Math.min(Math.abs(vf), 5 * dt);
+  const drag = onRoad || !grounded ? 0.15 + 0.0003 * vf * vf : K.dragOff(vf);
   vf -= Math.sign(vf) * Math.min(Math.abs(vf), drag * dt);
-  vf -= 9.81 * Math.sin(car.pitch) * dt;                       // hills pull you back, or along
+  if (grounded) vf -= 9.81 * Math.sin(car.pitch) * dt;         // hills pull you back, or along
   car.vx += fx * (vf - v0); car.vz += fz * (vf - v0);
   // steering: the wheel asks for a turn rate, and the car eases into it, so turns roll in smoothly. At speed
   // the turn is limited by grip: about 1.07 g of sideways pull, and about 1.4 g while braking (trail braking:
   // the weight shifts onto the front wheels), when the car also settles into the turn faster.
   const vabs = Math.abs(vf), dirv = vf < 0 ? -1 : 1, braking = input.brk > 0 && vf > 0.5;
   const grip = (braking ? 1.29 : 1) * K.grip * (onRoad ? 1 : K.gripOff);
-  const maxYaw = Math.min(braking ? 1.0 : 0.85, vabs / 5, grip / Math.max(vabs, 1)) * (input.hb ? 1.5 : 1);
-  car.yaw += (input.steer * maxYaw * (vabs < 0.3 ? 0 : dirv) - car.yaw) * Math.min(1, dt * (braking ? 5 : 3.6));
+  const maxYaw = Math.min((braking ? 1.18 : 1) * K.yawCap, vabs / K.yawLow, grip / Math.max(vabs, 1)) * (input.hb ? 1.5 : 1);
+  if (grounded) car.yaw += (input.steer * maxYaw * (vabs < 0.3 ? 0 : dirv) - car.yaw) * Math.min(1, dt * K.steerRate * (braking ? 1.4 : 1));
+  else car.yaw *= Math.exp(-dt * 0.6);   // in the air the wheels do nothing; the car keeps a little of its spin
   car.heading += car.yaw * dt;
   car.steer = clamp(Math.atan((car.yaw * 2.65) / (dirv * Math.max(2, vabs))), -0.6, 0.6);   // front wheel angle, for show
   // grip: kill the sideways part of the velocity in the new heading (slowly on the handbrake, so it drifts)
   const gx = Math.sin(car.heading), gz = Math.cos(car.heading), rx = Math.cos(car.heading), rz = -Math.sin(car.heading);
   let f2 = car.vx * gx + car.vz * gz, l2 = car.vx * rx + car.vz * rz;
-  l2 *= Math.exp(-(input.hb ? 1.1 : onRoad ? 9 : K.latOff) * dt);
+  if (grounded) l2 *= Math.exp(-(input.hb ? 1.1 : onRoad ? 9 : K.latOff) * dt);
   car.vx = gx * f2 + rx * l2; car.vz = gz * f2 + rz * l2;
   // move, then sit on the ground
   car.x += car.vx * dt; car.z += car.vz * dt;
@@ -1058,10 +1068,26 @@ function drive(dt) {
   const h0 = heightAt(car.x, car.z);
   const hf = heightAt(car.x + gx * 1.4, car.z + gz * 1.4).h, hb = heightAt(car.x - gx * 1.4, car.z - gz * 1.4).h;
   const hl = heightAt(car.x + rx * 0.9, car.z + rz * 0.9).h, hr = heightAt(car.x - rx * 0.9, car.z - rz * 0.9).h;
-  car.pitch += (Math.atan2(hf - hb, 2.8) - car.pitch) * Math.min(1, dt * 10);
-  car.roll += (Math.atan2(hl - hr, 1.8) - car.roll) * Math.min(1, dt * 10);
-  const sp = Math.hypot(car.vx, car.vz);
-  car.y = Math.max(h0.h, (hf + hb) / 2);
+  // the body rides on a smooth average of the ground under it (never below the ground at its centre)
+  const sp = Math.hypot(car.vx, car.vz), ground = Math.max(h0.h - 0.15, (2 * h0.h + hf + hb + hl + hr) / 6), settle = car.kind === "off" ? 16 : 10;
+  if (car.air) {
+    // flying: gravity only, the nose follows the arc, until the ground comes back up
+    car.vy -= 9.81 * dt; car.y += car.vy * dt;
+    car.pitch += (Math.atan2(car.vy, Math.max(4, sp)) - car.pitch) * Math.min(1, dt * 1.2);
+    car.roll *= Math.exp(-dt * 0.8);
+    if (car.y <= ground) {
+      if (car.vy < -7) { car.vx *= 0.85; car.vz *= 0.85; }   // a hard landing costs speed
+      car.y = ground; car.vy = 0; car.air = false;
+    }
+  } else {
+    // on the ground the car follows it; where the ground drops away faster than gravity could pull the car
+    // down (about 2.5 g as it goes over a crest while still climbing), it takes off with the speed it had
+    const vyNew = (ground - car.y) / Math.max(dt, 1e-4), acc = (vyNew - car.vy) / Math.max(dt, 1e-4);
+    if (sp > 15 && acc < -24.5 && car.vy > 0.8) { car.air = true; car.vy = Math.min(car.vy, sp * 0.6); car.y += car.vy * dt; }
+    else { car.vy = clamp(vyNew, -sp * 0.8 - 2, sp * 0.8 + 2); car.y = ground; }
+    car.pitch += (Math.atan2(hf - hb, 2.8) - car.pitch) * Math.min(1, dt * settle);
+    car.roll += (Math.atan2(hl - hr, 1.8) - car.roll) * Math.min(1, dt * settle);
+  }
   car.onRoad = h0.d < 0.4; car.speed = f2;
   car.dist += sp * dt;
 }
@@ -1121,8 +1147,13 @@ function placeCamera(dt, snap) {
   if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * (snap ? 1 : Math.min(1, dt * 2)); camera.updateProjectionMatrix(); }
 }
 function updateCarMesh(dt) {
-  carMesh.position.set(car.x, car.y, car.z);
-  carMesh.rotation.set(-car.pitch, car.heading, car.roll, "YXZ");
+  let by = 0, bp = 0, br = 0;
+  if (!car.onRoad && !car.air) {
+    const a = KIND[car.kind].bumpy * Math.min(1, Math.abs(car.speed) / 12);
+    by = N1(car.x / 2.3, car.z / 2.3) * 0.07 * a; bp = N1(car.x / 3.1 + 5, car.z / 3.1) * 0.035 * a; br = N1(car.x / 2.7, car.z / 2.7 - 8) * 0.045 * a;
+  }
+  carMesh.position.set(car.x, car.y + by, car.z);
+  carMesh.rotation.set(-car.pitch + bp, car.heading, car.roll + br, "YXZ");
   const w = carMesh.userData.wheels, spin = (car.speed / carMesh.userData.wr) * dt;
   w.forEach((wh, i) => { wh.children[0].rotation.x += spin; if (i < 2) wh.rotation.y = car.steer; });
   carMesh.updateMatrixWorld(true);
@@ -1606,28 +1637,29 @@ function gridSlot(n) {
 }
 function toGrid() {
   const order = [...race.racers.keys()].sort(), n = Math.max(0, order.indexOf(net.id)), g = gridSlot(n);
-  car.x = g.x; car.z = g.z; car.heading = g.h; car.vx = car.vz = 0; car.speed = 0; car.yaw = 0; car.steer = 0;
+  car.x = g.x; car.z = g.z; car.heading = g.h; car.vx = car.vz = 0; car.speed = 0; car.yaw = 0; car.steer = 0; car.air = false; car.vy = 0;
   car.y = heightAt(car.x, car.z).h; stream(car.x, car.z, true); placeCamera(0, true);
   race.grid = g; net.sendT = 99; net.sent = "";
 }
 
 function raceUi() {
   const n = net.peers.size;
-  raceBox.hidden = !(net.status === "online" && n > 0);
+  raceBox.hidden = false;
   const busy = race && race.state !== "over";
   for (const id of ["raceS5", "raceS15", "raceO5", "raceO15"]) document.getElementById(id).disabled = !!busy;
   const racing = !!(race && race.me && race.state !== "over");
   document.querySelectorAll("#cars button").forEach((b) => (b.disabled = racing));
-  raceHint.textContent = busy ? "A race is on." : "Starts somewhere new on the map. Everyone online gets an invite.";
+  raceHint.textContent = busy ? "A race is on." : net.status === "online" && n > 0 ? "Starts somewhere new on the map. Everyone online gets an invite." : "Starts somewhere new on the map. On your own, you race the clock.";
 }
 function startRace(type, km) {
   if (race && race.state !== "over") return;
   let seed = 0, course = null;
   for (let k = 0; k < 6 && !course; k++) { seed = Math.floor(Math.random() * 1e9); course = makeCourse(type, km, seed); }
   if (!course) return;
-  const m = { rid: Date.now().toString(36) + net.id.slice(0, 4), host: net.id, n: net.name, type, km, seed, t: RACE.countdown };
+  const online = net.status === "online" && net.ch, solo = !(online && net.peers.size > 0);
+  const m = { rid: Date.now().toString(36) + net.id.slice(0, 4), host: net.id, n: net.name, type, km, seed, t: solo ? 6000 : RACE.countdown };
   onRace(m, true);
-  net.ch.send({ type: "broadcast", event: "race", payload: m }).catch(() => {});
+  if (online) net.ch.send({ type: "broadcast", event: "race", payload: m }).catch(() => {});
   joinRace();
 }
 function onRace(m, mine) {
@@ -1639,7 +1671,7 @@ function onRace(m, mine) {
   const course = makeCourse(m.type, m.km, m.seed);
   if (!course) return;
   if (race) clearRaceScene();
-  race = { rid: m.rid, type: m.type, host: m.host, hostName: cleanName(m.n) || "Someone", course, startAt: performance.now() + m.t, state: "invite",
+  race = { rid: m.rid, type: m.type, km: m.km, host: m.host, hostName: cleanName(m.n) || "Someone", course, startAt: performance.now() + m.t, state: "invite",
            racers: new Map(), me: false, next: 1, myTime: null, firstFinish: null, gates: [], shownGo: false };
   race.gates.push(buildGate(course, 0, "check"));
   for (let q = 1; q < course.nodes.length - 1; q++) race.gates.push(buildGate(course, course.nodes[q], "gate"));
@@ -1656,7 +1688,7 @@ function joinRace() {
   race.me = true; race.racers.set(net.id, { name: net.name, ms: null, out: false });
   setKind(race.type === "o" ? "off" : "gt");
   raceInvite.hidden = true;
-  net.ch.send({ type: "broadcast", event: "join", payload: { rid: race.rid, id: net.id, n: net.name } }).catch(() => {});
+  if (net.ch && net.status === "online") net.ch.send({ type: "broadcast", event: "join", payload: { rid: race.rid, id: net.id, n: net.name } }).catch(() => {});
   toGrid();
 }
 function onJoin(m) {
@@ -1683,8 +1715,45 @@ function raceCheckOver() {
   const late = race.firstFinish !== null && performance.now() - race.firstFinish > Math.max(RACE.afterFirst, 0.4 * best);
   if (all || late || performance.now() - race.startAt > 20 * 60000) showResults();
 }
+// best times: an insert-and-read-only table in the flight sim's Supabase project, top 5 per race type
+const TIMES = SUPABASE_URL + "/rest/v1/drive_times", RACE_NAMES = { s5: "Street 5 km", s15: "Street 15 km", o5: "Off-road 5 km", o15: "Off-road 15 km" };
+const raceBoard = document.getElementById("raceBoard"), raceTitle = document.getElementById("raceTitle");
+async function postTime(key, ms) {
+  try { await fetch(TIMES, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json", Prefer: "return=minimal" }, body: JSON.stringify({ race: key, name: net.name || "Driver", ms: Math.round(ms) }) }); } catch (e) {}
+}
+async function fillBoard(keys, mine) {
+  raceBoard.replaceChildren();
+  const note = (txt) => { const p = document.createElement("p"); p.className = "hint"; p.textContent = txt; raceBoard.appendChild(p); };
+  for (const key of keys) {
+    const h = document.createElement("h3"); h.textContent = `Best times · ${RACE_NAMES[key]}`; raceBoard.appendChild(h);
+    try {
+      const r = await fetch(`${TIMES}?select=name,ms&race=eq.${key}&order=ms.asc,created_at.asc&limit=5`, { headers: { apikey: SUPABASE_KEY } });
+      if (!r.ok) throw new Error(r.status);
+      const rows = await r.json();
+      if (!rows.length) { note("No times yet."); continue; }
+      const ol = document.createElement("ol"); let marked = false;
+      for (const row of rows) {
+        const li = document.createElement("li"), s = document.createElement("span");
+        li.textContent = cleanName(row.name) || "Driver"; s.textContent = fmtTime(row.ms); li.appendChild(s);
+        if (!marked && mine && row.ms === Math.round(mine.ms) && row.name === mine.name) { li.className = "me"; marked = true; }
+        ol.appendChild(li);
+      }
+      raceBoard.appendChild(ol);
+    } catch (e) { note("The best-times board isn't connected yet."); return; }
+  }
+}
+function showBest() {   // all four boards, from the panel
+  raceTitle.textContent = "Best times"; raceList.replaceChildren(); raceResultsNote.textContent = "";
+  raceResults.hidden = false; fillBoard(Object.keys(RACE_NAMES), null);
+}
+function closeResults() {
+  raceResults.hidden = true;
+  if (race && race.state === "over") { clearRaceScene(); race = null; raceUi(); }
+}
+document.getElementById("raceClose").onclick = closeResults;
+document.getElementById("raceBest").onclick = showBest;
 function showResults() {
-  race.state = "over";
+  race.state = "over"; raceTitle.textContent = "Race results";
   const rows = [...race.racers.entries()].sort((a, b) => (a[1].ms ?? 1e12) - (b[1].ms ?? 1e12));
   raceList.replaceChildren();
   for (const [id, r] of rows) {
@@ -1692,9 +1761,14 @@ function showResults() {
     li.textContent = id === net.id ? `${r.name} (you)` : r.name; t.textContent = r.ms !== null ? fmtTime(r.ms) : "did not finish";
     li.appendChild(t); if (id === net.id) li.className = "me"; raceList.appendChild(li);
   }
-  raceResultsNote.textContent = race.racers.size < 2 ? "Nobody else joined this one." : "Start another from the panel.";
+  raceResultsNote.textContent = race.racers.size < 2 ? "" : "Start another from the panel.";
   raceResults.hidden = false;
-  setTimeout(() => { if (race && race.state === "over") { raceResults.hidden = true; clearRaceScene(); race = null; raceUi(); } }, 12000);
+  const key = race.type + race.km, mine = race.myTime !== null ? { ms: race.myTime, name: net.name || "Driver" } : null, rid = race.rid;
+  raceBoard.replaceChildren();
+  // only plausible times go on the board: nobody averages more than 100 m/s on a street course or 60 m/s across country
+  const plausible = mine && mine.ms >= (race.km * 1000 / (race.type === "s" ? 100 : 60)) * 1000;
+  (async () => { if (plausible && !race.posted) { race.posted = true; await postTime(key, mine.ms); } fillBoard([key], plausible ? mine : null); })();
+  setTimeout(() => { if (race && race.rid === rid && race.state === "over") closeResults(); }, 40000);
   raceUi();
 }
 // every frame: countdown, holding the grid, checkpoints and the finish
@@ -1713,7 +1787,7 @@ function raceTick() {
       if (race.next >= c.nodes.length) {
         race.myTime = now - race.startAt;
         const r = race.racers.get(net.id); r.ms = race.myTime; if (race.firstFinish === null) race.firstFinish = now;
-        net.ch.send({ type: "broadcast", event: "finish", payload: { rid: race.rid, id: net.id, n: net.name, ms: race.myTime } }).catch(() => {});
+        if (net.ch && net.status === "online") net.ch.send({ type: "broadcast", event: "finish", payload: { rid: race.rid, id: net.id, n: net.name, ms: race.myTime } }).catch(() => {});
       }
     }
   }
@@ -1721,7 +1795,7 @@ function raceTick() {
 }
 // held on the grid until GO
 const raceHeld = () => race && race.me && race.state === "invite" && race.grid;
-function holdOnGrid() { const g = race.grid; car.x = g.x; car.z = g.z; car.heading = g.h; car.vx = car.vz = 0; car.speed = 0; car.yaw = 0; car.y = heightAt(car.x, car.z).h; }
+function holdOnGrid() { const g = race.grid; car.x = g.x; car.z = g.z; car.heading = g.h; car.vx = car.vz = 0; car.speed = 0; car.yaw = 0; car.air = false; car.vy = 0; car.y = heightAt(car.x, car.z).h; }
 
 document.getElementById("raceS5").onclick = () => startRace("s", 5);
 document.getElementById("raceS15").onclick = () => startRace("s", 15);
