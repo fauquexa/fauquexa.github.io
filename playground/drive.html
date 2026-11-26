@@ -59,6 +59,8 @@
   #raceBoard h3 { font: 600 13px "Public Sans", Arial, sans-serif; margin: 14px auto 4px; max-width: 280px; text-align: left; }
   #raceBoard .hint { margin: 4px 0 0; }
   .panel .row + .row { margin-top: 6px; }
+  /* the music speaker (from ambient.js) sits top right here: the speedometer has the lower right */
+  #musicCtl { top: max(14px, env(safe-area-inset-top)); bottom: auto !important; right: max(14px, env(safe-area-inset-right)); flex-direction: column !important; }
   /* chat: recent messages above the minimap (top left on touch screens), a field to type in */
   #chat { position: fixed; z-index: 9; left: 14px; bottom: 214px; width: min(340px, 70vw); pointer-events: none; }
   body.touch #chat { bottom: auto; top: max(58px, calc(env(safe-area-inset-top) + 46px)); }
@@ -203,27 +205,51 @@ const rawH = (x, z) => hillH(x, z) - 11 * lakeK(x, z) + detailH(x, z) * (1 - lak
 // ===================================================================
 //  road network: a jittered lattice of junctions joined by gently curving roads
 // ===================================================================
-// Junction (i, j) sits near (i*S, j*S). A road is a whole row or column of the lattice: every fifth one is
-// a wider main road, and about half of the others exist too, all the way through, so a road never just
-// ends in a sharp corner. Each segment is a cubic Bezier whose end tangents are shared with its neighbours
-// (Catmull-Rom style), so a road runs through its junctions without a kink and only ever bends gently.
-const S = 330, JIT = 60;
-const rowRoad = (j) => j % 5 === 0 || hash(0, j, 10) < 0.45;   // an east-west road along row j
-const colRoad = (i) => i % 5 === 0 || hash(i, 0, 11) < 0.45;   // a north-south road along column i
-// ...but only through settled land (main roads reach a little further out), so roads come and go with the
-// settlements and leave wide open country between them
-const settled = (i, j, main) => settleN(i * S, j * S) > (main ? 0.2 : 0.32);
+// Junction (i, j) sits near (i*S, j*S). No road ever just ends:
+//  - highways run along every 24th row and column of the lattice (about 8 km apart), forever;
+//  - in each 24 x 24 cell between them there may be one country road each way, running right across the
+//    cell from highway to highway (more likely where the land is settled);
+//  - villages and towns grow as small blocks of streets (2 x 2 junctions, a closed loop each) along those
+//    roads where the land is settled, so every street is part of a loop.
+// Each segment is a cubic Bezier whose end tangents are shared with its neighbours (Catmull-Rom style),
+// so a road runs through its junctions without a kink and only ever bends gently.
+const S = 330, JIT = 60, HW = 24, BLK = 2;
+const md = (a, n) => ((a % n) + n) % n;
+const cellMid = (I, J) => [(I + 0.5) * HW * S, (J + 0.5) * HW * S];
+// the country road across cell (I, J): dir 0 runs east-west along a row, dir 1 north-south along a column
+const countryOn = (I, J, dir) => { const c = cellMid(I, J); return settleN(c[0], c[1]) + (hash(I, J, 22 + dir) - 0.5) * 0.5 > 0.05; };
+const countryAt = (I, J, dir) => HW * (dir === 0 ? J : I) + BLK * (1 + Math.floor(hash(I, J, 20 + dir) * (HW / BLK - 1)));
+// is there a through road along row j (dir 0) or column i (dir 1) at lattice position k on the other axis?
+function lineAt(dir, line, k) {
+  if (md(line, HW) === 0) return true;
+  const I = dir === 0 ? Math.floor(k / HW) : Math.floor(line / HW), J = dir === 0 ? Math.floor(line / HW) : Math.floor(k / HW);
+  return countryOn(I, J, dir) && countryAt(I, J, dir) === line;
+}
+// a block of streets: settled land, right beside a through road
+const townCache2 = new Map();
+function townBlock(bx, by) {
+  const key = bx + "," + by; let v = townCache2.get(key);
+  if (v !== undefined) return v;
+  const i0 = bx * BLK, j0 = by * BLK;
+  v = settleN((i0 + 1) * S, (j0 + 1) * S) > 0.3 &&
+      (lineAt(0, j0, i0) || lineAt(0, j0 + BLK, i0) || lineAt(1, i0, j0) || lineAt(1, i0 + BLK, j0));
+  townCache2.set(key, v); if (townCache2.size > 20000) townCache2.clear();
+  return v;
+}
 const node = (i, j) => [i * S + (hash(i, j, 1) - 0.5) * 2 * JIT, j * S + (hash(i, j, 2) - 0.5) * 2 * JIT];
 function edgeExists(i, j, dir) {           // dir 0: (i,j)->(i+1,j), dir 1: (i,j)->(i,j+1)
-  const main = isMain(i, j, dir);
-  return (dir === 0 ? rowRoad(j) : colRoad(i)) && settled(i, j, main) && settled(dir === 0 ? i + 1 : i, dir === 1 ? j + 1 : j, main);
+  const line = dir === 0 ? j : i, k = dir === 0 ? i : j;
+  if (lineAt(dir, line, k)) return true;
+  if (md(line, BLK) !== 0) return false;
+  const b = Math.floor(k / BLK), l = line / BLK;
+  return dir === 0 ? townBlock(b, l) || townBlock(b, l - 1) : townBlock(l, b) || townBlock(l - 1, b);
 }
 // the road's direction through junction (i, j): half the chord between its two neighbours
 function tangentAt(i, j, dir) {
   const p = dir === 0 ? node(i - 1, j) : node(i, j - 1), q = dir === 0 ? node(i + 1, j) : node(i, j + 1);
   return [(q[0] - p[0]) / 2, (q[1] - p[1]) / 2];
 }
-const isMain = (i, j, dir) => (dir === 0 ? j % 5 === 0 : i % 5 === 0);
+const isMain = (i, j, dir) => md(dir === 0 ? j : i, HW) === 0;
 const edgeCache = new Map();
 function getEdge(i, j, dir) {
   const key = i + "," + j + "," + dir;
@@ -1333,10 +1359,13 @@ function drawHud() {
     hc.fillStyle = "#" + (PAINTS[p.paint] || PAINTS.silver).toString(16).padStart(6, "0"); hc.fill();
     hc.lineWidth = 1.5; hc.strokeStyle = "rgba(255,255,255,.9)"; hc.stroke();
   }
-  if (race && race.course) {   // the course in gold, the next gate as a ring
-    const c = race.course; hc.beginPath();
-    c.pts.forEach((pp, q) => { const v = mp(pp[0], pp[1]); q ? hc.lineTo(v[0], v[1]) : hc.moveTo(v[0], v[1]); });
-    hc.strokeStyle = "rgba(224,179,90,.95)"; hc.lineWidth = 3; hc.stroke();
+  if (race && race.course) {   // street courses in gold; off-road only the next checkpoint (find your own way)
+    const c = race.course;
+    if (!c.off) {
+      hc.beginPath();
+      c.pts.forEach((pp, q) => { const v = mp(pp[0], pp[1]); q ? hc.lineTo(v[0], v[1]) : hc.moveTo(v[0], v[1]); });
+      hc.strokeStyle = "rgba(224,179,90,.95)"; hc.lineWidth = 3; hc.stroke();
+    }
     if (race.me && race.myTime === null && race.next < c.nodes.length) {
       const g = c.pts[c.nodes[race.next]], v = mp(g[0], g[1]);
       hc.beginPath(); hc.arc(v[0], v[1], 6, 0, Math.PI * 2); hc.strokeStyle = "#fff"; hc.lineWidth = 2; hc.stroke();
@@ -1378,6 +1407,19 @@ function drawRaceHud(isT) {
     const line = race.myTime !== null ? `Finished P${pos} of ${n} · ${fmtTime(t)}` : `P${pos} of ${n} · ${fmtTime(t)} · ${Math.max(0, (c.len - mine) / 1000).toFixed(2)} km to go · gate ${Math.min(race.next, c.nodes.length - 1)}/${c.nodes.length - 1}`;
     hc.font = "600 15px JetBrains Mono, monospace"; hc.fillStyle = "#fff";
     hc.fillText(line, W / 2, isT ? 64 : 42);
+    if (c.off && race.myTime === null && race.next < c.nodes.length) {   // off-road: an arrow to the next checkpoint
+      const g = c.pts[c.nodes[race.next]], dx = g[0] - car.x, dz = g[1] - car.z, d = Math.hypot(dx, dz);
+      let rel = car.heading - Math.atan2(dx, dz); rel = Math.atan2(Math.sin(rel), Math.cos(rel));   // a bigger heading turns left
+      const ay = (isT ? 64 : 42) + 40, ac = "#e0b35a", fin = race.next === c.nodes.length - 1;
+      hc.save(); hc.translate(W / 2, ay);
+      hc.fillStyle = "rgba(10,14,20,.45)"; hc.beginPath(); hc.arc(0, 0, 21, 0, 7); hc.fill();
+      hc.strokeStyle = ac; hc.lineWidth = 1.4; hc.beginPath(); hc.arc(0, 0, 21, 0, 7); hc.stroke();
+      hc.rotate(rel);
+      hc.fillStyle = ac; hc.beginPath(); hc.moveTo(0, -15); hc.lineTo(9, 8); hc.lineTo(0, 3); hc.lineTo(-9, 8); hc.closePath(); hc.fill();
+      hc.restore();
+      hc.font = "500 12px JetBrains Mono, monospace"; hc.fillStyle = ac;
+      hc.fillText(`${fin ? "finish" : "checkpoint"} · ${d < 1000 ? Math.round(d) + " m" : (d / 1000).toFixed(1) + " km"}`, W / 2, ay + 38);
+    }
   }
   hc.shadowBlur = 0;
 }
@@ -1883,6 +1925,7 @@ if (THUMB) {
 requestAnimationFrame(frame);
 netConnect();
 </script>
+<script src="../assets/ambient.js?v=20261125a" data-mood="drive"></script>
 <script>/* links to other websites open in a new tab */ document.querySelectorAll("a[href]").forEach((a) => { if (/^https?:$/.test(a.protocol) && a.origin !== location.origin) { a.target = "_blank"; a.rel = "noopener noreferrer"; } });</script>
 </body>
 </html>

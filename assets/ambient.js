@@ -3,7 +3,7 @@
       for fullscreen, and leaving cinema (or leaving fullscreen) ends both.
    2. Calm background music, generated live with the Web Audio API (no recordings, so nothing to
       license), with a small speaker button in the lower right to mute it. Pick a mood with
-      <script src="../assets/ambient.js" data-mood="cats|fish|chickens">; without data-mood only
+      <script src="../assets/ambient.js" data-mood="cats|fish|chickens|drive">; without data-mood only
       the fullscreen part runs. */
 (function () {
   const me = document.currentScript;
@@ -62,6 +62,12 @@
       chords: [[0, 4, 7, 12], [5, 9, 12, 17], [7, 11, 14, 19], [-3, 4, 9, 12]],
       scale: [0, 2, 4, 7, 9], mel: { oct: 12, wave: "pluck", decay: 0.9, gain: 0.08, p: 0.5, off: 0.2 },
       pad: { wave: "triangle", gain: 0.022 }, bass: 0.09, cutoff: 2200, wet: 0.24, flute: true,
+    },
+    drive: {       // night-drive synthwave: four-on-the-floor drums, a pulsing octave bass, a running arpeggio
+      bpm: 112, root: 45, bars: 1, swing: 0,
+      chords: [[0, 3, 7, 12], [-4, 0, 3, 8], [3, 7, 10, 15], [-2, 2, 5, 10]],   // Am, F, C, G
+      scale: [0, 3, 5, 7, 10], mel: { oct: 24, wave: "lead", decay: 0.5, gain: 0.05, p: 0.22, off: 0.1 },
+      pad: { wave: "sawtooth", gain: 0.011 }, bass: 0, cutoff: 4200, wet: 0.2, drums: true,
     },
   };
 
@@ -160,6 +166,7 @@
         osc(M.pad.wave, midi(M.root + 12 + n), t, end, g, -6);
         osc(M.pad.wave, midi(M.root + 12 + n), t, end, g, 6);
       }
+      if (!M.bass) return;
       const gb = ctx.createGain(); gb.connect(bus);
       env(gb, t, 0.6, M.bass, Math.max(0.1, dur - 0.6), 1.6);
       osc("sine", midi(M.root - 12 + notes[0]), t, t + dur + 1.8, gb);
@@ -174,6 +181,11 @@
         env(g, t, 0.01, M.mel.gain, 0, d);
         osc("sine", f, t, t + d + 0.1, g);
         const g2 = ctx.createGain(); g2.gain.value = 0.18; g2.connect(g); osc("sine", f * 2.76, t, t + d * 0.4, g2);
+      } else if (w === "lead") {   // two detuned saws through a closing filter: a soft synth lead
+        env(g, t, 0.01, M.mel.gain, 0.08, d);
+        const f2 = ctx.createBiquadFilter(); f2.type = "lowpass"; f2.Q.value = 2;
+        f2.frequency.setValueAtTime(2600, t); f2.frequency.exponentialRampToValueAtTime(700, t + d + 0.1);
+        f2.connect(g); osc("sawtooth", f, t, t + d + 0.2, f2, -7); osc("sawtooth", f, t, t + d + 0.2, f2, 7);
       } else {                     // pluck: a bright attack that quickly mellows
         env(g, t, 0.006, M.mel.gain, 0, d);
         const f2 = ctx.createBiquadFilter(); f2.type = "lowpass"; f2.Q.value = 0.7;
@@ -196,6 +208,52 @@
       o.frequency.exponentialRampToValueAtTime(900 + Math.random() * 700, t + 0.1);
       o.connect(g); o.start(t); o.stop(t + 0.2);
     }
+    // racing extras: drums from a noise burst and a falling sine, an octave-bouncing bass, a 16th-note arpeggio
+    let whiteBuf = null, drumBus = null;
+    function white() {
+      if (!whiteBuf) {
+        const len = ctx.sampleRate; whiteBuf = ctx.createBuffer(1, len, ctx.sampleRate);
+        const d = whiteBuf.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+        drumBus = ctx.createGain(); drumBus.gain.value = 1; drumBus.connect(master);
+      }
+      const src = ctx.createBufferSource(); src.buffer = whiteBuf; return src;
+    }
+    function kick(t) {
+      white(); const g = ctx.createGain(); g.connect(drumBus); env(g, t, 0.002, 0.32, 0.02, 0.28);
+      const o = ctx.createOscillator(); o.type = "sine"; o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.14);
+      o.connect(g); o.start(t); o.stop(t + 0.4);
+    }
+    function snare(t) {
+      const n = white(), bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 1900; bp.Q.value = 0.7;
+      const g = ctx.createGain(); env(g, t, 0.002, 0.13, 0.01, 0.17); n.connect(bp); bp.connect(g); g.connect(drumBus);
+      const r = ctx.createGain(); r.gain.value = 0.25; g.connect(r); r.connect(bus);   // a little of it into the reverb
+      n.start(t); n.stop(t + 0.3);
+      const tg = ctx.createGain(); tg.connect(drumBus); env(tg, t, 0.002, 0.07, 0, 0.09); osc("triangle", 190, t, t + 0.15, tg);
+    }
+    function hat(t, open) {
+      const n = white(), hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 7500;
+      const g = ctx.createGain(); env(g, t, 0.001, open ? 0.035 : 0.028, 0, open ? 0.16 : 0.04);
+      n.connect(hp); hp.connect(g); g.connect(drumBus); n.start(t); n.stop(t + 0.25);
+    }
+    function bassNote(n, t, len) {
+      const g = ctx.createGain(); g.connect(bus); env(g, t, 0.005, 0.085, len * 0.4, len * 0.5);
+      const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.Q.value = 3;
+      lp.frequency.setValueAtTime(900, t); lp.frequency.exponentialRampToValueAtTime(220, t + len);
+      lp.connect(g); osc("sawtooth", midi(M.root - 12 + n), t, t + len + 0.05, lp);
+    }
+    function arpNote(n, t) {
+      const g = ctx.createGain(); g.connect(bus); env(g, t, 0.003, 0.03, 0, 0.16);
+      const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 2400; lp.connect(g);
+      osc("square", midi(M.root + 12 + n), t, t + 0.2, lp);
+    }
+    function racing(t, beat, inBar, bar) {
+      const cur = M.chords[(chord - 1 + M.chords.length) % M.chords.length], intro = bar < 2;
+      if (!intro || inBar === 0) kick(t);
+      if (!intro && (inBar === 1 || inBar === 3)) snare(t);
+      for (let k = 0; k < 2; k++) if (!intro) hat(t + k * beat / 2, k === 1 && inBar === 3);
+      for (let k = 0; k < 2; k++) bassNote(cur[0] + (k ? 12 : 0), t + k * beat / 2, beat / 2 * 0.9);
+      if (bar >= 4) { const order = [0, 1, 2, 3, 2, 1]; for (let k = 0; k < 4; k++) { const q = (inBar * 4 + k) % order.length; arpNote(cur[order[q]] + (q > 3 ? 12 : 0), t + k * beat / 4); } }
+    }
     const pick = () => {             // a gentle random walk over the scale, mostly steps
       last = Math.max(0, Math.min(9, last + [-2, -1, -1, 0, 1, 1, 2][Math.floor(Math.random() * 7)]));
       const s = M.scale, o = Math.floor(last / s.length);
@@ -210,10 +268,11 @@
           pad(M.chords[chord % M.chords.length], t, beat * barBeats * M.bars);
           chord++;
         }
-        if (Math.random() < M.mel.p) note(pick(), t + (inBar % 2 ? M.swing * beat : 0));
-        if (M.mel.off && Math.random() < M.mel.off) note(pick(), t + beat * (0.5 + M.swing));
+        if ((!M.drums || step >= 32) && Math.random() < M.mel.p) note(pick(), t + (inBar % 2 ? M.swing * beat : 0));
+        if ((!M.drums || step >= 32) && M.mel.off && Math.random() < M.mel.off) note(pick(), t + beat * (0.5 + M.swing));
         if (M.flute && inBar === 0 && Math.random() < 0.18) flute(pick(), t, beat * 2);
         if (M.bubbles && Math.random() < 0.12) bubble(t + Math.random() * beat);
+        if (M.drums) racing(t, beat, inBar, Math.floor(step / barBeats));
         nextT += beat; step++;
       }
     }
