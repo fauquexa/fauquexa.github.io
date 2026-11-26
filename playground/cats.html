@@ -3474,8 +3474,10 @@ function buildDog() {
   paintedBlob(0.128, 0.143, 0.2, (x, y, z) => ridge(x, y, 0.1 + z * 0.2) || COAT, rear, 0, -0.01, 0.1 - MID, 18);        // back half of the body
   paintedBlob(0.13, 0.145, 0.22, (x, y, z) => ridge(x, y, 0.32 + z * 0.22) || COAT, front, 0, -0.012, 0.32 - MID, 18);   // front half
   // the deep chest, with the white band low on the front
-  dog.chest = paintedBlob(0.14, 0.17, 0.17, (x, y, z) => (z > 0.5 && y < 0.1 && y > -0.8 && Math.abs(x) < 0.46 ? WHITE : ridge(x * 0.14 / 0.13, y, 0.42 + z * 0.17) || COAT), front, 0, -0.035, 0.42 - MID, 16);
-  blob(0.1, 0.07, 0.13, belly, rear, 0, -0.105, 0.15 - MID, 7); blob(0.1, 0.07, 0.15, belly, front, 0, -0.11, 0.3 - MID, 7);   // lighter underside
+  dog.chest = paintedBlob(0.14, 0.17, 0.17, (x, y, z) => ((z > 0.5 && y < 0.1 && Math.abs(x) < 0.46) || (y < -0.55 && Math.abs(x) < 0.4) ? WHITE : ridge(x * 0.14 / 0.13, y, 0.42 + z * 0.17) || COAT), front, 0, -0.035, 0.42 - MID, 16);
+  const strip = (x, y, az) => (y < -0.25 && Math.abs(x) < 0.42 * clamp((az - 0.06) / 0.22, 0, 1) ? WHITE : BELLY);   // white down the middle of his tummy, narrowing to nothing by the hips
+  paintedBlob(0.1, 0.07, 0.13, (x, y, z) => strip(x, y, 0.15 + z * 0.13), rear, 0, -0.105, 0.15 - MID, 10);
+  paintedBlob(0.1, 0.07, 0.15, (x, y, z) => strip(x, y, 0.3 + z * 0.15), front, 0, -0.11, 0.3 - MID, 10);   // lighter underside
   // neck and head, on a hinge at the shoulders
   const neckG = new THREE.Group(); neckG.position.set(0, 0.08, 0.5 - MID); neckG.rotation.order = "YXZ"; front.add(neckG); dog.neck = neckG;
   const neck = cyl(0.065, 0.09, 0.22, coat, neckG, 0, 0.05, 0.08); neck.rotation.x = 0.62;
