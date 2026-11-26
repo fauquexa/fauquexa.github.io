@@ -11,7 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/style.css?v=20261127b">
   <script src="assets/site.js?v=20261123a"></script>
-  <script src="assets/squats.js?v=20261127e" defer></script>
+  <script src="assets/squats.js?v=20261127f" defer></script>
   <script src="assets/squat.js?v=20261127e" defer></script>
   <style>
     .page { max-width: 760px; margin: 0 auto; padding: 28px 22px 64px; }
@@ -136,11 +136,11 @@
     <figcaption>A SQUAT chip like the ones we make (illustrative, not a simulation). Point at any part to see what it does, or zoom out to the chip. A particle hit or a THz photon breaks pairs in the islands; the quasiparticles that reach the junction drop into its low-gap leads, where each breaks more pairs, and they all tunnel back and forth. Every tunnel flips the parity. On the right, every burst so far: the number of switches grows in proportion to the energy that reached the islands, which is how a SQUAT measures energy.</figcaption>
   </figure>
 
-  <h2><span class="n">07 · DESIGN</span>Simulating the electric fields</h2>
-  <p>Most of a SQUAT's properties come down to capacitances: how strongly each island couples to the other, to the ground plane, to the feedline (which sets how fast the qubit radiates into it) and to the charge line. We compute them with finite-element solvers. The software breaks the chip into hundreds of thousands of small tetrahedra, finest near the metal edges where the fields change fastest, and solves Maxwell's equations on that mesh.</p>
+  <h2><span class="n">07 · DESIGN</span>Simulating the qubit</h2>
+  <p>To design a SQUAT we simulate its electromagnetic modes. A finite-element solver breaks the chip into hundreds of thousands of small tetrahedra, finest near the metal edges where the fields change fastest, treats the junction as an inductor, and solves Maxwell's equations for the modes of the whole structure. The qubit's mode gives its frequency, how strongly it couples to the feedline (its Q, which sets how fast it can be read out) and how much of its energy sits in the junction, which sets how nonlinear, and so how qubit-like, it is.</p>
   <figure class="ix" id="simFig">
     <div class="box">
-      <div class="sim-wrap"><canvas style="aspect-ratio:1;max-width:600px;margin:0 auto" aria-label="Finite-element mesh and electric field energy density around a SQUAT"></canvas><div class="sim-tip"></div></div>
+      <div class="sim-wrap"><canvas style="aspect-ratio:1;max-width:600px;margin:0 auto" aria-label="Finite-element mesh and the electric field energy of the qubit mode of a SQUAT"></canvas><div class="sim-tip"></div></div>
       <div class="ctl"><label><input type="checkbox" checked> mesh</label><label><input type="checkbox" checked> field energy</label><span class="readout"></span></div>
     </div>
     <figcaption id="simCap">The finite-element mesh in the plane of the metal and the electric-field energy density with one island held at 1&nbsp;V (colour, logarithmic). The energy crowds into the gaps between the islands and along every metal edge. Hover to read values.</figcaption>

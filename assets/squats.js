@@ -351,7 +351,7 @@
     [cMesh, cField].forEach((b) => b.addEventListener("change", draw));
     addEventListener("resize", draw);
     draw();
-    fetch("assets/squat-sim.json?v=20261127a").then((r) => r.json()).then((d) => {
+    fetch("assets/squat-sim.json?v=20261127b").then((r) => r.json()).then((d) => {
       D = d; D.verts = Float32Array.from(d.verts.flat ? d.verts.flat() : d.verts); D.tris = Uint32Array.from(d.tris.flat ? d.tris.flat() : d.tris); D.logU = Float32Array.from(d.logU);
       // a coarse grid of triangles for hover lookups
       const [x0, y0, x1, y1] = D.bounds, cs = (x1 - x0) / 80, nx = Math.ceil((x1 - x0) / cs) + 1, ny = Math.ceil((y1 - y0) / cs) + 1, cells = new Array(nx * ny);
