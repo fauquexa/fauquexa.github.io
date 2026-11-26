@@ -1948,9 +1948,9 @@ function cineLane(e, s) {   // the right-hand lane of road e, driven in directio
   }
   return out;
 }
-function cineExtend() {   // keep ~600 m of road ahead; at each junction mostly straight on, sometimes a turn
+function cineExtend() {   // keep ~1.6 km of road ahead (enough to brake from top speed); mostly straight on at junctions
   const w = cinema.walk;
-  for (let guard = 0; cinema.path.length < 130 && guard < 10; guard++) {
+  for (let guard = 0; cinema.path.length < 330 && guard < 24; guard++) {
     const straight = edgeFrom(w.i, w.j, w.d, w.s), turns = [[1 - w.d, 1], [1 - w.d, -1]].filter(([dd, ss]) => edgeFrom(w.i, w.j, dd, ss));
     let turned = false;
     if (turns.length && (!straight || Math.random() < 0.3)) { [w.d, w.s] = turns[Math.floor(Math.random() * turns.length)]; turned = true; }
@@ -1996,7 +1996,7 @@ function cineStart() {   // onto the nearest road, in its right-hand lane, going
 function cinePilot(dt) {
   const P = cinema.path;
   while (P.length > 2 && (car.x - P[1][0]) * (P[1][0] - P[0][0]) + (car.z - P[1][1]) * (P[1][1] - P[0][1]) > 0) P.shift();
-  if (P.length < 90) cineExtend();
+  if (P.length < 260) cineExtend();
   // knocked off the road (a house, a tree) or stuck: start again on the road, behind a quick fade
   const off = Math.hypot(car.x - P[0][0], car.z - P[0][1]);
   cinema.stuck = Math.abs(car.speed) < 1.5 ? cinema.stuck + dt : 0;
@@ -2011,16 +2011,22 @@ function cinePilot(dt) {
   const grip = KD.grip * (car.onRoad ? 1 : KD.gripOff) * Math.max(0.15, Math.min(1.2, car.load));
   const maxYaw = Math.min(KD.yawCap, sp / KD.yawLow, grip / Math.max(sp, 1));
   input.steer = sp < 0.5 ? clamp(err * 2, -1, 1) : clamp((2 * sp * Math.sin(err) / Ld) / Math.max(1e-3, maxYaw), -1, 1);
-  // speed: the road's bends ahead set how fast we may go now (sideways 4.5 m/s^2, braking 4 m/s^2)
-  const K = car.kind === "gt" ? { cruise: 29, lat: 4.5 } : { cruise: 23, lat: 3.4 };
+  // speed: flat out, except where the bends ahead say otherwise (sideways grip and braking at ~0.6-0.7 g)
+  const K = car.kind === "gt" ? { cruise: KD.vRoad * 0.97, lat: 6.5, brake: 7 } : { cruise: KD.vRoad * 0.97, lat: 3.6, brake: 5 };
   let vT = K.cruise, dist = 0;
-  const reach = 30 + (sp * sp) / 8;
+  const reach = 40 + (sp * sp) / (2 * K.brake);
   for (let q = 0; q + 4 < P.length && dist < reach; q += 2) {
     const a = P[q], b = P[q + 2], c = P[q + 4];
     const l1 = Math.hypot(b[0] - a[0], b[1] - a[1]), l2 = Math.hypot(c[0] - b[0], c[1] - b[1]);
     const turn = Math.abs(wrapA(Math.atan2(c[0] - b[0], c[1] - b[1]) - Math.atan2(b[0] - a[0], b[1] - a[1])));
-    const kap = turn / Math.max(1, (l1 + l2) / 2), vb = kap > 1e-4 ? Math.sqrt(K.lat / kap) : 99;
-    vT = Math.min(vT, Math.sqrt(vb * vb + 2 * 4 * dist));
+    const kap = turn / Math.max(1, (l1 + l2) / 2);
+    // crests: over a rise the road falls away under the car; keep below ~0.33 g of that so the springs never
+    // run out of travel and the wheels stay down
+    const ha = deckAt(a[0], a[1], a[0], a[1]), hb = deckAt(b[0], b[1], b[0], b[1]), hc = deckAt(c[0], c[1], c[0], c[1]);
+    const kv = -((hc - hb) / Math.max(1, l2) - (hb - ha) / Math.max(1, l1)) / Math.max(1, (l1 + l2) / 2);
+    let vb = kap > 1e-4 ? Math.sqrt(K.lat / kap) : 99;
+    if (kv > 1e-4) vb = Math.min(vb, Math.sqrt(3.2 / kv));
+    vT = Math.min(vT, Math.sqrt(vb * vb + 2 * K.brake * dist));
     dist += l1;
   }
   const dv = vT - car.speed;
