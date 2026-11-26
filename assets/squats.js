@@ -315,7 +315,7 @@
         for (const poly of D.metal) { c.beginPath(); poly.forEach(([x, y], i) => { const px = ox + (x - x0) * s, py = oy + (y1 - y) * s; i ? c.lineTo(px, py) : c.moveTo(px, py); }); c.closePath(); c.fill("evenodd"); }
       }
       if (cMesh.checked) {
-        c.strokeStyle = cField.checked ? "rgba(255,255,255,0.22)" : "rgba(160,190,230,0.5)"; c.lineWidth = 0.5; c.beginPath();
+        c.strokeStyle = cField.checked ? "rgba(255,255,255,0.12)" : "rgba(160,190,230,0.45)"; c.lineWidth = 0.45; c.beginPath();
         for (let t = 0; t < nT; t++) { const a = P(tris[3 * t]), b = P(tris[3 * t + 1]), d = P(tris[3 * t + 2]); c.moveTo(...a); c.lineTo(...b); c.lineTo(...d); c.lineTo(...a); }
         c.stroke();
       }
@@ -351,7 +351,7 @@
     [cMesh, cField].forEach((b) => b.addEventListener("change", draw));
     addEventListener("resize", draw);
     draw();
-    fetch("assets/squat-sim.json?v=20261127b").then((r) => r.json()).then((d) => {
+    fetch("assets/squat-sim.json?v=20261127c").then((r) => r.json()).then((d) => {
       D = d; D.verts = Float32Array.from(d.verts.flat ? d.verts.flat() : d.verts); D.tris = Uint32Array.from(d.tris.flat ? d.tris.flat() : d.tris); D.logU = Float32Array.from(d.logU);
       // a coarse grid of triangles for hover lookups
       const [x0, y0, x1, y1] = D.bounds, cs = (x1 - x0) / 80, nx = Math.ceil((x1 - x0) / cs) + 1, ny = Math.ceil((y1 - y0) / cs) + 1, cells = new Array(nx * ny);
