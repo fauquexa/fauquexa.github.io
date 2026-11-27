@@ -319,13 +319,24 @@
         for (let t = 0; t < nT; t++) { const a = P(tris[3 * t]), b = P(tris[3 * t + 1]), d = P(tris[3 * t + 2]); c.moveTo(...a); c.lineTo(...b); c.lineTo(...d); c.lineTo(...a); }
         c.stroke();
       }
+      if (D.metal && D.lines) {   // the feedline and charge-line centre conductors, outlined so they read at a glance
+        c.strokeStyle = "rgba(240,236,226,0.85)"; c.lineWidth = 1.2;
+        for (const k of D.lines) { const poly = D.metal[k]; c.beginPath(); poly.forEach(([x, y], i) => { const px = ox + (x - x0) * s, py = oy + (y1 - y) * s; i ? c.lineTo(px, py) : c.moveTo(px, py); }); c.closePath(); c.stroke(); }
+      }
       c.restore();
+      // labels (in um, with a dark halo so they read over the field)
+      c.font = "600 11px " + css("--sans"); c.lineJoin = "round";
+      for (const l of D.labels || []) {
+        const px = ox + (l.x - x0) * s, py = oy + (y1 - l.y) * s;
+        c.textAlign = l.a || "left"; c.lineWidth = 3.5; c.strokeStyle = "rgba(12,12,16,0.85)"; c.strokeText(l.t, px, py); c.fillStyle = "#f0ece2"; c.fillText(l.t, px, py);
+      }
       // colour bar and scale bar
-      const bw = Math.min(160, w * 0.35), bx = w - bw - 14, by = h - 22;
+      const top = !!D.labels;   // with the feedline along the bottom edge, the bars go to the top corners
+      const bw = Math.min(160, w * 0.35), bx = w - bw - 14, by = top ? 30 : h - 22;
       for (let i = 0; i < bw; i++) { const [r, g, b] = cmap(i / bw); c.fillStyle = `rgb(${r},${g},${b})`; c.fillRect(bx + i, by, 1, 8); }
       c.fillStyle = "#dfe3e8"; c.font = "11px " + css("--sans"); c.textAlign = "left"; c.fillText("field energy density (log)", bx, by - 5);
       const um = 50 * Math.pow(10, Math.round(Math.log10(((x1 - x0) / 5) / 50))), len = um * s;
-      c.fillRect(14, h - 18, len, 2); c.fillText(um + " µm", 14, h - 24);
+      const sy = top ? 34 : h - 18; c.fillRect(14, sy, len, 2); c.fillText(um + " µm", 14, sy - 6);
     }
     function locate(px, py) {
       if (!D || !view) return null;
@@ -351,7 +362,7 @@
     [cMesh, cField].forEach((b) => b.addEventListener("change", draw));
     addEventListener("resize", draw);
     draw();
-    fetch("assets/squat-sim.json?v=20261127c").then((r) => r.json()).then((d) => {
+    fetch("assets/squat-sim.json?v=20261127d").then((r) => r.json()).then((d) => {
       D = d; D.verts = Float32Array.from(d.verts.flat ? d.verts.flat() : d.verts); D.tris = Uint32Array.from(d.tris.flat ? d.tris.flat() : d.tris); D.logU = Float32Array.from(d.logU);
       // a coarse grid of triangles for hover lookups
       const [x0, y0, x1, y1] = D.bounds, cs = (x1 - x0) / 80, nx = Math.ceil((x1 - x0) / cs) + 1, ny = Math.ceil((y1 - y0) / cs) + 1, cells = new Array(nx * ny);
